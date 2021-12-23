@@ -16,7 +16,7 @@ public class LoginCommand {
 
     public static String help(){
         return "usage: login <username> <password>\n\n"
-            + "Arguments\n" + "------------"
+            + "Arguments\n" + "----------\n"
             + "<username>     user to log into\n"
             + "<password>     password of the user";
     }
