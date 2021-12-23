@@ -122,6 +122,8 @@ public class ServerConfig {
                 catch (NumberFormatException ex) { throw new NumberFormatException("argument of REWARDPERC must be an integer"); }                
             }
         } catch (IOException ex) { throw new IOException("IO error while reading config file", ex); }
+
+        checkEmptyFields();
     }
 
     public String getServerAddr(){ return this.serverAddr; }
@@ -139,5 +141,18 @@ public class ServerConfig {
         if(str == null | prefix == null) throw new NullPointerException();
         if(!str.startsWith(prefix)) throw new StringPrefixException();
         return str.substring(prefix.length());
+    }
+
+    private void checkEmptyFields() throws EmptyKeyException {
+        if(serverAddr == null) throw new EmptyKeyException("SERVER key has not been initialized");
+        if(portTCP == -1) throw new EmptyKeyException("TCPPORT key has not been initialized");
+        if(portUDP == -1) throw new EmptyKeyException("UDPPORT key has not been initialized");
+        if(multicastAddr == null) throw new EmptyKeyException("MULTICAST key has not been initialized");
+        if(multicastPort == -1) throw new EmptyKeyException("MCASTPORT key has not been initialized");
+        if(regHost == null) throw new EmptyKeyException("REGHOST key has not been initialized");
+        if(regPort == -1) throw new EmptyKeyException("REGPORT key has not been initialized");
+        if(sockTimeout == -1) throw new EmptyKeyException("TIMEOUT key has not been initialized");
+        if(rewardInterval == -1) throw new EmptyKeyException("REWARDINTERVAL key has not been initialized");
+        if(authorRewardPerc == -1) throw new EmptyKeyException("REWARDPERC key has not been initialized");
     }
 }
