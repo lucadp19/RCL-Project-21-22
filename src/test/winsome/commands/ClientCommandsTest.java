@@ -13,6 +13,13 @@ public class ClientCommandsTest {
         System.out.println(ConsoleColors.GREEN_BOLD + "\tTesting login command" + ConsoleColors.RESET);
 
         System.out.println();
+        System.out.println(
+            ConsoleColors.GREEN_BOLD + "[0] " + ConsoleColors.RESET +
+            "Generating login command help text..."
+            );
+        System.out.println(LoginCommand.help());
+
+        System.out.println();
         String args = "user passw";
         try{ 
             System.out.println(
