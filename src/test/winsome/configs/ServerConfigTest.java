@@ -24,6 +24,7 @@ public class ServerConfigTest {
         } catch(Exception ex) { 
             printError( "exception caught while parsing correct config" );
             ex.printStackTrace(); 
+            System.exit(1);
         }
 
         System.out.println();
@@ -37,6 +38,7 @@ public class ServerConfigTest {
 
             printError("config contains a string in an integer field, should have thrown an error!");
             printConfig(config);
+            System.exit(1);
         } 
         catch(NumberFormatException ex){
             System.out.println("    Exception correctly caught!");
@@ -45,6 +47,7 @@ public class ServerConfigTest {
         catch(Exception ex) { 
             printError("wrong exception caught!");
             ex.printStackTrace(); 
+            System.exit(1);
         }
 
 
@@ -59,6 +62,7 @@ public class ServerConfigTest {
 
             printError("config contains a duplicate field, should have thrown an error!");
             printConfig(config);
+            System.exit(1);
         } 
         catch(KeyAlreadyDefinedException ex){
             System.out.println("    Exception correctly caught!");
@@ -67,7 +71,33 @@ public class ServerConfigTest {
         catch(Exception ex) { 
             printError("wrong exception caught!");
             ex.printStackTrace(); 
+            System.exit(1);
         }
+
+        System.out.println();
+        configPath = "src/test/winsome/configs/server_configs/MISSING.txt";
+        try {
+            System.out.println(
+                ConsoleColors.GREEN_BOLD + "[4] " + ConsoleColors.RESET + 
+                "Parsing config with missing fields..."
+                );
+            ServerConfig config = new ServerConfig(configPath);
+
+            printError("config has some fields missing, should have thrown an error!");
+            printConfig(config);
+            System.exit(1);
+        } 
+        catch(EmptyKeyException ex){
+            System.out.println("    Exception correctly caught!");
+            ex.printStackTrace();
+        }
+        catch(Exception ex) { 
+            printError("wrong exception caught!");
+            ex.printStackTrace();
+            System.exit(1);
+        }
+
+        System.out.println(ConsoleColors.GREEN_BOLD + "\nAll tests succeeded!" + ConsoleColors.RESET);
     }
 
     private static void printConfig(ServerConfig config){
