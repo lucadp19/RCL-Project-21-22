@@ -1,0 +1,31 @@
+# Server config
+
+# Server address
+SERVER=192.168.1.2
+
+# Server TCP port
+TCPPORT=6666
+
+# Server UDP port
+UDPPORT=33333
+
+# Multicast address
+MULTICAST=239.255.32.32
+
+# Multicast port
+MCASTPORT=44444
+
+# Registry host
+REGHOST=localhost
+
+# RMI Registry port
+REGPORT=7777
+
+# Socket timeout 
+TIMEOUT=100000
+
+# Interval for reward computation
+REWARDINTERVAL=1000
+
+# Percentage of the reward going to the author
+REWARDPERC=70
