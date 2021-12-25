@@ -32,34 +32,28 @@ public class Post {
     private String contents;
 
     private Optional<String> rewinner;
+    private Optional<Integer> rewinID;
 
-    private int oldUpvoteNumber;
-    private Set<String> upvotes;
-    private Set<String> downvotes;
+    private int oldUpvoteNumber = 0;
+    private final Set<String> upvotes = new HashSet<>();
+    private final Set<String> downvotes = new HashSet<>();
 
-    private List<Comment> comments;
+    private final List<Comment> comments = new ArrayList<>();
 
-    private AtomicInteger rewardsCounter = new AtomicInteger(1);
+    private final AtomicInteger rewardsCounter = new AtomicInteger(1);
 
     private static boolean isGeneratorSet = false;
     private static AtomicInteger idGenerator;
 
-    public Post(String author, String title, String contents) throws IllegalStateException {
-        initPost(author, title, contents, Optional.empty());
+    public Post(String author, String title, String contents) throws IllegalStateException, NullPointerException {
+        this(author, title, contents, Optional.empty(), Optional.empty());
     }
 
-    public Post(Post post, String rewinner){
-        if(post == null || rewinner == null) throw new NullPointerException("null parameters in post rewin");
-        initPost(post.getAuthor(), post.getTitle(), post.getContents(), Optional.of(rewinner));
+    public Post(Post post, String rewinner) throws IllegalStateException, NullPointerException {
+        this(post.getAuthor(), post.getTitle(), post.getContents(), Optional.of(rewinner), Optional.of(post.getID()));
     }
 
-    public static void initIDGenerator(int init) throws IllegalStateException {
-        if(isGeneratorSet) throw new IllegalStateException("starting value has already been set");
-        isGeneratorSet = true;
-        idGenerator = new AtomicInteger(init);
-    }
-
-    private void initPost(String author, String title, String contents, Optional<String> rewinner) 
+    public Post(String author, String title, String contents, Optional<String> rewinner, Optional<Integer> rewinID) 
             throws IllegalStateException, NullPointerException {
         if(!isGeneratorSet) throw new IllegalStateException("no starting value for IDs has been set");
         if(author == null || title == null || contents == null) 
@@ -69,16 +63,24 @@ public class Post {
         this.title = title;
         this.contents = contents;
         this.rewinner = rewinner;
-
-        this.oldUpvoteNumber = 0;
-        this.upvotes = new HashSet<>();
-        this.downvotes = new HashSet<>();
+        this.rewinID = rewinID;
     }
 
-    public synchronized String getAuthor(){ return author; }
-    public synchronized String getTitle(){ return title; }
-    public synchronized String getContents(){ return contents; }
-    public synchronized Optional<String> getRewinner(){ return rewinner; }
+    public static void initIDGenerator(int init) throws IllegalStateException {
+        if(isGeneratorSet) throw new IllegalStateException("starting value has already been set");
+        isGeneratorSet = true;
+        idGenerator = new AtomicInteger(init);
+    }
+
+    public int getID(){ return id; }
+    public String getAuthor(){ return author; }
+    public String getTitle(){ return title; }
+    public String getContents(){ return contents; }
+    public Optional<String> getRewinner(){ return rewinner; }
+    public Optional<Integer> getRewinID(){ return rewinID; }
+
+    public boolean isRewin(){ return rewinner.isPresent(); }
+
     public synchronized List<String> getUpvotes(){ return new ArrayList<>(upvotes); }
     public synchronized List<String> getDownvotes(){ return new ArrayList<>(downvotes); }
     public synchronized List<Comment> getComments(){ return new ArrayList<>(comments); }
