@@ -39,6 +39,8 @@ public class Post {
 
     private List<Comment> comments;
 
+    private AtomicInteger rewardsCounter = new AtomicInteger(1);
+
     private static boolean isGeneratorSet = false;
     private static AtomicInteger idGenerator;
 
@@ -73,35 +75,38 @@ public class Post {
         this.downvotes = new HashSet<>();
     }
 
-    public String getAuthor(){ return author; }
-    public String getTitle(){ return title; }
-    public String getContents(){ return contents; }
-    public Optional<String> getRewinner(){ return rewinner; }
-    public List<String> getUpvotes(){ return new ArrayList<>(upvotes); }
-    public List<String> getDownvotes(){ return new ArrayList<>(downvotes); }
-    public List<Comment> getComments(){ return new ArrayList<>(comments); }
+    public synchronized String getAuthor(){ return author; }
+    public synchronized String getTitle(){ return title; }
+    public synchronized String getContents(){ return contents; }
+    public synchronized Optional<String> getRewinner(){ return rewinner; }
+    public synchronized List<String> getUpvotes(){ return new ArrayList<>(upvotes); }
+    public synchronized List<String> getDownvotes(){ return new ArrayList<>(downvotes); }
+    public synchronized List<Comment> getComments(){ return new ArrayList<>(comments); }
+    public synchronized int getRewardsCounter(){ return rewardsCounter.get(); }
 
-    public void upvote(String voter) throws NullPointerException, IllegalArgumentException {
+    public synchronized void upvote(String voter) throws NullPointerException, IllegalArgumentException {
         if(voter == null) throw new NullPointerException("null parameter in upvoting post");
         if(!upvotes.add(voter)) 
             throw new IllegalArgumentException("post has already been upvoted");
     }
 
-   public void downvote(String voter) throws NullPointerException, IllegalArgumentException {
+   public synchronized void downvote(String voter) throws NullPointerException, IllegalArgumentException {
         if(voter == null) throw new NullPointerException("null parameter in downvoting post");
         if(!downvotes.add(voter)) 
             throw new IllegalArgumentException("post has already been downvoted");
     }
 
-    public void addComment(String author, String contents) throws NullPointerException, IllegalArgumentException {
+    public synchronized void addComment(String author, String contents) throws NullPointerException, IllegalArgumentException {
         if(author == null || contents == null) throw new NullPointerException("null parameter in comment creation");
         if(author == this.author) throw new IllegalArgumentException("author cannot add a comment to their own post");
         comments.add(new Comment(author, contents));
     }
 
-    public int getNewLikes(){ return upvotes.size() - oldUpvoteNumber; }
+    public synchronized int getNewLikes(){ return upvotes.size() - oldUpvoteNumber; }
 
-    public Map<String, AtomicInteger> getUnreadComments(){
+    public synchronized void updateRewardsCounter(){ rewardsCounter.incrementAndGet(); }
+
+    public synchronized Map<String, AtomicInteger> getUnreadComments(){
         Map<String, AtomicInteger> map = new HashMap<>();
 
         for(Comment comment : comments){
@@ -118,12 +123,12 @@ public class Post {
         return map;
     }
 
-    public void updateState(){
+    public synchronized void updateState(){
         oldUpvoteNumber = upvotes.size();
         for(Comment comment : comments) comment.setRead();
     }
 
-    public String prettify(){
+    public synchronized String prettify(){
         String str = 
             ConsoleColors.GREEN_BOLD + "Title: " + ConsoleColors.RESET + this.title + "\n"
             + ConsoleColors.GREEN_BOLD + "Contents: " + ConsoleColors.RESET + this.contents + "\n"
