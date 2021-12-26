@@ -18,14 +18,15 @@ public interface RemoteServer extends Remote {
 
     /**
      * Registers a remote client in the update list.
+     * @param username the logged user
      * @param client the remote client
      * @throws RemoteException
      */
-    void registerForUpdates(RemoteClient client) throws RemoteException;
+    void registerForUpdates(String username, RemoteClient client) throws RemoteException;
     /**
      * Unregisters a remote client from the update list.
-     * @param client the remote client
+     * @param username the logged user
      * @throws RemoteException
      */
-    void unregisterForUpdates(RemoteClient client) throws RemoteException;
+    void unregisterForUpdates(String username) throws RemoteException;
 }
