@@ -1,12 +1,27 @@
 package winsome.api;
 
+import java.io.IOException;
+import java.net.*;
+
+import java.nio.channels.*;
+
 import java.rmi.*;
+import java.rmi.registry.LocateRegistry;
+import java.rmi.registry.Registry;
 import java.rmi.server.*;
+
 import java.util.*;
 
 public class WinsomeAPI extends RemoteObject implements RemoteClient {
     private final String serverAddr;
     private final int serverPort; 
+    private final String remoteObjName = "WINSOME-SERVER";
+    private final int registryPort;
+
+    private SocketChannel socketChannel = null;
+    private RemoteServer remoteServer = null;
+
+    private RemoteClient remoteClient;
     
     private String loggedUser = null;
     private Map<Integer, Post> posts = null;
@@ -15,12 +30,37 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
 
     public WinsomeAPI(
         String serverAddr, 
-        int serverPort
+        int serverPort,
+        int registryPort
     ){
         super();
 
         this.serverAddr = serverAddr;
         this.serverPort = serverPort;
+        this.registryPort = registryPort;
+    }
+
+    /* *************** Connection methods *************** */
+
+    public void connect() throws IOException, RemoteException, NotBoundException {
+        connectTCP(); connectRegistry();
+    }
+
+    private void connectTCP() throws IOException {
+        if(socketChannel != null) throw new IllegalStateException("already connected to server");
+
+        // opening channel in blocking mode, so there's no need to wait for the connection to be fully established
+        socketChannel = SocketChannel.open(new InetSocketAddress(serverAddr, serverPort));
+    }
+
+    private void connectRegistry() throws RemoteException, NotBoundException {
+        if(remoteServer != null) throw new IllegalStateException("already connected to server");
+
+        Registry reg = LocateRegistry.getRegistry(registryPort);
+        Remote remoteObj = reg.lookup(remoteObjName);
+        remoteServer = (RemoteServer) remoteObj;
+
+        remoteClient = (RemoteClient) UnicastRemoteObject.exportObject(this, 0);
     }
 
     /* *************** Callback methods *************** */
