@@ -1,4 +1,4 @@
-package winsome.api;
+package winsome.server;
 
 import java.time.Instant;
 

@@ -24,7 +24,7 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
     private RemoteClient remoteClient;
     
     private String loggedUser = null;
-    private Map<Integer, Post> posts = null;
+    private Map<Integer, PostInfo> posts = null;
     private Map<String, List<String>> followers = null;
     private Map<String, List<String>> following = null;
 

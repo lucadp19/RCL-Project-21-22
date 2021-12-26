@@ -1,10 +1,7 @@
-package winsome.api;
+package winsome.server;
 
-import java.io.Console;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import winsome.utils.ConsoleColors;
 
 public class Post {
     public class Comment {
@@ -128,20 +125,5 @@ public class Post {
     public synchronized void updateState(){
         oldUpvoteNumber = upvotes.size();
         for(Comment comment : comments) comment.setRead();
-    }
-
-    public synchronized String prettify(){
-        String str = 
-            ConsoleColors.GREEN_BOLD + "Title: " + ConsoleColors.RESET + this.title + "\n"
-            + ConsoleColors.GREEN_BOLD + "Contents: " + ConsoleColors.RESET + this.contents + "\n"
-            + ConsoleColors.GREEN_BOLD + "Votes: " + ConsoleColors.RESET + 
-                this.upvotes.size() + " upvotes, " + this.downvotes.size() + " downvotes\n" 
-            + ConsoleColors.GREEN_BOLD + "Comments: ";
-        if(comments.isEmpty()) str += "0\n";
-        else { 
-            for(Comment comment : comments) str += "    " + comment.prettify() + "\n";
-        }
-
-        return str;
     }
 }
