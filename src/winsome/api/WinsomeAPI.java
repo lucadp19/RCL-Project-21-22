@@ -1,24 +1,50 @@
 package winsome.api;
 
+import java.rmi.*;
+import java.rmi.server.*;
 import java.util.*;
 
-public class WinsomeAPI {
+public class WinsomeAPI extends RemoteObject implements RemoteClient {
     private final String serverAddr;
     private final int serverPort; 
     
-    private String currentUser;
+    private String loggedUser = null;
+    private Map<Integer, Post> posts = null;
+    private Map<String, List<String>> followers = null;
+    private Map<String, List<String>> following = null;
 
     public WinsomeAPI(
         String serverAddr, 
         int serverPort
     ){
+        super();
+
         this.serverAddr = serverAddr;
         this.serverPort = serverPort;
     }
 
-    /*
-        Stubs for methods
-    */
+    /* *************** Callback methods *************** */
+
+    public void addFollower(String user, List<String> tags) throws RemoteException {
+        if(loggedUser == null) throw new IllegalStateException(); // TODO: make new exception
+        if(user == null || tags == null) throw new NullPointerException("null parameters while adding new follower");
+        for(String tag : tags) 
+            if(tag == null) throw new NullPointerException("null parameters while adding new follower");
+        
+        if(followers.containsKey(user)) throw new IllegalArgumentException(); // TODO: make new exception
+
+        followers.put(user, tags);
+    }
+
+    public void removeFollower(String user) throws RemoteException {
+        if(loggedUser == null) throw new IllegalStateException(); // TODO: make new exception
+        if(user == null) throw new NullPointerException("null parameter while removing follower");
+        if(!followers.containsKey(user)) throw new IllegalArgumentException(); // TODO: make new exception
+
+        followers.remove(user);
+    }
+
+    /* *************** Stubs for TCP Methods *************** */
 
     public void register(String user, String passw, Set<String> tags){}
 

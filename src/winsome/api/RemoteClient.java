@@ -1,6 +1,6 @@
 package winsome.api;
 
-import java.rmi.RemoteException;
+import java.rmi.*;
 import java.util.*;
 
 /**
