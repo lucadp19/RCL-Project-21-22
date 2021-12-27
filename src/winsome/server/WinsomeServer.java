@@ -4,6 +4,7 @@ import java.util.*;
 import java.util.Map.*;
 import java.util.concurrent.*;
 
+
 import java.io.IOException;
 import java.nio.channels.*;
 
@@ -24,15 +25,15 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
     private DatagramSocket multicastSocket;
 
-    private Map<String, SelectionKey> userSessions;
+    private ConcurrentMap<String, SelectionKey> userSessions;
 
-    private Map<String, User> users;
-    private Map<Integer, Post> posts;
-    private Map<String, List<String>> followerMap;
-    private Map<String, List<String>> followingMap;
-    private Map<String, List<Transaction>> transactions;
+    private ConcurrentMap<String, User> users;
+    private ConcurrentMap<Integer, Post> posts;
+    private ConcurrentMap<String, List<String>> followerMap;
+    private ConcurrentMap<String, List<String>> followingMap;
+    private ConcurrentMap<String, List<Transaction>> transactions;
 
-    private Map<String, RemoteClient> registeredToCallbacks; // TODO: multiple clients, same user?
+    private ConcurrentMap<String, RemoteClient> registeredToCallbacks; // TODO: multiple clients, same user?
 
     public WinsomeServer(){
         super();
@@ -103,5 +104,11 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             if(userSessions.containsKey(username)) throw new UserAlreadyLoggedException();
             userSessions.put(username, client);
         }
+    }
+
+    public void logout(String username, SelectionKey client) throws NullPointerException {
+        if(username == null || client == null) throw new NullPointerException("null parameters in logout");
+
+        users.remove(username, client);
     }
 }
