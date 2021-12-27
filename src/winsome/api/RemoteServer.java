@@ -3,6 +3,8 @@ package winsome.api;
 import java.rmi.*;
 import java.util.*;
 
+import winsome.api.exceptions.*;
+
 /**
  * An interface for a remote WINSOME server. 
  */
@@ -14,7 +16,7 @@ public interface RemoteServer extends Remote {
      * @param tags the new user's tags
      * @throws RemoteException
      */
-    void signUp(String username, String password, List<String> tags) throws RemoteException;
+    void signUp(String username, String password, List<String> tags) throws RemoteException, UserAlreadyExistsException;
 
     /**
      * Registers a remote client in the update list.
@@ -22,11 +24,11 @@ public interface RemoteServer extends Remote {
      * @param client the remote client
      * @throws RemoteException
      */
-    void registerForUpdates(String username, RemoteClient client) throws RemoteException;
+    void registerForUpdates(String username, RemoteClient client) throws RemoteException, NoSuchUserException;
     /**
      * Unregisters a remote client from the update list.
      * @param username the logged user
      * @throws RemoteException
      */
-    void unregisterForUpdates(String username) throws RemoteException;
+    void unregisterForUpdates(String username) throws RemoteException, NoSuchUserException;
 }

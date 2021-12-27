@@ -11,6 +11,7 @@ import java.rmi.*;
 import java.rmi.server.RemoteObject;
 
 import winsome.api.*;
+import winsome.api.exceptions.*;
 
 public class WinsomeServer extends RemoteObject implements RemoteServer {
     private ServerConfig config;
@@ -52,13 +53,13 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
     /* **************** Remote Methods **************** */
 
-    public void signUp(String username, String password, List<String> tags) throws RemoteException {
+    public void signUp(String username, String password, List<String> tags) throws RemoteException, UserAlreadyExistsException {
         if(username == null || password == null || tags == null) throw new NullPointerException("null parameters in signUp method");
         for(String tag : tags) 
             if(tag == null) throw new NullPointerException("null parameters in signUp method");
 
         synchronized(this){ // TODO: is this the best way to synchronize things?
-            if(users.containsKey(username)) throw new IllegalArgumentException(); // TODO: change exception
+            if(users.containsKey(username)) throw new UserAlreadyExistsException();
 
             User newUser = new User(username, password, tags);
 
@@ -69,16 +70,16 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         }
     }
 
-    public void registerForUpdates(String username, RemoteClient client) throws RemoteException {
+    public void registerForUpdates(String username, RemoteClient client) throws RemoteException, NoSuchUserException {
         if(username == null) throw new NullPointerException("null parameters while registering user in callback system");
-        if(!users.containsKey(username)) throw new IllegalArgumentException(); // TODO: change exception
+        if(!users.containsKey(username)) throw new NoSuchUserException();
 
         registeredToCallbacks.putIfAbsent(username, client);
     }
 
-    public void unregisterForUpdates(String username) throws RemoteException {
+    public void unregisterForUpdates(String username) throws RemoteException, NoSuchUserException {
         if(username == null) throw new NullPointerException("null parameters while unregistering user from callback system");
-        if(!users.containsKey(username)) throw new IllegalArgumentException(); // TODO: change exception
+        if(!users.containsKey(username)) throw new NoSuchUserException();
 
         registeredToCallbacks.remove(username);
     }
