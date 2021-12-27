@@ -2,6 +2,10 @@ package winsome.server;
 
 import java.util.*;
 import java.util.concurrent.*;
+import java.io.IOException;
+import java.net.*;
+
+import java.nio.channels.*;
 
 import java.rmi.*;
 import java.rmi.server.RemoteObject;
@@ -11,10 +15,16 @@ import winsome.api.*;
 public class WinsomeServer extends RemoteObject implements RemoteServer {
     private ServerConfig config;
 
+    private Selector selector;
+    private ServerSocketChannel socketChannel;
+
+    private DatagramSocket multicastSocket;
+
+
     private Map<String, User> users;
     private Map<Integer, Post> posts;
-    private Map<String, List<User>> followerMap;
-    private Map<String, List<User>> followingMap;
+    private Map<String, List<String>> followerMap;
+    private Map<String, List<String>> followingMap;
     private Map<String, List<Transaction>> transactions;
 
     private Map<String, RemoteClient> registeredToCallbacks; // TODO: multiple clients, same user?
@@ -22,6 +32,23 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
     public WinsomeServer(){
         super();
     }
+
+    /* **************** Connection methods **************** */
+
+    public void startServer() throws IOException {
+        // initializing socket and selector
+        InetSocketAddress sockAddress = new InetSocketAddress(config.getTCPPort());
+        selector = Selector.open();
+        socketChannel = ServerSocketChannel.open();
+
+        // initializing multicast socket
+        multicastSocket = new DatagramSocket(config.getUDPPort());
+
+        socketChannel.bind(sockAddress);
+        socketChannel.configureBlocking(false);
+        socketChannel.register(selector, SelectionKey.OP_ACCEPT);
+    }
+
 
     /* **************** Remote Methods **************** */
 
