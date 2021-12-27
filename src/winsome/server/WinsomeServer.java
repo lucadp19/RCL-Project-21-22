@@ -1,17 +1,20 @@
 package winsome.server;
 
 import java.util.*;
+import java.util.Map.*;
 import java.util.concurrent.*;
-import java.io.IOException;
-import java.net.*;
 
+import java.io.IOException;
 import java.nio.channels.*;
+
+import java.net.*;
 
 import java.rmi.*;
 import java.rmi.server.RemoteObject;
 
 import winsome.api.*;
 import winsome.api.exceptions.*;
+import winsome.server.exceptions.*;
 
 public class WinsomeServer extends RemoteObject implements RemoteServer {
     private ServerConfig config;
@@ -21,6 +24,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
     private DatagramSocket multicastSocket;
 
+    private Map<String, SelectionKey> userSessions;
 
     private Map<String, User> users;
     private Map<Integer, Post> posts;
@@ -49,7 +53,6 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         socketChannel.configureBlocking(false);
         socketChannel.register(selector, SelectionKey.OP_ACCEPT);
     }
-
 
     /* **************** Remote Methods **************** */
 
@@ -82,5 +85,23 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         if(!users.containsKey(username)) throw new NoSuchUserException();
 
         registeredToCallbacks.remove(username);
+    }
+
+    /* ************** Login/logout ************** */
+
+    public void login(String username, String password, SelectionKey client) 
+            throws NullPointerException, NoSuchUserException, WrongPasswordException, InvalidSelectionKeyException, UserAlreadyLoggedException {
+        if(username == null || password == null || client == null) throw new NullPointerException("null parameters in login");
+        if(!users.containsKey(username)) throw new NoSuchUserException();
+
+        User user = users.get(username);
+        if(user.getPassword() != password) throw new WrongPasswordException();
+
+        if(!client.isValid()) throw new InvalidSelectionKeyException();
+
+        synchronized(userSessions){
+            if(userSessions.containsKey(username)) throw new UserAlreadyLoggedException();
+            userSessions.put(username, client);
+        }
     }
 }
