@@ -15,7 +15,7 @@ import java.util.*;
 public class WinsomeAPI extends RemoteObject implements RemoteClient {
     private final String serverAddr;
     private final int serverPort; 
-    private final String remoteObjName = "WINSOME-SERVER";
+    private final String registryAddr;
     private final int registryPort;
 
     private SocketChannel socketChannel = null;
@@ -31,12 +31,14 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
     public WinsomeAPI(
         String serverAddr, 
         int serverPort,
+        String registryAddr,
         int registryPort
     ){
         super();
 
         this.serverAddr = serverAddr;
         this.serverPort = serverPort;
+        this.registryAddr = registryAddr;
         this.registryPort = registryPort;
     }
 
@@ -51,16 +53,18 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
 
         // opening channel in blocking mode, so there's no need to wait for the connection to be fully established
         socketChannel = SocketChannel.open(new InetSocketAddress(serverAddr, serverPort));
+        // System.out.println("Connected to socket!");
     }
 
     private void connectRegistry() throws RemoteException, NotBoundException {
         if(remoteServer != null) throw new IllegalStateException("already connected to server");
 
         Registry reg = LocateRegistry.getRegistry(registryPort);
-        Remote remoteObj = reg.lookup(remoteObjName);
+        Remote remoteObj = reg.lookup(registryAddr);
         remoteServer = (RemoteServer) remoteObj;
 
         remoteClient = (RemoteClient) UnicastRemoteObject.exportObject(this, 0);
+        // System.out.println("Connected to registry!");
     }
 
     /* *************** Callback methods *************** */
