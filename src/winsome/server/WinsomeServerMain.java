@@ -1,7 +1,7 @@
 package winsome.server;
 
 public class WinsomeServerMain {
-    private static final String DEFAULT_CONFIG_PATH = "./configs/DEFAULT_SERVER_CONFIG.txt";
+    private static final String DEFAULT_CONFIG_PATH = "./configs/server-config.yaml";
 
     public static void main(String[] args) {
         WinsomeServer server = new WinsomeServer();
