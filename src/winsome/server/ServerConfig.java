@@ -1,9 +1,29 @@
 package winsome.server;
 
 import java.io.*;
-import winsome.utils.exceptions.*;
+import java.util.Optional;
 
-public class ServerConfig {
+import winsome.utils.configs.AbstractConfig;
+import winsome.utils.configs.ConfigEntry;
+import winsome.utils.configs.exceptions.*;
+
+public class ServerConfig extends AbstractConfig {
+    private enum SCField {
+        SERVER_ADDR     ("server-addr"),
+        PORT_TCP        ("tcp-port"),
+        PORT_UDP        ("udp-port"),
+        MCAST_ADDR      ("multicast-addr"),
+        MCAST_PORT      ("multicast-port"),
+        REG_HOST        ("registry-host"),
+        REG_PORT        ("registry-port"),
+        SOCK_TIMEOUT    ("socket-timeout"),
+        REWARD_INT      ("reward-interval"),
+        REWARD_PERC     ("reward-percentage");
+
+        public final String key;
+        SCField(String key){ this.key = key; }
+    }
+
     private String serverAddr = null;
     private int portTCP = -1;
     private int portUDP = -1;
@@ -17,109 +37,75 @@ public class ServerConfig {
     private int authorRewardPerc = -1;
 
     public ServerConfig(final String configPath) throws 
-            NullPointerException, FileNotFoundException, KeyAlreadyDefinedException, 
-            NumberFormatException, IOException 
+            NullPointerException, FileNotFoundException, 
+            MalformedEntryException, DuplicateKeyException, UnknownKeyException, 
+            KeyNotSetException, NumberFormatException, IOException 
     {
-        if(configPath == null) throw new NullPointerException("configPath must not be null");
-        
-        File configFile = new File(configPath);
-        if(!configFile.exists()) throw new FileNotFoundException("config file does not exist");
-        if(!configFile.isFile()) throw new FileNotFoundException("config file is not a regular file");
+        File configFile = getConfigFile(configPath);
 
         try (
             BufferedReader configIn = new BufferedReader(new FileReader(configFile));
         ) {
             String line;
             while((line = configIn.readLine()) != null){
-                if(line.isEmpty()) continue;
-                if(line.charAt(0) == '#') continue;
+                Optional<ConfigEntry> maybeEntry = readEntry(line);
+                if(maybeEntry.isEmpty()) continue;
 
-                try {
-                    String trimmed = trimPrefix(line, "SERVER=");
-                    if(serverAddr == null){
-                        serverAddr = trimmed;
-                        continue;
-                    } else throw new KeyAlreadyDefinedException("key SERVER was already defined");
-                } catch (StringPrefixException ex) { }
+                ConfigEntry entry = maybeEntry.get();
 
-                try {
-                    String trimmed = trimPrefix(line, "TCPPORT=");
-                    if(portTCP == -1){
-                        portTCP = Integer.parseInt(trimmed);
-                        continue;
-                    } else throw new KeyAlreadyDefinedException("key TCPPORT was already defined");
-                } catch (StringPrefixException ex) { }
-                catch (NumberFormatException ex) { throw new NumberFormatException("argument of TCPPORT must be an integer"); }
+                SCField key;
+                try { key = SCField.valueOf(entry.key); }
+                catch(IllegalArgumentException ex){ throw new UnknownKeyException(entry.key); }
 
-                try {
-                    String trimmed = trimPrefix(line, "UDPPORT=");
-                    if(portUDP == -1){
-                        portUDP = Integer.parseInt(trimmed);
-                        continue;
-                    } else throw new KeyAlreadyDefinedException("key UDPPORT was already defined");
-                } catch (StringPrefixException ex) { }
-                catch (NumberFormatException ex) { throw new NumberFormatException("argument of UDPPORT must be an integer"); }
-
-                try {
-                    String trimmed = trimPrefix(line, "MULTICAST=");
-                    if(multicastAddr == null){
-                        multicastAddr = trimmed;
-                        continue;
-                    } else throw new KeyAlreadyDefinedException("key MULTICAST was already defined");
-                } catch (StringPrefixException ex) { }
-
-                try {
-                    String trimmed = trimPrefix(line, "MCASTPORT=");
-                    if(multicastPort == -1){
-                        multicastPort = Integer.parseInt(trimmed);
-                        continue;
-                    } else throw new KeyAlreadyDefinedException("key MCASTPORT was already defined");
-                } catch (StringPrefixException ex) { }
-                catch (NumberFormatException ex) { throw new NumberFormatException("argument of MCASTPORT must be an integer"); }
-
-                try {
-                    String trimmed = trimPrefix(line, "REGHOST=");
-                    if(regHost == null){
-                        regHost = trimmed;
-                        continue;
-                    } else throw new KeyAlreadyDefinedException("key REGHOST was already defined");
-                } catch (StringPrefixException ex) { }
-               
-                try {
-                    String trimmed = trimPrefix(line, "REGPORT=");
-                    if(regPort == -1){
-                        regPort = Integer.parseInt(trimmed);
-                        continue;
-                    } else throw new KeyAlreadyDefinedException("key REGPORT was already defined");
-                } catch (StringPrefixException ex) { }
-                catch (NumberFormatException ex) { throw new NumberFormatException("argument of REGPORT must be an integer"); }
-
-                try {
-                    String trimmed = trimPrefix(line, "TIMEOUT=");
-                    if(sockTimeout == -1){
-                        sockTimeout = Integer.parseInt(trimmed);
-                        continue;
-                    } else throw new KeyAlreadyDefinedException("key TIMEOUT was already defined");
-                } catch (StringPrefixException ex) { }
-                catch (NumberFormatException ex) { throw new NumberFormatException("argument of TIMEOUT must be an integer"); }
-
-                try {
-                    String trimmed = trimPrefix(line, "REWARDINTERVAL=");
-                    if(rewardInterval == -1){
-                        rewardInterval = Integer.parseInt(trimmed);
-                        continue;
-                    } else throw new KeyAlreadyDefinedException("key REWARDINTERVAL was already defined");
-                } catch (StringPrefixException ex) { }
-                catch (NumberFormatException ex) { throw new NumberFormatException("argument of REWARDINTERVAL must be an integer"); }                
-
-                try {
-                    String trimmed = trimPrefix(line, "REWARDPERC=");
-                    if(authorRewardPerc == -1){
-                        authorRewardPerc = Integer.parseInt(trimmed);
-                        continue;
-                    } else throw new KeyAlreadyDefinedException("key REWARDPERC was already defined");
-                } catch (StringPrefixException ex) { }
-                catch (NumberFormatException ex) { throw new NumberFormatException("argument of REWARDPERC must be an integer"); }                
+                switch (key) {
+                    case SERVER_ADDR:
+                        if(serverAddr != null) throw new DuplicateKeyException(SCField.SERVER_ADDR.key);
+                        serverAddr = entry.value;
+                        break;
+                    case PORT_TCP:
+                        if(portTCP != -1) throw new DuplicateKeyException(SCField.PORT_TCP.key);
+                        try { portTCP = Integer.parseInt(entry.value); }
+                        catch(NumberFormatException ex){ throw new NumberFormatException("argument of \"" + SCField.PORT_TCP.key + "\" must be an integer"); }
+                        break;
+                    case PORT_UDP:
+                        if(portUDP != -1) throw new DuplicateKeyException(SCField.PORT_UDP.key);
+                        try { portUDP = Integer.parseInt(entry.value); }
+                        catch(NumberFormatException ex){ throw new NumberFormatException("argument of \"" + SCField.PORT_UDP.key + "\" must be an integer"); }
+                        break;
+                    case MCAST_ADDR:
+                        if(multicastAddr != null) throw new DuplicateKeyException(SCField.MCAST_ADDR.key);
+                        multicastAddr = entry.value;
+                        break;
+                    case MCAST_PORT:
+                        if(multicastPort != -1) throw new DuplicateKeyException(SCField.MCAST_PORT.key);
+                        try { multicastPort = Integer.parseInt(entry.value); }
+                        catch(NumberFormatException ex){ throw new NumberFormatException("argument of \"" + SCField.MCAST_PORT.key + "\" must be an integer"); }
+                        break;
+                    case REG_HOST:
+                        if(regHost != null) throw new DuplicateKeyException(SCField.REG_HOST.key);
+                        regHost = entry.value;
+                        break;
+                    case REG_PORT:
+                        if(regPort != -1) throw new DuplicateKeyException(SCField.REG_PORT.key);
+                        try { regPort = Integer.parseInt(entry.value); }
+                        catch(NumberFormatException ex){ throw new NumberFormatException("argument of \"" + SCField.REG_PORT.key + "\" must be an integer"); }
+                        break;
+                    case SOCK_TIMEOUT:
+                        if(sockTimeout != -1) throw new DuplicateKeyException(SCField.SOCK_TIMEOUT.key);
+                        try { sockTimeout = Long.parseLong(entry.value); }
+                        catch(NumberFormatException ex){ throw new NumberFormatException("argument of \"" + SCField.SOCK_TIMEOUT.key + "\" must be an integer"); }
+                        break;
+                    case REWARD_INT:
+                        if(rewardInterval != -1) throw new DuplicateKeyException(SCField.REWARD_INT.key);
+                        try { rewardInterval = Long.parseLong(entry.value); }
+                        catch(NumberFormatException ex){ throw new NumberFormatException("argument of \"" + SCField.REWARD_INT.key + "\" must be an integer"); }
+                        break;
+                    case REWARD_PERC:
+                        if(authorRewardPerc != -1) throw new DuplicateKeyException(SCField.REWARD_PERC.key);
+                        try { authorRewardPerc = Integer.parseInt(entry.value); }
+                        catch(NumberFormatException ex){ throw new NumberFormatException("argument of \"" + SCField.REWARD_PERC.key + "\" must be an integer"); }
+                        break;
+                }
             }
         } catch (IOException ex) { throw new IOException("IO error while reading config file", ex); }
 
@@ -137,22 +123,16 @@ public class ServerConfig {
     public long getRewardInterval(){ return this.rewardInterval; }
     public int getRewardPerc(){ return this.authorRewardPerc; }
 
-    private static String trimPrefix(String str, String prefix) {
-        if(str == null | prefix == null) throw new NullPointerException();
-        if(!str.startsWith(prefix)) throw new StringPrefixException();
-        return str.substring(prefix.length());
-    }
-
-    private void checkEmptyFields() throws EmptyKeyException {
-        if(serverAddr == null) throw new EmptyKeyException("SERVER key has not been initialized");
-        if(portTCP == -1) throw new EmptyKeyException("TCPPORT key has not been initialized");
-        if(portUDP == -1) throw new EmptyKeyException("UDPPORT key has not been initialized");
-        if(multicastAddr == null) throw new EmptyKeyException("MULTICAST key has not been initialized");
-        if(multicastPort == -1) throw new EmptyKeyException("MCASTPORT key has not been initialized");
-        if(regHost == null) throw new EmptyKeyException("REGHOST key has not been initialized");
-        if(regPort == -1) throw new EmptyKeyException("REGPORT key has not been initialized");
-        if(sockTimeout == -1) throw new EmptyKeyException("TIMEOUT key has not been initialized");
-        if(rewardInterval == -1) throw new EmptyKeyException("REWARDINTERVAL key has not been initialized");
-        if(authorRewardPerc == -1) throw new EmptyKeyException("REWARDPERC key has not been initialized");
+    private void checkEmptyFields() throws KeyNotSetException {
+        if(serverAddr == null) throw new KeyNotSetException(SCField.SERVER_ADDR.key);
+        if(portTCP == -1) throw new KeyNotSetException(SCField.PORT_TCP.key);
+        if(portUDP == -1) throw new KeyNotSetException(SCField.PORT_UDP.key);
+        if(multicastAddr == null) throw new KeyNotSetException(SCField.MCAST_ADDR.key);
+        if(multicastPort == -1) throw new KeyNotSetException(SCField.MCAST_PORT.key);
+        if(regHost == null) throw new KeyNotSetException(SCField.REG_HOST.key);
+        if(regPort == -1) throw new KeyNotSetException(SCField.REG_PORT.key);
+        if(sockTimeout == -1) throw new KeyNotSetException(SCField.SOCK_TIMEOUT.key);
+        if(rewardInterval == -1) throw new KeyNotSetException(SCField.REWARD_INT.key);
+        if(authorRewardPerc == -1) throw new KeyNotSetException(SCField.REWARD_PERC.key);
     }
 }

@@ -40,7 +40,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
     }
 
     public void initServer(String configPath) 
-        throws NullPointerException, FileNotFoundException, NumberFormatException, IOException {
+        throws NullPointerException, FileNotFoundException, 
+                NumberFormatException, IOException {
         config = new ServerConfig(configPath);
 
         // TODO: read persisted data
