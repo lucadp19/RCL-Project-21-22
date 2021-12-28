@@ -4,8 +4,7 @@ import java.util.*;
 import java.util.Map.*;
 import java.util.concurrent.*;
 
-
-import java.io.IOException;
+import java.io.*;
 import java.nio.channels.*;
 
 import java.net.*;
@@ -16,6 +15,7 @@ import java.rmi.server.RemoteObject;
 import winsome.api.*;
 import winsome.api.exceptions.*;
 import winsome.server.exceptions.*;
+import winsome.utils.exceptions.*;
 
 public class WinsomeServer extends RemoteObject implements RemoteServer {
     private ServerConfig config;
@@ -37,6 +37,24 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
     public WinsomeServer(){
         super();
+    }
+
+    public void initServer(String configPath) 
+        throws NullPointerException, FileNotFoundException, KeyAlreadyDefinedException, 
+                NumberFormatException, IOException {
+        config = new ServerConfig(configPath);
+
+        // TODO: read persisted data
+
+        userSessions = new ConcurrentHashMap<>();
+
+        users = new ConcurrentHashMap<>();
+        posts = new ConcurrentHashMap<>();
+        followerMap = new ConcurrentHashMap<>();
+        followingMap = new ConcurrentHashMap<>();
+        transactions = new ConcurrentHashMap<>();
+        
+        registeredToCallbacks = new ConcurrentHashMap<>();
     }
 
     /* **************** Connection methods **************** */
