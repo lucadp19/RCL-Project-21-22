@@ -10,7 +10,9 @@ import java.nio.channels.*;
 import java.net.*;
 
 import java.rmi.*;
+import java.rmi.registry.*;
 import java.rmi.server.RemoteObject;
+import java.rmi.server.UnicastRemoteObject;
 
 import winsome.api.*;
 import winsome.api.exceptions.*;
@@ -71,6 +73,12 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         socketChannel.bind(sockAddress);
         socketChannel.configureBlocking(false);
         socketChannel.register(selector, SelectionKey.OP_ACCEPT);
+
+        // RMI startup
+        RemoteServer stub = (RemoteServer) UnicastRemoteObject.exportObject(this, 0);
+        LocateRegistry.createRegistry(config.getRegPort());
+        Registry reg = LocateRegistry.getRegistry(config.getRegPort());
+        reg.rebind(config.getRegHost(), stub);
     }
 
     /* **************** Main Loop **************** */
