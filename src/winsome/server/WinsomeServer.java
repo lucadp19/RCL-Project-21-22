@@ -109,6 +109,6 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
     public void logout(String username, SelectionKey client) throws NullPointerException {
         if(username == null || client == null) throw new NullPointerException("null parameters in logout");
 
-        users.remove(username, client);
+        userSessions.remove(username, client);
     }
 }
