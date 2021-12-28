@@ -17,9 +17,12 @@ default:
 	@javac -d $(OUT_DIR) -cp $(SRC_CP) $(SRC_FILES)
 	@echo "Project compiled!"
 
-.PHONY: clean
+.PHONY: clean runServer
 
 clean:
 	@echo "Cleaning $(OUT_DIR)..."
 	@rm -rf $(OUT_DIR)/*
 	@echo "$(OUT_DIR) clean!"
+
+runServer:
+	@java -cp $(OUT_CP) winsome.server.WinsomeServerMain
