@@ -55,6 +55,35 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         socketChannel.register(selector, SelectionKey.OP_ACCEPT);
     }
 
+    /* **************** Main Loop **************** */
+    
+    public void runServer() throws IOException {
+        while(true){
+            try { selector.select(); }
+            catch(IOException ex){ throw new IOException("IO Error in select", ex); }
+
+            Set<SelectionKey> keys = selector.selectedKeys();
+            Iterator<SelectionKey> iter = keys.iterator();
+            try {
+                while(iter.hasNext()){
+                    SelectionKey key = iter.next();
+                    iter.remove();
+
+                    if(key.isAcceptable()){ 
+                        SocketChannel client = socketChannel.accept();
+                        client.configureBlocking(false);
+                        client.register(selector, SelectionKey.OP_READ, null); 
+                    } 
+                    if(key.isReadable() && key.isValid()){
+                        // TODO
+                    }
+                }
+            } catch(IOException ex){
+                // disconnect client
+            }
+        }
+    }
+
     /* **************** Remote Methods **************** */
 
     public void signUp(String username, String password, List<String> tags) throws RemoteException, UserAlreadyExistsException {
