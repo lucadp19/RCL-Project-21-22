@@ -31,7 +31,7 @@ public class ServerConfig {
         ) {
             String line;
             while((line = configIn.readLine()) != null){
-                if(line.isBlank()) continue;
+                if(line.isEmpty()) continue;
                 if(line.charAt(0) == '#') continue;
 
                 try {
