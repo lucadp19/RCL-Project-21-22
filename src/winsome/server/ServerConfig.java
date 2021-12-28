@@ -22,6 +22,22 @@ public class ServerConfig extends AbstractConfig {
 
         public final String key;
         SCField(String key){ this.key = key; }
+        
+        static SCField fromKey(String key){
+            switch (key) {
+                case "server-addr":         return SERVER_ADDR;
+                case "tcp-port":            return PORT_TCP;
+                case "udp-port":            return PORT_UDP;
+                case "multicast-addr":      return MCAST_ADDR;
+                case "multicast-port":      return MCAST_PORT;
+                case "registry-host":       return REG_HOST;
+                case "registry-port":       return REG_PORT;
+                case "socket-timeout":      return SOCK_TIMEOUT;
+                case "reward-interval":     return REWARD_INT;
+                case "reward-percentage":   return REWARD_PERC;
+                default: throw new UnknownKeyException(key);
+            }
+        }
     }
 
     private String serverAddr = null;
@@ -53,9 +69,7 @@ public class ServerConfig extends AbstractConfig {
 
                 ConfigEntry entry = maybeEntry.get();
 
-                SCField key;
-                try { key = SCField.valueOf(entry.key); }
-                catch(IllegalArgumentException ex){ throw new UnknownKeyException(entry.key); }
+                SCField key = SCField.fromKey(entry.key);
 
                 switch (key) {
                     case SERVER_ADDR:

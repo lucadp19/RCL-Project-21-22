@@ -1,17 +1,16 @@
 package test.winsome.configs;
 
-import java.io.Console;
-
 import winsome.server.ServerConfig;
-import winsome.utils.*;
-import winsome.utils.exceptions.*;
+import winsome.utils.ConsoleColors;
+import winsome.utils.configs.exceptions.DuplicateKeyException;
+import winsome.utils.configs.exceptions.KeyNotSetException;
 
 public class ServerConfigTest {
     public static void main(String[] args) {
         System.out.println(ConsoleColors.GREEN_BOLD + "\tTesting ServerConfig class" + ConsoleColors.RESET);
 
         System.out.println();
-        String configPath = "configs/DEFAULT_SERVER_CONFIG.txt";
+        String configPath = "configs/server-config.yaml";
         try {
             System.out.println(
                 ConsoleColors.GREEN_BOLD + "[1] " + ConsoleColors.RESET + 
@@ -28,7 +27,7 @@ public class ServerConfigTest {
         }
 
         System.out.println();
-        configPath = "src/test/winsome/configs/server_configs/NUMBER_FORMATS.txt";
+        configPath = "src/test/winsome/configs/server_configs/number-formats.yaml";
         try {
             System.out.println(
                 ConsoleColors.GREEN_BOLD + "[2] " + ConsoleColors.RESET + 
@@ -52,7 +51,7 @@ public class ServerConfigTest {
 
 
         System.out.println();
-        configPath = "src/test/winsome/configs/server_configs/DUPLICATES.txt";
+        configPath = "src/test/winsome/configs/server_configs/duplicates.yaml";
         try {
             System.out.println(
                 ConsoleColors.GREEN_BOLD + "[3] " + ConsoleColors.RESET + 
@@ -64,7 +63,7 @@ public class ServerConfigTest {
             printConfig(config);
             System.exit(1);
         } 
-        catch(KeyAlreadyDefinedException ex){
+        catch(DuplicateKeyException ex){
             System.out.println("    Exception correctly caught!");
             ex.printStackTrace();
         }
@@ -75,7 +74,7 @@ public class ServerConfigTest {
         }
 
         System.out.println();
-        configPath = "src/test/winsome/configs/server_configs/MISSING.txt";
+        configPath = "src/test/winsome/configs/server_configs/missing.yaml";
         try {
             System.out.println(
                 ConsoleColors.GREEN_BOLD + "[4] " + ConsoleColors.RESET + 
@@ -87,7 +86,7 @@ public class ServerConfigTest {
             printConfig(config);
             System.exit(1);
         } 
-        catch(EmptyKeyException ex){
+        catch(KeyNotSetException ex){
             System.out.println("    Exception correctly caught!");
             ex.printStackTrace();
         }
