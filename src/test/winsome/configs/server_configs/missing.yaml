@@ -1,25 +1,25 @@
 # Server config
 
 # Server address
-SERVER=192.168.1.2
+server-addr: 192.168.1.2
 
 # Server TCP port
-TCPPORT=6666
+tcp-port: 6666
 
 # Multicast address
-MULTICAST=239.255.32.32
+multicast-addr: 239.255.32.32
 
 # Multicast port
-MCASTPORT=44444
+multicast-port: 44444
 
 # RMI Registry port
-REGPORT=7777
+registry-port: 7777
 
 # Socket timeout 
-TIMEOUT=100000
+socket-timeout: 100000
 
 # Interval for reward computation
-REWARDINTERVAL=1000
+reward-interval: 1000
 
 # Percentage of the reward going to the author
-REWARDPERC=70
+reward-percentage: 70
