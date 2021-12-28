@@ -26,3 +26,6 @@ clean:
 
 runServer:
 	@java -cp $(OUT_CP) winsome.server.WinsomeServerMain
+
+runClient:
+	@java -cp $(OUT_CP) winsome.client.WinsomeClientMain

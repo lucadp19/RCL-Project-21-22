@@ -1,4 +1,4 @@
-package winsome.server;
+package winsome.client;
 
 import java.io.*;
 import java.util.Optional;

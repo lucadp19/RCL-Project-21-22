@@ -1,0 +1,25 @@
+# Server config
+
+# Server address
+server-addr: localhost
+
+# Server TCP port
+tcp-port: 6666
+
+# Server UDP port
+udp-port: 33333
+
+# Multicast address
+multicast-addr: 239.255.32.32
+
+# Multicast port
+multicast-port: 44444
+
+# Registry host
+registry-host: localhost
+
+# RMI Registry port
+registry-port: 7777
+
+# Socket timeout 
+socket-timeout: 100000 # comments may be written after values
