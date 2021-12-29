@@ -139,8 +139,9 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
 
         DataOutputStream out = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream()));
 
-        out.writeInt(msg.length());
-        out.write(msg.getBytes(StandardCharsets.UTF_8));
+        byte[] tmp = msg.getBytes(StandardCharsets.UTF_8);
+        out.writeInt(tmp.length);
+        out.write(tmp);
         out.flush();
     }
 

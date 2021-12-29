@@ -118,26 +118,27 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
     }
 
     public void echo(SelectionKey key) throws IOException {
-        ByteBuffer buf = ByteBuffer.allocate(4);
+        // ByteBuffer buf = ByteBuffer.allocate(4);
         SocketChannel channel = (SocketChannel) key.channel();
+        
+        // if(channel.read(buf) == -1) throw new IOException();
+        
+        // buf.flip();
+        // int size = buf.getInt(0);
+        // System.out.println(size);
 
-        if(channel.read(buf) == -1) throw new IOException();
+        // buf = ByteBuffer.allocate(size);
+        // while(buf.hasRemaining()){ channel.read(buf); }
+        // buf.flip();
 
-        buf.flip();
-        int size = buf.getInt(0);
-        System.out.println(size);
-
-        buf = ByteBuffer.allocate(size);
-        while(buf.hasRemaining()){ channel.read(buf); }
-        buf.flip();
-
-        String msg = StandardCharsets.UTF_8.decode(buf).toString().trim();
+        // String msg = StandardCharsets.UTF_8.decode(buf).toString().trim();
+        String msg = receive(key);
         System.out.println("String is: " + msg);
 
         msg += " echoed by server\n";
         System.out.println("Answer is: " + msg.trim());
         
-        buf = ByteBuffer.allocate(4 + msg.length());
+        ByteBuffer buf = ByteBuffer.allocate(4 + msg.length());
         buf.putInt(msg.length());
         buf.put(msg.getBytes(StandardCharsets.UTF_8));
         buf.flip();
@@ -199,5 +200,48 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         if(username == null || client == null) throw new NullPointerException("null parameters in logout");
 
         userSessions.remove(username, client);
+    }
+
+    /* ************** Send/receive methods ************** */
+    private String receive(SelectionKey key) throws IOException {
+        ByteBuffer buf = ByteBuffer.allocateDirect(2048);
+        SocketChannel client = (SocketChannel) key.channel();
+
+        // EOF
+        if(client.read(buf) == -1) return null;
+
+        // reading length of message
+        while(buf.hasRemaining()) {
+            int read = client.read(buf);
+            if(read == 0) break;            // no more data
+            if(read == -1) return null;     // EOF
+        }
+        buf.flip();
+        int len = buf.getInt();             // length of message 
+        buf.compact(); buf.flip();
+
+        // reading message
+        byte[] tmp = new byte[len];
+        int pos = 0;    // next byte to read
+        while(true){
+            int remainingLen = len - pos;   // remaining no. of bytes to read
+            if(remainingLen <= 0) break;
+
+            // reads some data and puts it in the buffer
+            buf.get(tmp, pos, Math.min(remainingLen, buf.remaining()));
+
+            // advancing position of next byte to read
+            pos += buf.position();
+            buf.compact();  // to go in writer mode
+
+            while(buf.hasRemaining()) {
+                int read = client.read(buf);
+                if(read == 0) break;
+                if(read == -1) return null;
+            }
+            buf.flip(); // to go in reader mode again
+        }
+
+        return new String(tmp, StandardCharsets.UTF_8);
     }
 }
