@@ -11,6 +11,8 @@ import java.rmi.server.*;
 
 import java.util.*;
 
+import winsome.api.exceptions.NotImplementedException;
+
 public class WinsomeAPI extends RemoteObject implements RemoteClient {
     private final String serverAddr;
     private final int serverPort; 
@@ -97,41 +99,77 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
 
     /* *************** Stubs for TCP Methods *************** */
 
-    public void register(String user, String passw, Set<String> tags){}
+    public void register(String user, String passw, Set<String> tags) throws NotImplementedException {
+        throw new NotImplementedException("method not yet implemented");
+    }
 
-    public void login(String user, String passw){}
+    public void login(String user, String passw) throws NotImplementedException {
+        throw new NotImplementedException("method not yet implemented");
+    }
 
-    public void logout(String user){}
+    public void logout(String user) throws NotImplementedException {
+        throw new NotImplementedException("method not yet implemented");
+    }
 
-    public void listUsers(){}
+    public void listUsers() throws NotImplementedException {
+        throw new NotImplementedException("method not yet implemented");
+    }
 
-    public void listFollowers(){}
+    public void listFollowers() throws NotImplementedException {
+        throw new NotImplementedException("method not yet implemented");
+    }
 
-    public void listFollowing(){}
+    public void listFollowing() throws NotImplementedException {
+        throw new NotImplementedException("method not yet implemented");
+    }
 
-    public void followUser(String user){}
+    public void followUser(String user) throws NotImplementedException {
+        throw new NotImplementedException("method not yet implemented");
+    }
 
-    public void unfollowUser(String user){}
+    public void unfollowUser(String user) throws NotImplementedException {
+        throw new NotImplementedException("method not yet implemented");
+    }
 
-    public void viewBlog(){}
+    public void viewBlog() throws NotImplementedException {
+        throw new NotImplementedException("method not yet implemented");
+    }
 
-    public void createPost(String title, String content){}
+    public void createPost(String title, String content) throws NotImplementedException {
+        throw new NotImplementedException("method not yet implemented");
+    }
 
-    public void showFeed(){}
+    public void showFeed() throws NotImplementedException {
+        throw new NotImplementedException("method not yet implemented");
+    }
 
-    public void showPost(int idPost){}
+    public void showPost(int idPost) throws NotImplementedException {
+        throw new NotImplementedException("method not yet implemented");
+    }
 
-    public void deletePost(int idPost){}
+    public void deletePost(int idPost) throws NotImplementedException {
+        throw new NotImplementedException("method not yet implemented");
+    }
 
-    public void rewinPost(int idPost){}
+    public void rewinPost(int idPost) throws NotImplementedException {
+        throw new NotImplementedException("method not yet implemented");
+    }
 
-    public void ratePost(int idPost, int vote){}
+    public void ratePost(int idPost, int vote) throws NotImplementedException {
+        throw new NotImplementedException("method not yet implemented");
+    }
 
-    public void addComment(int idPost, String comment){}
+    public void addComment(int idPost, String comment) throws NotImplementedException {
+        throw new NotImplementedException("method not yet implemented");
+    }
 
-    public void getWallet(){}
+    public void getWallet() throws NotImplementedException {
+        throw new NotImplementedException("method not yet implemented");
+    }
 
-    public void getWalletInBitcoin(){}
+    public void getWalletInBitcoin() throws NotImplementedException {
+        throw new NotImplementedException("method not yet implemented");
+    }
 
     /* *************** Send/receive data *************** */
     private void send(String msg) throws NullPointerException, IOException {
