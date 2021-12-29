@@ -98,7 +98,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     if(key.isAcceptable()){ 
                         SocketChannel client = socketChannel.accept();
                         client.configureBlocking(false);
-                        client.register(selector, SelectionKey.OP_READ, null); 
+                        client.register(selector, SelectionKey.OP_READ, new KeyAttachment()); 
 
                         System.out.println("accepted client!");
                     } 
@@ -200,8 +200,10 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
     /* ************** Send/receive methods ************** */
     private String receive(SelectionKey key) throws IOException {
-        ByteBuffer buf = ByteBuffer.allocateDirect(2048);
         SocketChannel client = (SocketChannel) key.channel();
+        ByteBuffer buf = (key.attachment() != null) ? 
+            ((KeyAttachment) key.attachment()).getBuffer() :
+            ByteBuffer.allocate(2048);
 
         // EOF
         if(client.read(buf) == -1) return null;
@@ -238,12 +240,15 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             buf.flip(); // to go in reader mode again
         }
 
+        buf.clear();
         return new String(tmp, StandardCharsets.UTF_8);
     }
 
     private void send(String msg, SelectionKey key) throws IOException {
-        ByteBuffer buf = ByteBuffer.allocateDirect(2048);
         SocketChannel client = (SocketChannel) key.channel();
+        ByteBuffer buf = (key.attachment() != null) ? 
+            ((KeyAttachment) key.attachment()).getBuffer() :
+            ByteBuffer.allocate(2048);
 
         // converting the message into a byte array
         byte[] tmp = msg.getBytes(StandardCharsets.UTF_8);
@@ -275,6 +280,6 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         // final flush, just to be sure
         buf.flip();
         while(buf.hasRemaining()) client.write(buf);
-        buf.compact();
+        buf.clear();
     }
 }
