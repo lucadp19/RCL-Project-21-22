@@ -1,55 +1,81 @@
-SRC_DIR=./src
-OUT_DIR=./out
-LIB_DIR=./lib
-BIN_DIR=./bin
+# Colors
+GREEN = \033[32;1m
+BLUE  = \033[34;1m
+RED   = \033[31;1m
+RESET = \033[0m
 
-GSON_LIB=$(LIB_DIR)/gson-2.8.6.jar
+# Directories
+SRC_DIR = ./src
+OUT_DIR = ./out
+LIB_DIR = ./lib
+BIN_DIR = ./bin
 
-SRC_CP=$(SRC_DIR):$(GSON_LIB):.
-OUT_CP=$(OUT_DIR):$(GSON_LIB):.
+# GSON jar file
+GSON_LIB = $(LIB_DIR)/gson-2.8.6.jar
 
-SRC_FILES:=$(shell find $(SRC_DIR) -name *.java)
+# Arguments for -cp
+SRC_CP = $(SRC_DIR):$(GSON_LIB):.
+OUT_CP = $(OUT_DIR):$(GSON_LIB):.
 
+# Source files
+SRC_FILES := $(shell find $(SRC_DIR) -name *.java)
+SERVER_MAIN_SRC = $(SRC_DIR)/winsome/server/WinsomeServerMain.java
+CLIENT_MAIN_SRC = $(SRC_DIR)/winsome/client/WinsomeClientMain.java
+
+# Default target
 .DEFAULT_GOAL:= default
+default: title compile server client
 
-default: compile server client
+# Just prints a title
+title:
+	@echo -e "\t\t$(GREEN)Winsome Makefile$(RESET)\n"
 
+# Compiles all files
 compile:
-	@echo "Compiling project..."
-	@javac -d $(OUT_DIR) -cp $(SRC_CP) $(SRC_FILES)
-	@echo "Project compiled!"
+	@echo -e "$(BLUE)-> $(RESET)Compiling project..."
+	@javac -d $(OUT_DIR) -cp $(SRC_CP) $(SERVER_MAIN_SRC)
+	@javac -d $(OUT_DIR) -cp $(SRC_CP) $(CLIENT_MAIN_SRC)
+	@echo -e "$(BLUE)==> Project compiled!$(RESET)\n"
+
+# Server JAR creation
 
 SERVER_MAIN=winsome.server.WinsomeServerMain
 SERVER_JAR=$(BIN_DIR)/winsome-server.jar
 
 server:
-	@echo "Creating Server .jar file..."
+	@echo -e "$(BLUE)-> $(RESET)Creating Server .jar file..."
 	@jar -cevf $(SERVER_MAIN) $(SERVER_JAR) \
 		-C $(OUT_DIR) winsome/server \
 		-C $(OUT_DIR) winsome/api \
 		-C $(OUT_DIR) winsome/utils > /dev/null
-	@echo "Server .jar created!"
+	@echo -e "$(BLUE)==> Server .jar created!$(RESET)\n"
+
+# Client JAR creation
 
 CLIENT_MAIN=winsome.client.WinsomeClientMain
 CLIENT_JAR=$(BIN_DIR)/winsome-client.jar
 
 client:
-	@echo "Creating Client .jar file..."
+	@echo -e "$(BLUE)-> $(RESET)Creating Client .jar file..."
 	@jar -cevf $(CLIENT_MAIN) $(CLIENT_JAR) \
 		-C $(OUT_DIR) winsome/client \
 		-C $(OUT_DIR) winsome/api \
 		-C $(OUT_DIR) winsome/utils > /dev/null
-	@echo "Client .jar created!"
+	@echo -e "$(BLUE)==> Client .jar created!$(RESET)"
 
-.PHONY: clean runServer runClient
+# -------------- CLEAN -------------- #
 
-clean:
-	@echo "Cleaning object files and executables..."
+.PHONY: clean run-server run-client
+
+clean: title
+	@echo -e "$(BLUE)-> $(RESET)Cleaning object files and executables..."
 	@rm -rf $(OUT_DIR)/* $(BIN_DIR)/*
-	@echo "Done!"
+	@echo -e "$(BLUE)==> Done!$(RESET)"
 
-runServer:
+# -------------- RUN -------------- #
+
+run-server:
 	@java -cp $(OUT_CP) -jar $(SERVER_JAR)
 
-runClient:
+run-client:
 	@java -cp $(OUT_CP) -jar $(CLIENT_JAR)
