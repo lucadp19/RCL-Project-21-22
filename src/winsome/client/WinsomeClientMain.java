@@ -1,11 +1,11 @@
 package winsome.client;
 
-import java.io.BufferedReader;
-import java.io.Console;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
+
+import java.util.*;
 
 import winsome.api.WinsomeAPI;
+import winsome.api.exceptions.NotImplementedException;
 import winsome.client.ClientConfig;
 import winsome.client.exceptions.UnknownCommandException;
 import winsome.utils.ConsoleColors;
@@ -63,20 +63,20 @@ public class WinsomeClientMain {
                     System.out.println(ConsoleColors.blue("--> Echoed message: ") + ans);
                     
                 } else
-                executeCommand(line);
+                executeCommand(api, line);
                 
-                System.out.print(ConsoleColors.green("-> "));
+                System.out.print(ConsoleColors.green("\n-> "));
             }
         } catch(IOException ex){ ex.printStackTrace(); }
     }
 
-    private static void executeCommand(String line){
+    private static void executeCommand(WinsomeAPI api, String line){
         Command cmd = null;
 
         try { cmd = Command.fromString(line); }
         catch(UnknownCommandException ex){
             System.out.println(ConsoleColors.red("==> ERROR! ") + ex.getMessage() + "\n");
-            System.out.print(Command.help() + "\n");
+            System.out.print(Command.help());
             return;
         }
 
@@ -90,6 +90,26 @@ public class WinsomeClientMain {
                     System.out.println("\n" + cmd1.getHelpString());
                 } catch(UnknownCommandException ex){ System.out.println("\n" + Command.help()); }
                 break;
+            }
+            case REGISTER: {
+                String[] args = argStr.split("\\s+"); // splitting on space
+
+                // checking argument number
+                if(args.length < 3 || args.length > 7){
+                    System.out.println(ConsoleColors.red("==> ERROR! ") + "Error while parsing command arguments.\n");
+                    System.out.println(Command.REGISTER.getHelpString());
+                    return;
+                }
+
+                System.out.println(ConsoleColors.blue("-> ") + "Signing up user \"" + args[0] + "\"...");
+                Set<String> tags = new HashSet<>(args.length - 2);
+                for(int i = 0; i < args.length - 2; i++) tags.add(args[i+2]);
+                try { api.register(args[0], args[1], tags); }
+                catch(NotImplementedException ex){
+                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                    return;
+                }
+
             }
             default: {
                 System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
