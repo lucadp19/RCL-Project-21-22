@@ -12,19 +12,24 @@ public class WinsomeClientMain {
     private static String DEFAULT_CONFIG_PATH = "./configs/client-config.yaml";
 
     public static void main(String[] args) {
+        ClientConfig config = null;
+        WinsomeAPI api = null;
         try {
-            ClientConfig config = new ClientConfig(DEFAULT_CONFIG_PATH); // TODO: catch exceptions
+            config = new ClientConfig(DEFAULT_CONFIG_PATH); // TODO: catch exceptions
 
             System.out.println("Config read!");
             // creating API interface
-            WinsomeAPI api = new WinsomeAPI(
+            api = new WinsomeAPI(
                 config.getServerAddr(),
                 config.getTCPPort(),
                 config.getRegHost(),
                 config.getRegPort()
             );
             api.connect(); 
-        } catch(Exception ex){ ex.printStackTrace(); System.exit(1);}
+        } catch(Exception ex){ 
+            ex.printStackTrace(); 
+            System.exit(1);
+        }
 
         try (
             BufferedReader input = new BufferedReader(new InputStreamReader(System.in));
@@ -32,6 +37,17 @@ public class WinsomeClientMain {
             printPrompt();
             String cmd;
             while((cmd = input.readLine()) != null){
+                cmd = cmd.trim();
+                if(cmd.isEmpty()) continue;
+                if(cmd.startsWith("quit")) System.exit(0);
+
+                // test command
+                if(cmd.startsWith("echo")){
+                    String msg = cmd.substring(4).trim();
+                    
+                    String ans = api.echoMsg(msg);
+                    System.out.println(ConsoleColors.BLUE_BOLD + " < " + ConsoleColors.RESET + ans);
+                }
                 // TODO: do things
                 printPrompt();
             }
