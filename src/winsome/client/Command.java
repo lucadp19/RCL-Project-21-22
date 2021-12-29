@@ -32,7 +32,7 @@ public enum Command {
     Command(String name, String descr){ this.name = name; this.descr = descr; }
 
     public String getCommandName(){ return name; }
-    public String getHelpString(){ return Command.help(this) + "\n"; }
+    public String getHelpString(){ return Command.help(this); }
 
     public static String help(Command cmd){
         switch (cmd) {
@@ -52,7 +52,7 @@ public enum Command {
                     + "<password>     password of the user";
             case LOGOUT:
                 return ConsoleColors.yellow("usage: ") + ConsoleColors.green(cmd.name) + "\n"
-                    + "\t" + cmd.descr + "\n";
+                    + "\t" + cmd.descr;
             case LIST_USERS:
                 return ConsoleColors.yellow("usage: ") + ConsoleColors.green(cmd.name) + "\n"
                     + "\t" + cmd.descr;  
@@ -129,16 +129,16 @@ public enum Command {
         int length = 20;
         String cmdsHelp = "";
         for(Command cmd : Command.values()){
-            cmdsHelp += ConsoleColors.green(String.format("%1$-" + length + "s", cmd.name)) +
-                        cmd.descr + "\n";
+            cmdsHelp += "\n" + ConsoleColors.green(String.format("%1$-" + length + "s", cmd.name)) +
+                        cmd.descr;
         }
 
         return ConsoleColors.yellow("usage: ") + ConsoleColors.green("command") + " [arguments]\n"
             + "\tClient interface for the WINSOME Social Network\n\n"
             + ConsoleColors.yellow("Available commands\n")
-            + ConsoleColors.yellow("------------------\n")
+            + ConsoleColors.yellow("------------------")
             + cmdsHelp
-            + "\nSee " + ConsoleColors.green("help <command>") + " to get help on a specific command.\n";
+            + "\n\nSee " + ConsoleColors.green("help <command>") + " to get help on a specific command.";
     }
 
     public static Command fromString(String str) throws UnknownCommandException {
