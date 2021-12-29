@@ -135,14 +135,10 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         String msg = receive(key);
         System.out.println("String is: " + msg);
 
-        msg += " echoed by server\n";
-        System.out.println("Answer is: " + msg.trim());
+        String ans = msg + " echoed by server";
+        System.out.println("Answer is: " + ans);
         
-        ByteBuffer buf = ByteBuffer.allocate(4 + msg.length());
-        buf.putInt(msg.length());
-        buf.put(msg.getBytes(StandardCharsets.UTF_8));
-        buf.flip();
-        while(buf.hasRemaining()) { channel.write(buf); } 
+        send(ans, key);
     }
 
     /* **************** Remote Methods **************** */
@@ -227,7 +223,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             int remainingLen = len - pos;   // remaining no. of bytes to read
             if(remainingLen <= 0) break;
 
-            // reads some data and puts it in the buffer
+            // reads some data and puts it in the byte buffer
             buf.get(tmp, pos, Math.min(remainingLen, buf.remaining()));
 
             // advancing position of next byte to read
@@ -243,5 +239,42 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         }
 
         return new String(tmp, StandardCharsets.UTF_8);
+    }
+
+    private void send(String msg, SelectionKey key) throws IOException {
+        ByteBuffer buf = ByteBuffer.allocateDirect(2048);
+        SocketChannel client = (SocketChannel) key.channel();
+
+        // converting the message into a byte array
+        byte[] tmp = msg.getBytes(StandardCharsets.UTF_8);
+        int len = tmp.length;
+        
+        // writing the message length
+        buf.putInt(len);
+        // flushing (otherwise pos calculation won't work)
+        buf.flip();
+        while(buf.hasRemaining()) client.write(buf);
+        buf.compact();
+
+        int pos = 0;    // next byte of the message to write
+
+        while(true){
+            int remainingLen = len - pos;   // remaining no. of bytes to write
+            if(remainingLen <= 0) break;
+
+            // writing some data into the buffer
+            buf.put(tmp, pos, Math.min(remainingLen, buf.remaining()));
+            // updating the next byte to write
+            pos += buf.position();
+
+            // flushing
+            buf.flip();
+            while(buf.hasRemaining()) client.write(buf);
+            buf.compact();
+        }
+        // final flush, just to be sure
+        buf.flip();
+        while(buf.hasRemaining()) client.write(buf);
+        buf.compact();
     }
 }
