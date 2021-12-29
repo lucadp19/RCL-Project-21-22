@@ -1,10 +1,9 @@
 package winsome.api;
 
-import java.io.IOException;
+import java.io.*;
 import java.net.*;
-
-import java.nio.channels.*;
-
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.rmi.*;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
@@ -18,7 +17,8 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
     private final String registryAddr;
     private final int registryPort;
 
-    private SocketChannel socketChannel = null;
+    private Socket socket = null;
+    // private SocketChannel socketChannel = null;
     private RemoteServer remoteServer = null;
 
     private RemoteClient remoteClient;
@@ -49,10 +49,11 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
     }
 
     private void connectTCP() throws IOException {
-        if(socketChannel != null) throw new IllegalStateException("already connected to server");
+        if(socket != null) throw new IllegalStateException("already connected to server");
 
+        socket = new Socket(serverAddr, serverPort);
         // opening channel in blocking mode, so there's no need to wait for the connection to be fully established
-        socketChannel = SocketChannel.open(new InetSocketAddress(serverAddr, serverPort));
+        // socketChannel = SocketChannel.open(new InetSocketAddress(serverAddr, serverPort));
         // System.out.println("Connected to socket!");
     }
 
@@ -86,6 +87,27 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         if(!followers.containsKey(user)) throw new IllegalArgumentException(); // TODO: make new exception
 
         followers.remove(user);
+    }
+
+    /* *************** Test command: echo *************** */
+    public String echoMsg(String msg) throws IOException {
+        msg += "\n";
+
+        // input and output stream
+        DataOutputStream out = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream()));
+        DataInputStream in = new DataInputStream(new BufferedInputStream(socket.getInputStream()));
+
+        // writing message
+        out.writeInt(msg.length());
+        out.write(msg.getBytes(StandardCharsets.UTF_8));
+        out.flush();
+
+        // reading answer
+        int len = in.readInt();
+        byte[] byteBuf = new byte[len];
+        in.readFully(byteBuf);
+
+        return new String(byteBuf, StandardCharsets.UTF_8);
     }
 
     /* *************** Stubs for TCP Methods *************** */
