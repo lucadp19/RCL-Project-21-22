@@ -65,7 +65,7 @@ public class ServerConfig extends AbstractConfig {
             String line;
             while((line = configIn.readLine()) != null){
                 Optional<ConfigEntry> maybeEntry = readEntry(line);
-                if(maybeEntry.isEmpty()) continue;
+                if(!maybeEntry.isPresent()) continue;
 
                 ConfigEntry entry = maybeEntry.get();
 

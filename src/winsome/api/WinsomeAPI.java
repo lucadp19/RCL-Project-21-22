@@ -91,23 +91,8 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
 
     /* *************** Test command: echo *************** */
     public String echoMsg(String msg) throws IOException {
-        msg += "\n";
-
-        // input and output stream
-        DataOutputStream out = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream()));
-        DataInputStream in = new DataInputStream(new BufferedInputStream(socket.getInputStream()));
-
-        // writing message
-        out.writeInt(msg.length());
-        out.write(msg.getBytes(StandardCharsets.UTF_8));
-        out.flush();
-
-        // reading answer
-        int len = in.readInt();
-        byte[] byteBuf = new byte[len];
-        in.readFully(byteBuf);
-
-        return new String(byteBuf, StandardCharsets.UTF_8);
+        send(msg);
+        return receive();
     }
 
     /* *************** Stubs for TCP Methods *************** */
@@ -147,4 +132,27 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
     public void getWallet(){}
 
     public void getWalletInBitcoin(){}
+
+    /* *************** Send/receive data *************** */
+    private void send(String msg) throws NullPointerException, IOException {
+        if(msg == null) throw new NullPointerException("attempting to send an empty message");
+
+        DataOutputStream out = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream()));
+
+        out.writeInt(msg.length());
+        out.write(msg.getBytes(StandardCharsets.UTF_8));
+        out.flush();
+    }
+
+    private String receive() throws IOException {
+        DataInputStream in = new DataInputStream(new BufferedInputStream(socket.getInputStream()));
+
+        int len = in.readInt();
+        if(len <= 0) throw new IOException("received message length less or equal to 0");
+
+        byte[] buf = new byte[len];
+        in.readFully(buf);
+
+        return new String(buf, StandardCharsets.UTF_8);
+    }  
 }
