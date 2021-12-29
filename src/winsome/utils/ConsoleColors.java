@@ -74,4 +74,13 @@ public class ConsoleColors {
     public static final String PURPLE_BACKGROUND_BRIGHT = "\033[0;105m"; // PURPLE
     public static final String CYAN_BACKGROUND_BRIGHT = "\033[0;106m";  // CYAN
     public static final String WHITE_BACKGROUND_BRIGHT = "\033[0;107m";   // WHITE
+
+    public static String black(String txt) { return ConsoleColors.BLACK_BOLD  + txt + ConsoleColors.RESET; }
+    public static String red(String txt)   { return ConsoleColors.RED_BOLD    + txt + ConsoleColors.RESET; }
+    public static String green(String txt) { return ConsoleColors.GREEN_BOLD  + txt + ConsoleColors.RESET; }
+    public static String yellow(String txt){ return ConsoleColors.YELLOW_BOLD + txt + ConsoleColors.RESET; }
+    public static String blue(String txt)  { return ConsoleColors.BLUE_BOLD   + txt + ConsoleColors.RESET; }
+    public static String purple(String txt){ return ConsoleColors.PURPLE_BOLD + txt + ConsoleColors.RESET; }
+    public static String cyan(String txt)  { return ConsoleColors.CYAN_BOLD   + txt + ConsoleColors.RESET; }
+    public static String white(String txt) { return ConsoleColors.WHITE_BOLD  + txt + ConsoleColors.RESET; }
 }
