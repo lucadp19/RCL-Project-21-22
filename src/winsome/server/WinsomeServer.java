@@ -5,8 +5,10 @@ import java.util.Map.*;
 import java.util.concurrent.*;
 
 import java.io.*;
+import java.nio.ByteBuffer;
+import java.nio.ByteBuffer;
 import java.nio.channels.*;
-
+import java.nio.charset.StandardCharsets;
 import java.net.*;
 
 import java.rmi.*;
@@ -90,24 +92,56 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
             Set<SelectionKey> keys = selector.selectedKeys();
             Iterator<SelectionKey> iter = keys.iterator();
-            try {
-                while(iter.hasNext()){
-                    SelectionKey key = iter.next();
-                    iter.remove();
-
+            while(iter.hasNext()){
+                SelectionKey key = iter.next();
+                try {
                     if(key.isAcceptable()){ 
                         SocketChannel client = socketChannel.accept();
                         client.configureBlocking(false);
                         client.register(selector, SelectionKey.OP_READ, null); 
+
+                        System.out.println("accepted client!");
                     } 
                     if(key.isReadable() && key.isValid()){
                         // TODO
+                        System.out.println("Key is readable!");
+                        echo(key);
                     }
+                    iter.remove();
+                } catch(IOException ex){
+                    // TODO: disconnect client
+                    key.cancel();
+                    System.err.println("Connection closed as a result of an IO Exception.");
                 }
-            } catch(IOException ex){
-                // disconnect client
             }
         }
+    }
+
+    public void echo(SelectionKey key) throws IOException {
+        ByteBuffer buf = ByteBuffer.allocate(4);
+        SocketChannel channel = (SocketChannel) key.channel();
+
+        if(channel.read(buf) == -1) throw new IOException();
+
+        buf.flip();
+        int size = buf.getInt(0);
+        System.out.println(size);
+
+        buf = ByteBuffer.allocate(size);
+        while(buf.hasRemaining()){ channel.read(buf); }
+        buf.flip();
+
+        String msg = StandardCharsets.UTF_8.decode(buf).toString().trim();
+        System.out.println("String is: " + msg);
+
+        msg += " echoed by server\n";
+        System.out.println("Answer is: " + msg.trim());
+        
+        buf = ByteBuffer.allocate(4 + msg.length());
+        buf.putInt(msg.length());
+        buf.put(msg.getBytes(StandardCharsets.UTF_8));
+        buf.flip();
+        while(buf.hasRemaining()) { channel.write(buf); } 
     }
 
     /* **************** Remote Methods **************** */
