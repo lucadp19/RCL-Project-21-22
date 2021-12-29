@@ -118,20 +118,6 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
     }
 
     public void echo(SelectionKey key) throws IOException {
-        // ByteBuffer buf = ByteBuffer.allocate(4);
-        SocketChannel channel = (SocketChannel) key.channel();
-        
-        // if(channel.read(buf) == -1) throw new IOException();
-        
-        // buf.flip();
-        // int size = buf.getInt(0);
-        // System.out.println(size);
-
-        // buf = ByteBuffer.allocate(size);
-        // while(buf.hasRemaining()){ channel.read(buf); }
-        // buf.flip();
-
-        // String msg = StandardCharsets.UTF_8.decode(buf).toString().trim();
         String msg = receive(key);
         System.out.println("String is: " + msg);
 

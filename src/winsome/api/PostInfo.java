@@ -62,11 +62,11 @@ public class PostInfo {
 
     public synchronized String prettify(){
         String str = 
-            ConsoleColors.GREEN_BOLD + "Title: " + ConsoleColors.RESET + this.title + "\n"
-            + ConsoleColors.GREEN_BOLD + "Contents: " + ConsoleColors.RESET + this.contents + "\n"
-            + ConsoleColors.GREEN_BOLD + "Votes: " + ConsoleColors.RESET + 
+            ConsoleColors.green("Title: ") + this.title + "\n"
+            + ConsoleColors.green("Contents: ") + this.contents + "\n"
+            + ConsoleColors.green("Votes: ") + 
                 this.upvotes + " upvotes, " + this.downvotes + " downvotes\n" 
-            + ConsoleColors.GREEN_BOLD + "Comments: ";
+            + ConsoleColors.green("Comments: ");
         if(comments.isEmpty()) str += "0\n";
         else { 
             for(Comment comment : comments) str += "    " + comment.prettify() + "\n";

@@ -24,7 +24,8 @@ public enum Command {
     COMMENT         ("comment", "Add a comment to the post with the given ID"),
     WALLET          ("wallet", "Prints the current user's wallet"),
     WALLET_BTC      ("wallet btc", "Prints the current user's wallet, converted in BTC"),
-    HELP            ("help", "Prints this help message");
+    HELP            ("help", "Prints this help message"),
+    QUIT            ("quit", "Quits the client");
 
     public final String name;
     private final String descr;
@@ -116,6 +117,9 @@ public enum Command {
             case WALLET_BTC:
                 return ConsoleColors.yellow("usage: ") + ConsoleColors.green(cmd.name) + "\n"
                     + "\t" + cmd.descr;
+            case QUIT:
+                return ConsoleColors.yellow("usage: ") + ConsoleColors.green(cmd.name) + "\n"
+                    + "\t" + cmd.descr;
             default:
                 return help();
         }        
@@ -133,13 +137,15 @@ public enum Command {
             + "\tClient interface for the WINSOME Social Network\n\n"
             + ConsoleColors.yellow("Available commands\n")
             + ConsoleColors.yellow("------------------\n")
-            + cmdsHelp;
+            + cmdsHelp
+            + "\nSee " + ConsoleColors.green("help <command>") + " to get help on a specific command.\n";
     }
 
     public static Command fromString(String str) throws UnknownCommandException {
         if(str == null) throw new NullPointerException();
 
         if(startsWithCmd(str, HELP))            return HELP;
+        if(startsWithCmd(str, QUIT))            return QUIT;
         if(startsWithCmd(str, REGISTER))        return REGISTER;
         if(startsWithCmd(str, LOGIN))           return LOGIN;
         if(startsWithCmd(str, LOGOUT))          return LOGOUT;

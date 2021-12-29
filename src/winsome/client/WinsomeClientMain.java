@@ -1,6 +1,7 @@
 package winsome.client;
 
 import java.io.BufferedReader;
+import java.io.Console;
 import java.io.IOException;
 import java.io.InputStreamReader;
 
@@ -54,16 +55,16 @@ public class WinsomeClientMain {
                     System.exit(0);
                 }
 
-                executeCommand(line);
-
-                // test command
+                // test command; TODO: eliminate it
                 if(line.startsWith("echo")){
                     String msg = line.substring(4).trim();
                     
                     String ans = api.echoMsg(msg);
-                    System.out.println(ConsoleColors.BLUE_BOLD + " < " + ConsoleColors.RESET + ans);
-                }
-                // TODO: do things
+                    System.out.println(ConsoleColors.blue("--> Echoed message: ") + ans);
+                    
+                } else
+                executeCommand(line);
+                
                 System.out.print(ConsoleColors.green("-> "));
             }
         } catch(IOException ex){ ex.printStackTrace(); }
@@ -74,8 +75,9 @@ public class WinsomeClientMain {
 
         try { cmd = Command.fromString(line); }
         catch(UnknownCommandException ex){
-            System.out.println(ConsoleColors.red("==> ERROR! ") + ex.getMessage());
-            System.out.print(Command.help());
+            System.out.println(ConsoleColors.red("==> ERROR! ") + ex.getMessage() + "\n");
+            System.out.print(Command.help() + "\n");
+            return;
         }
 
         String argStr = line.substring(cmd.name.length()).trim();
