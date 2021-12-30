@@ -98,13 +98,13 @@ public class WinsomeClientMain {
                 if(args.length < 3 || args.length > 7){
                     System.out.println(
                         ConsoleColors.red("==> ERROR! ") + 
-                        "Wrong number of arguments to " + ConsoleColors.red(Command.REGISTER.name) + ".\n"
+                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
                     );
-                    System.out.println(Command.REGISTER.getHelpString());
+                    System.out.println(cmd.getHelpString());
                     return;
                 }
 
-                System.out.println(ConsoleColors.blue("-> ") + "Signing up user \"" + args[0] + "\"...");
+                System.out.println(ConsoleColors.blue("-> ") + "Signing up user \"" + ConsoleColors.blue(args[0]) + "\"...");
                 Set<String> tags = new HashSet<>(args.length - 2);
                 for(int i = 0; i < args.length - 2; i++) tags.add(args[i+2]);
                 try { api.register(args[0], args[1], tags); }
@@ -112,8 +112,423 @@ public class WinsomeClientMain {
                     System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
                     return;
                 }
-
             }
+            case LOGIN: {
+                String[] args = argStr.split("\\s+"); // splitting on space
+
+                // checking argument number
+                if(args.length != 2){
+                    System.out.println(
+                        ConsoleColors.red("==> ERROR! ") + 
+                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
+                    );
+                    System.out.println(cmd.getHelpString());
+                    return;
+                }
+
+                System.out.println(ConsoleColors.blue("-> ") + "Logging in as user \"" + ConsoleColors.blue(args[0]) + "\"...");
+                try { api.login(args[0], args[1]); }
+                catch(NotImplementedException ex){
+                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                    return;
+                }
+            }
+
+            case LOGOUT: {
+                String[] args = argStr.split("\\s+"); // splitting on space
+
+                // checking argument number
+                if(args.length != 1){
+                    System.out.println(
+                        ConsoleColors.red("==> ERROR! ") + 
+                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
+                    );
+                    System.out.println(cmd.getHelpString());
+                    return;
+                }
+
+                System.out.println(ConsoleColors.blue("-> ") + "Logging out from user \"" + ConsoleColors.blue(args[0]) + "\"...");
+                try { api.logout(args[0]); }
+                catch(NotImplementedException ex){
+                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                    return;
+                }
+            }
+
+            case LIST_USERS: {
+                // checking argument number
+                if(!argStr.isEmpty()){
+                    System.out.println(
+                        ConsoleColors.red("==> ERROR! ") + 
+                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
+                    );
+                    System.out.println(cmd.getHelpString());
+                    return;
+                }
+
+                System.out.println(ConsoleColors.blue("-> ") + "Getting users...");
+                try { api.listUsers(); }
+                catch(NotImplementedException ex){
+                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                    return;
+                }
+            }
+
+            case LIST_FOLLOWERS: {
+                // checking argument number
+                if(!argStr.isEmpty()){
+                    System.out.println(
+                        ConsoleColors.red("==> ERROR! ") + 
+                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
+                    );
+                    System.out.println(cmd.getHelpString());
+                    return;
+                }
+
+                System.out.println(ConsoleColors.blue("-> ") + "Listing followers...");
+                try { api.listFollowers(); }
+                catch(NotImplementedException ex){
+                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                    return;
+                }
+            }
+
+            case LIST_FOLLOWING: {
+                // checking argument number
+                if(!argStr.isEmpty()){
+                    System.out.println(
+                        ConsoleColors.red("==> ERROR! ") + 
+                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
+                    );
+                    System.out.println(cmd.getHelpString());
+                    return;
+                }
+
+                System.out.println(ConsoleColors.blue("-> ") + "Listing followed users...");
+                try { api.listFollowing(); }
+                catch(NotImplementedException ex){
+                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                    return;
+                }
+            }
+
+            case FOLLOW: {
+                String[] args = argStr.split("\\s+"); // splitting on space
+
+                // checking argument number
+                if(args.length != 1){
+                    System.out.println(
+                        ConsoleColors.red("==> ERROR! ") + 
+                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
+                    );
+                    System.out.println(cmd.getHelpString());
+                    return;
+                }
+
+                System.out.println(ConsoleColors.blue("-> ") + "Following user \"" + ConsoleColors.blue(args[0]) + "\"...");
+                try { api.followUser(args[0]); }
+                catch(NotImplementedException ex){
+                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                    return;
+                }
+            }
+
+            case UNFOLLOW: {
+                String[] args = argStr.split("\\s+"); // splitting on space
+
+                // checking argument number
+                if(args.length != 1){
+                    System.out.println(
+                        ConsoleColors.red("==> ERROR! ") + 
+                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
+                    );
+                    System.out.println(cmd.getHelpString());
+                    return;
+                }
+
+                System.out.println(ConsoleColors.blue("-> ") + "Unfollowing user \"" + ConsoleColors.blue(args[0]) + "\"...");
+                try { api.unfollowUser(args[0]); }
+                catch(NotImplementedException ex){
+                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                    return;
+                }
+            }
+
+            case BLOG: {
+                // checking argument number
+                if(!argStr.isEmpty()){
+                    System.out.println(
+                        ConsoleColors.red("==> ERROR! ") + 
+                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
+                    );
+                    System.out.println(cmd.getHelpString());
+                    return;
+                }
+
+                System.out.println(ConsoleColors.blue("-> ") + "Listing your blog...");
+                try { api.viewBlog(); }
+                catch(NotImplementedException ex){
+                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                    return;
+                }
+            }
+
+            case POST: {
+                String[] args = argStr.split("\\s+", 2); // splitting on first space
+
+                // checking argument number
+                if(args.length != 2){
+                    System.out.println(
+                        ConsoleColors.red("==> ERROR! ") + 
+                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
+                    );
+                    System.out.println(cmd.getHelpString());
+                    return;
+                }
+
+                System.out.println(ConsoleColors.blue("-> ") + "Creating new post...");
+                try { api.createPost(args[0], args[1]); }
+                catch(NotImplementedException ex){
+                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                    return;
+                }
+            }
+
+            case SHOW_FEED: {
+                // checking argument number
+                if(!argStr.isEmpty()){
+                    System.out.println(
+                        ConsoleColors.red("==> ERROR! ") + 
+                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
+                    );
+                    System.out.println(cmd.getHelpString());
+                    return;
+                }
+
+                System.out.println(ConsoleColors.blue("-> ") + "Getting your feed...");
+                try { api.showFeed(); }
+                catch(NotImplementedException ex){
+                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                    return;
+                }
+            }
+
+            case SHOW_POST: {
+                String[] args = argStr.split("\\s+"); // splitting on space
+
+                // checking argument number
+                if(args.length != 1){
+                    System.out.println(
+                        ConsoleColors.red("==> ERROR! ") + 
+                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
+                    );
+                    System.out.println(cmd.getHelpString());
+                    return;
+                }
+
+                int id = -1;
+                try { id = Integer.parseInt(args[0]); }
+                catch(NumberFormatException ex){
+                    System.out.println(
+                        ConsoleColors.red("==> ERROR! ") + 
+                        "The given post ID is not a positive integer.\n"
+                    );
+                    System.out.println(cmd.getHelpString());
+                    return;
+                }
+
+                System.out.println(ConsoleColors.blue("-> ") + "Showing post with ID \"" + ConsoleColors.blue(args[0]) + "\"...");
+                try { api.showPost(id); }
+                catch(NotImplementedException ex){
+                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                    return;
+                } 
+            }
+
+            
+            case DELETE: {
+                String[] args = argStr.split("\\s+"); // splitting on space
+
+                // checking argument number
+                if(args.length != 1){
+                    System.out.println(
+                        ConsoleColors.red("==> ERROR! ") + 
+                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
+                    );
+                    System.out.println(cmd.getHelpString());
+                    return;
+                }
+
+                int id = -1;
+                try { id = Integer.parseInt(args[0]); }
+                catch(NumberFormatException ex){
+                    System.out.println(
+                        ConsoleColors.red("==> ERROR! ") + 
+                        "The given post ID is not a positive integer.\n"
+                    );
+                    System.out.println(cmd.getHelpString());
+                    return;
+                }
+
+                System.out.println(ConsoleColors.blue("-> ") + "Deleting post with ID \"" + ConsoleColors.blue(args[0]) + "\"...");
+                try { api.deletePost(id); }
+                catch(NotImplementedException ex){
+                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                    return;
+                } 
+            }
+
+            case REWIN: {
+                String[] args = argStr.split("\\s+"); // splitting on space
+
+                // checking argument number
+                if(args.length != 1){
+                    System.out.println(
+                        ConsoleColors.red("==> ERROR! ") + 
+                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
+                    );
+                    System.out.println(cmd.getHelpString());
+                    return;
+                }
+
+                int id = -1;
+                try { id = Integer.parseInt(args[0]); }
+                catch(NumberFormatException ex){
+                    System.out.println(
+                        ConsoleColors.red("==> ERROR! ") + 
+                        "The given post ID is not a positive integer.\n"
+                    );
+                    System.out.println(cmd.getHelpString());
+                    return;
+                }
+
+                System.out.println(ConsoleColors.blue("-> ") + "Rewinning post with ID \"" + ConsoleColors.blue(args[0]) + "\"...");
+                try { api.rewinPost(id); }
+                catch(NotImplementedException ex){
+                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                    return;
+                } 
+            }
+
+            case RATE: {
+                String[] args = argStr.split("\\s+"); // splitting on space
+
+                // checking argument number
+                if(args.length != 2){
+                    System.out.println(
+                        ConsoleColors.red("==> ERROR! ") + 
+                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
+                    );
+                    System.out.println(cmd.getHelpString());
+                    return;
+                }
+
+                int id = -1; int vote = 0;
+
+                try { id = Integer.parseInt(args[0]); }
+                catch(NumberFormatException ex){
+                    System.out.println(
+                        ConsoleColors.red("==> ERROR! ") + 
+                        "The given post ID is not a positive integer.\n"
+                    );
+                    System.out.println(cmd.getHelpString());
+                    return;
+                }
+
+                try { 
+                    vote = Integer.parseInt(args[1]); 
+                    if(vote != -1 && vote != 1) throw new NumberFormatException("vote must be +1 or -1");
+                }
+                catch(NumberFormatException ex){
+                    System.out.println(
+                        ConsoleColors.red("==> ERROR! ") +
+                        "The given vote is neither +1 nor -1.\n"
+                    );
+                    System.out.println(cmd.getHelpString());
+                    return;
+                }
+
+                System.out.println(
+                    ConsoleColors.blue("-> ") + ((vote == +1) ? "Upvoting" : "Downvoting") 
+                    + " post with ID \"" + ConsoleColors.blue(args[0]) + "\"..."
+                );
+                try { api.ratePost(id, vote); }
+                catch(NotImplementedException ex){
+                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                    return;
+                } 
+            }
+
+            case COMMENT: {
+                String[] args = argStr.split("\\s+", 2); // splitting on first space
+
+                // checking argument number
+                if(args.length != 2){
+                    System.out.println(
+                        ConsoleColors.red("==> ERROR! ") + 
+                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
+                    );
+                    System.out.println(cmd.getHelpString());
+                    return;
+                }
+
+                int id = -1;
+                try { id = Integer.parseInt(args[0]); }
+                catch(NumberFormatException ex){
+                    System.out.println(
+                        ConsoleColors.red("==> ERROR! ") + 
+                        "The given post ID is not a positive integer.\n"
+                    );
+                    System.out.println(cmd.getHelpString());
+                    return;
+                }
+
+                System.out.println(ConsoleColors.blue("-> ") + "Adding comment on post \"" + ConsoleColors.blue(args[0]) + "\"...");
+                try { api.addComment(id, args[1]); }
+                catch(NotImplementedException ex){
+                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                    return;
+                }
+            }
+
+            case WALLET: {
+                // checking argument number
+                if(!argStr.isEmpty()){
+                    System.out.println(
+                        ConsoleColors.red("==> ERROR! ") + 
+                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
+                    );
+                    System.out.println(cmd.getHelpString());
+                    return;
+                }
+
+                System.out.println(ConsoleColors.blue("-> ") + "Getting your wallet...");
+                try { api.getWallet(); }
+                catch(NotImplementedException ex){
+                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                    return;
+                }
+            }
+
+            case WALLET_BTC: {
+                // checking argument number
+                if(!argStr.isEmpty()){
+                    System.out.println(
+                        ConsoleColors.red("==> ERROR! ") + 
+                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
+                    );
+                    System.out.println(cmd.getHelpString());
+                    return;
+                }
+
+                System.out.println(ConsoleColors.blue("-> ") + "Getting your wallet in bitcoin...");
+                try { api.getWallet(); }
+                catch(NotImplementedException ex){
+                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                    return;
+                }
+            }
+
             default: {
                 System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
                 break;
