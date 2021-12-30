@@ -3,26 +3,11 @@ package winsome.server;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+
 public class Post {
-    public class Comment {
-        private String author;
-        private String contents;
-        private boolean read = false;
-
-        public Comment(String author, String contents) throws NullPointerException {
-            if(author == null || contents == null) throw new NullPointerException("null parameter in comment creation");
-            this.author = author;
-            this.contents = contents;
-        }
-
-        public String getAuthor(){ return author; }
-        public String getContents(){ return contents; }
-        public boolean isRead(){ return read; }
-        public void setRead(){ read = true; }
-
-        public String prettify(){ return this.author + ": \"" + this.contents + "\""; }
-    }
-
     private int id;
     private String author;
     private String title;
@@ -111,7 +96,7 @@ public class Post {
         for(Comment comment : comments){
             if(comment.isRead()) continue;
 
-            String auth = comment.getAuthor();
+            String auth = comment.author;
             AtomicInteger val;
 
             if((val = map.get(auth)) == null){ 
