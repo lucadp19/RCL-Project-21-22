@@ -37,13 +37,13 @@ public enum Command {
     public static String help(Command cmd){
         switch (cmd) {
             case REGISTER:
-                return ConsoleColors.yellow("usage: ") + ConsoleColors.green(cmd.name) + " <username> <password> [<tag>{ <tag>}]\n"
+                return ConsoleColors.yellow("usage: ") + ConsoleColors.green(cmd.name) + " <username> <password> <tags>\n"
                     + "\t" + cmd.descr + "\n\n"
                     + ConsoleColors.yellow("Arguments\n" + "----------\n")
                     + "<username>     user to register\n"
                     + "<password>     password of the user\n"
                     + "<tag>          tag the user is interested in\n\n"
-                    + "tags can be at most five and they are separated by a space";
+                    + "There has to be at least one tag and at most five; they are separated by a space.";
             case LOGIN:
                 return ConsoleColors.yellow("usage: ") + ConsoleColors.green(cmd.name) + " <username> <password>\n"
                     + "\t" + cmd.descr + "\n\n"

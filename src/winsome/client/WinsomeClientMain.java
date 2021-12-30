@@ -96,7 +96,10 @@ public class WinsomeClientMain {
 
                 // checking argument number
                 if(args.length < 3 || args.length > 7){
-                    System.out.println(ConsoleColors.red("==> ERROR! ") + "Error while parsing command arguments.\n");
+                    System.out.println(
+                        ConsoleColors.red("==> ERROR! ") + 
+                        "Wrong number of arguments to " + ConsoleColors.red(Command.REGISTER.name) + ".\n"
+                    );
                     System.out.println(Command.REGISTER.getHelpString());
                     return;
                 }
