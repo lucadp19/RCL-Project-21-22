@@ -1,5 +1,7 @@
 package winsome.server;
 
+import java.util.List;
+
 import com.google.gson.JsonObject;
 
 public class Rewin extends Post {
@@ -54,22 +56,22 @@ public class Rewin extends Post {
     public Post getOriginalPost() { return rewinnedPost.getOriginalPost(); }
 
     @Override
-    public abstract List<String> getUpvoters() { return rewinnedPost.getUpvoters(); }
+    public List<String> getUpvoters() { return rewinnedPost.getUpvoters(); }
     
     @Override
-    public abstract List<String> getDownvoters() { return rewinnedPost.getDownvoters(); }
+    public List<String> getDownvoters() { return rewinnedPost.getDownvoters(); }
     
     @Override
-    public abstract List<Comment> getComments() { return rewinnedPost.getComments(); }
+    public List<Comment> getComments() { return rewinnedPost.getComments(); }
     
     @Override
-    public abstract void upvote(String voter) throws IllegalArgumentException { rewinnedPost.upvote(voter); }
+    public void upvote(String voter) throws IllegalArgumentException { rewinnedPost.upvote(voter); }
    
     @Override
-    public abstract void downvote(String voter) throws IllegalArgumentException { rewinnedPost.downvote(voter); }
+    public void downvote(String voter) throws IllegalArgumentException { rewinnedPost.downvote(voter); }
 
     @Override
-    public abstract void addComment(String author, String contents) throws IllegalArgumentException {
+    public void addComment(String author, String contents) throws IllegalArgumentException {
         rewinnedPost.addComment(author, contents);
     }
 
@@ -79,7 +81,7 @@ public class Rewin extends Post {
      * Returns a JsonObject containing a serialized version of this post.
      * @return a JsonObject containing a serialized version of this post
      */
-    public abstract JsonObject toJson(){
+    public JsonObject toJson(){
         JsonObject json = new JsonObject();
 
         json.addProperty("id", id);
@@ -107,7 +109,7 @@ public class Rewin extends Post {
      */
     public static int getOriginalIDFromJson(JsonObject json){
         if(!isRewinJson(json)) throw new IllegalArgumentException("the given json is not a valid Rewin");
-        return json.get("originalID");
+        return json.get("originalID").getAsInt();
     }
 
     /**
@@ -116,9 +118,9 @@ public class Rewin extends Post {
      * @return the rewinner of the serialized Rewin
      * @throws IllegalArgumentException if the given json is not a valid serialization of a Rewin 
      */
-    private static int getRewinnerFromJson(JsonObject json){
+    private static String getRewinnerFromJson(JsonObject json){
         if(!isRewinJson(json)) throw new IllegalArgumentException("the given json is not a valid Rewin");
-        return json.get("rewinner");        
+        return json.get("rewinner").getAsString();        
     }
 
     /**
@@ -129,7 +131,7 @@ public class Rewin extends Post {
      */
     private static int getIDFromJson(JsonObject json){
         if(!isRewinJson(json)) throw new IllegalArgumentException("the given json is not a valid Rewin");
-        return json.get("id");        
+        return json.get("id").getAsInt();        
     }
 
     /**
@@ -143,6 +145,6 @@ public class Rewin extends Post {
     public static Rewin getRewinFromJson(Post post, JsonObject json){
         if(post.getOriginalID() != getOriginalIDFromJson(json))
             throw new IllegalArgumentException("the given Post and Json have different Post IDs");
-        return new Rewin(getIDFromJson(json), post.getOriginalPost(), getRewinnerFromJson(rewinner)));
+        return new Rewin(getIDFromJson(json), post.getOriginalPost(), getRewinnerFromJson(json));
     }
 }

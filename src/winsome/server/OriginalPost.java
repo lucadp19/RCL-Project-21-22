@@ -1,18 +1,19 @@
 package winsome.server;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map.Entry;
+import java.util.NoSuchElementException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.google.gson.JsonObject;
-import com.google.gson.annotations.JsonAdapter;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
-import com.google.gson.JsonNull;
+import com.google.gson.JsonObject;
 
 /**
  * An Original Post in the Winsome Social Network.
@@ -32,9 +33,9 @@ public class OriginalPost extends Post {
     public final String contents;
 
     /** Users who have rated this post */
-    private final ConcurrentMap<String, Vote> votes = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Vote> votes;
     /** The comments under this post */
-    private final Collection<Comment> comments = new ConcurrentLinkedQueue<>();
+    private final Collection<Comment> comments;
     
     /** Number of upvotes at the last iteration of the Rewards Algorithm */
     private int oldUpvoteNumber = 0;
@@ -56,6 +57,8 @@ public class OriginalPost extends Post {
         this.author = author;
         this.title = title;
         this.contents = contents;
+        this.votes = new ConcurrentHashMap<>();
+        this.comments = new ConcurrentLinkedQueue<>();
         this.rewardsCounter = new AtomicInteger(1);
     }
 
@@ -90,7 +93,7 @@ public class OriginalPost extends Post {
         this.title = title;
         this.contents = contents;
         this.votes = votes;
-        this.
+        this.comments = comments;
         this.oldUpvoteNumber = oldUpvoteNumber;
         this.rewardsCounter = new AtomicInteger(noIterations);
     }
@@ -145,7 +148,7 @@ public class OriginalPost extends Post {
     public Post getOriginalPost() { return this; }    
 
     @Override
-    public List<String> getUpvotes(){ 
+    public List<String> getUpvoters(){ 
         List<String> upvoters = new ArrayList<>();
         for(Entry<String, Vote> vote : votes.entrySet())
             if(vote.getValue() == Vote.UP) upvoters.add(vote.getKey());
@@ -154,7 +157,7 @@ public class OriginalPost extends Post {
     }
     
     @Override
-    public List<String> getDownvotes(){ 
+    public List<String> getDownvoters(){ 
         List<String> downvoters = new ArrayList<>();
         for(Entry<String, Vote> vote : votes.entrySet())
             if(vote.getValue() == Vote.DOWN) downvoters.add(vote.getKey());
@@ -234,28 +237,28 @@ public class OriginalPost extends Post {
             String contents = json.get("contents").getAsString();
 
             JsonArray jsonVotes = json.get("votes").getAsJsonArray();
-            Iterator<JsonArray> iterVotes = jsonVotes.iterator();
-            ConcurrentMap<String, Vote> votes = new ConcurrentHashMap<>();
+            Iterator<JsonElement> iterVotes = jsonVotes.iterator();
+            ConcurrentHashMap<String, Vote> votes = new ConcurrentHashMap<>();
             while(iterVotes.hasNext()){
-                JsonElement jsonVote = iterVotes.next();
+                JsonObject jsonVote = iterVotes.next().getAsJsonObject();
                 votes.put(
-                    jsonVote.get("voter").getAsString, 
+                    jsonVote.get("voter").getAsString(), 
                     Vote.valueOf(jsonVote.get("vote").getAsString())
                 );
             }
 
             JsonArray jsonComments = json.get("comments").getAsJsonArray();
-            Iterator<JsonArray> iterComments = jsonComments.iterator();
-            Collection<Comment> comments = new ConcurrentLinkedQueue<>();
+            Iterator<JsonElement> iterComments = jsonComments.iterator();
+            ConcurrentLinkedQueue<Comment> comments = new ConcurrentLinkedQueue<>();
             while(iterComments.hasNext()){
-                JsonElement jsonComment = iterComments.next();
-                comments.put(Comment.fromJson(jsonComment));
+                JsonObject jsonComment = iterComments.next().getAsJsonObject();
+                comments.add(Comment.fromJson(jsonComment));
             }
 
             int oldUpvoteNumber = json.get("oldUpvoteNumber").getAsInt();
             int noIterations = json.get("rewardsCounter").getAsInt();
 
-            return new OriginalPost(id, author, title, contents, votes, oldUpvoteNumber, comments, noIterations)
+            return new OriginalPost(id, author, title, contents, votes, oldUpvoteNumber, comments, noIterations);
         } catch (ClassCastException | IllegalStateException | NullPointerException | IllegalArgumentException ex){
             throw new IllegalArgumentException("parameter does not represent a valid OriginalPost", ex);
         }

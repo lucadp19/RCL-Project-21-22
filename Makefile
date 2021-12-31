@@ -35,6 +35,7 @@ compile:
 	@echo -e "$(BLUE)-> $(RESET)Compiling project..."
 	@javac -d $(OUT_DIR) -cp $(SRC_CP) $(SERVER_MAIN_SRC)
 	@javac -d $(OUT_DIR) -cp $(SRC_CP) $(CLIENT_MAIN_SRC)
+	@javac -d $(OUT_DIR) -cp $(SRC_CP) $(SRC_FILES)
 	@echo -e "$(BLUE)==> Project compiled!$(RESET)\n"
 
 # Server JAR creation
