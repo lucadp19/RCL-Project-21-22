@@ -60,43 +60,37 @@ public class OriginalPost extends Post {
     }
 
     /**
-     *  Creates an original post, taking the ID, up/downvotes as arguments.
+     *  Creates an original post, taking the ID, votes and comments as arguments.
      * <p>
-     * Useful to deserialize posts.
+     * This constructor expects votes and comments to be newly allocated 
+     * objects, and as such it won't copy the structures.
+     * It is useful to deserialize posts.
      * @param id id of this post
      * @param author author of this post
      * @param title title of this post
      * @param contents contents of this post
-     * @param votes map with  users who have voted this post as keys, and votes as values
+     * @param votes map with users who have voted this post as keys, and votes as values
      * @param oldUpvoteNumber number of upvotes at the latest iteration of the Reward Algorithm
-     * @param comments list of comments of the post
+     * @param comments queue of comments of the post
      * @param noIterations number of iterations at the latest iteration of the Reward Algorithm
      * @throws NullPointerException if any argument is null
      */
     private OriginalPost(
         int id, String author, String title, String contents, 
-        Map<String, Vote> votes,
-        int oldUpvoteNumber, List<Comment> comments,
+        ConcurrentHashMap<String, Vote> votes,
+        int oldUpvoteNumber, ConcurrentLinkedQueue<Comment> comments,
         int noIterations
     ) throws NullPointerException {
         if(author == null || title == null || contents == null
-                || upvotes == null || downvotes == null || comments == null) 
+                || votes == null || comments == null) 
             throw new NullPointerException("null parameters in Post creation");
-
-        for(Entry<String, Vote> vote : votes.entrySet()){
-            if(vote == null || vote.getKey() == null || vote.getValue() == null) 
-                throw new NullPointerException("null parameters in Post creation");
-            this.votes.put(vote.getKey(), vote.getValue());
-        }
-        for(Comment comment : comments){
-            if(comment == null) throw new NullPointerException("null parameters in Post creation");
-            this.comments.add(comment);
-        }
 
         this.id = id;
         this.author = author;
         this.title = title;
         this.contents = contents;
+        this.votes = votes;
+        this.
         this.oldUpvoteNumber = oldUpvoteNumber;
         this.rewardsCounter = new AtomicInteger(noIterations);
     }
@@ -230,52 +224,89 @@ public class OriginalPost extends Post {
         return json;
     }
 
+    public static OriginalPost fromJson(JsonObject json) throws IllegalArgumentException {
+        if(json == null) throw new NullPointerException("null parameters");
+
+        try {
+            int id = json.get("id").getAsInt();
+            String author = json.get("author").getAsString();
+            String title = json.get("title").getAsString();
+            String contents = json.get("contents").getAsString();
+
+            JsonArray jsonVotes = json.get("votes").getAsJsonArray();
+            Iterator<JsonArray> iterVotes = jsonVotes.iterator();
+            ConcurrentMap<String, Vote> votes = new ConcurrentHashMap<>();
+            while(iterVotes.hasNext()){
+                JsonElement jsonVote = iterVotes.next();
+                votes.put(
+                    jsonVote.get("voter").getAsString, 
+                    Vote.valueOf(jsonVote.get("vote").getAsString())
+                );
+            }
+
+            JsonArray jsonComments = json.get("comments").getAsJsonArray();
+            Iterator<JsonArray> iterComments = jsonComments.iterator();
+            Collection<Comment> comments = new ConcurrentLinkedQueue<>();
+            while(iterComments.hasNext()){
+                JsonElement jsonComment = iterComments.next();
+                comments.put(Comment.fromJson(jsonComment));
+            }
+
+            int oldUpvoteNumber = json.get("oldUpvoteNumber").getAsInt();
+            int noIterations = json.get("rewardsCounter").getAsInt();
+
+            return new OriginalPost(id, author, title, contents, votes, oldUpvoteNumber, comments, noIterations)
+        } catch (ClassCastException | IllegalStateException | NullPointerException | IllegalArgumentException ex){
+            throw new IllegalArgumentException("parameter does not represent a valid OriginalPost", ex);
+        }
+    }
+
     // TODO: change the logic of all this last section
 
-    /**
-     * Returns the number of iterations of the Reward Algorithm (at the next iteration).
-     * @return the number of the next iteration of the Reward Algorithm
-     */
-    public int getRewardsCounter(){ return rewardsCounter.get(); }
+    // /**
+    //  * Returns the number of iterations of the Reward Algorithm (at the next iteration).
+    //  * @return the number of the next iteration of the Reward Algorithm
+    //  */
+    // public int getRewardsCounter(){ return rewardsCounter.get(); }
 
 
-    /**
-     * Returns the number of likes not yet counted by the Reward Algorithm.
-     * @return the number of likes not yet counted by the Reward Algorithm
-     */
-    public int getNewLikes(){ return upvotes.size() - oldUpvoteNumber; }
+    // /**
+    //  * Returns the number of likes not yet counted by the Reward Algorithm.
+    //  * @return the number of likes not yet counted by the Reward Algorithm
+    //  */
+    // public int getNewLikes(){ return upvotes.size() - oldUpvoteNumber; }
 
-    /** 
-     * Increments the Reward Iteration Counter.
-     */
-    public void incrementRewardsCounter(){ rewardsCounter.incrementAndGet(); }
+    // /** 
+    //  * Increments the Reward Iteration Counter.
+    //  */
+    // public void incrementRewardsCounter(){ rewardsCounter.incrementAndGet(); }
 
-    /**
-     * Returns a map that has
-     * <ul>
-     * <li> as keys, authors of comments under this post, </li>
-     * <li> as values, the number of comments the user has written. </li>
-     * </ul>
-     * @return a map with comments frequencies
-     */
-    public Map<String, Integer> getCommentsPerAuthor(){
-        Map<String, Integer> map = new HashMap<>();
+    // /**
+    //  * Returns a map that has
+    //  * <ul>
+    //  * <li> as keys, authors of comments under this post, </li>
+    //  * <li> as values, the number of comments the user has written. </li>
+    //  * </ul>
+    //  * @return a map with comments frequencies
+    //  */
+    // public Map<String, Integer> getCommentsPerAuthor(){
+    //     Map<String, Integer> map = new HashMap<>();
 
-        for(Comment comment : comments){
-            String auth = comment.author;
-            Integer val;
+    //     for(Comment comment : comments){
+    //         String auth = comment.author;
+    //         Integer val;
 
-            if((val = map.get(auth)) == null){ 
-                map.put(auth, 1);
-            } else { map.put(auth, val+1); }
-        }
+    //         if((val = map.get(auth)) == null){ 
+    //             map.put(auth, 1);
+    //         } else { map.put(auth, val+1); }
+    //     }
 
-        return map;
-    }
+    //     return map;
+    // }
 
-    /** Sets upvotes and comments as read. */
-    public synchronized void updateState(){
-        oldUpvoteNumber = upvotes.size();
-        for(Comment comment : comments) comment.setRead();
-    }
+    // /** Sets upvotes and comments as read. */
+    // public synchronized void updateState(){
+    //     oldUpvoteNumber = upvotes.size();
+    //     for(Comment comment : comments) comment.setRead();
+    // }
 }
