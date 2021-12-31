@@ -18,6 +18,7 @@ import java.rmi.server.UnicastRemoteObject;
 
 import winsome.api.*;
 import winsome.api.exceptions.*;
+import winsome.server.datastructs.*;
 import winsome.server.exceptions.*;
 import winsome.utils.exceptions.*;
 

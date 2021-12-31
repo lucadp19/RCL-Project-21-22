@@ -1,4 +1,4 @@
-package winsome.server;
+package winsome.server.datastructs;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonElement;

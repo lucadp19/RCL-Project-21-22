@@ -1,4 +1,4 @@
-package winsome.server;
+package winsome.server.datastructs;
 
 import java.util.ArrayList;
 import java.util.Collection;
