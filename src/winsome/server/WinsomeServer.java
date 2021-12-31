@@ -3,7 +3,7 @@ package winsome.server;
 import java.util.*;
 import java.util.Map.*;
 import java.util.concurrent.*;
-
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.ByteBuffer;
@@ -23,22 +23,50 @@ import winsome.server.exceptions.*;
 import winsome.utils.exceptions.*;
 
 public class WinsomeServer extends RemoteObject implements RemoteServer {
+    private class ServerPersistence {
+        private static AtomicBoolean isDataInit = new AtomicBoolean(false);
+        private String dirpath;
+
+        public ServerPersistence(String dirpath){ 
+            if(dirpath == null) throw new NullPointerException("directory path is null");
+            this.dirpath = dirpath; 
+        }
+
+        public void getPersistedData(){
+            File dir = new File(dirpath);
+            if(!dir.exists() || !dir.isDirectory()) { setEmptyData(); }
+
+            // TODO: read the files and get the persisted data
+            setEmptyData(); // TODO: eliminate this
+        }
+
+        private void setEmptyData(){
+            if(!isDataInit.compareAndSet(false, true)) throw new IllegalStateException("data has already been initialized");
+            
+            WinsomeServer.this.users         = new ConcurrentHashMap<>();
+            WinsomeServer.this.posts         = new ConcurrentHashMap<>();
+            WinsomeServer.this.followerMap   = new ConcurrentHashMap<>();
+            WinsomeServer.this.followingMap  = new ConcurrentHashMap<>();
+            WinsomeServer.this.transactions  = new ConcurrentHashMap<>();
+        }
+    }
+
     private ServerConfig config;
+    private ServerPersistence persistenceWorker;
 
     private Selector selector;
     private ServerSocketChannel socketChannel;
 
     private DatagramSocket multicastSocket;
 
-    private ConcurrentMap<String, SelectionKey> userSessions;
-
     private ConcurrentMap<String, User> users;
     private ConcurrentMap<Integer, Post> posts;
     private ConcurrentMap<String, List<String>> followerMap;
     private ConcurrentMap<String, List<String>> followingMap;
     private ConcurrentMap<String, List<Transaction>> transactions;
-
-    private ConcurrentMap<String, RemoteClient> registeredToCallbacks; // TODO: multiple clients, same user?
+    
+    private ConcurrentMap<String, SelectionKey> userSessions = new ConcurrentHashMap<>();
+    private ConcurrentMap<String, RemoteClient> registeredToCallbacks = new ConcurrentHashMap<>();
 
     public WinsomeServer(){
         super();
@@ -50,15 +78,10 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         config = new ServerConfig(configPath);
 
         // TODO: read persisted data
+        persistenceWorker = new ServerPersistence(config.getPersistenceDir());
+        persistenceWorker.getPersistedData();
 
-        userSessions = new ConcurrentHashMap<>();
-
-        users = new ConcurrentHashMap<>();
-        posts = new ConcurrentHashMap<>();
-        followerMap = new ConcurrentHashMap<>();
-        followingMap = new ConcurrentHashMap<>();
-        transactions = new ConcurrentHashMap<>();
-        
+        userSessions = new ConcurrentHashMap<>();        
         registeredToCallbacks = new ConcurrentHashMap<>();
     }
 
