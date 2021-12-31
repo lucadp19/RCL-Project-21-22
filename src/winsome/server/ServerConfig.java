@@ -18,7 +18,8 @@ public class ServerConfig extends AbstractConfig {
         REG_PORT        ("registry-port"),
         SOCK_TIMEOUT    ("socket-timeout"),
         REWARD_INT      ("reward-interval"),
-        REWARD_PERC     ("reward-percentage");
+        REWARD_PERC     ("reward-percentage"),
+        PERSIST_DIR     ("persistence-dir");
 
         public final String key;
         SCField(String key){ this.key = key; }
@@ -35,6 +36,7 @@ public class ServerConfig extends AbstractConfig {
                 case "socket-timeout":      return SOCK_TIMEOUT;
                 case "reward-interval":     return REWARD_INT;
                 case "reward-percentage":   return REWARD_PERC;
+                case "persistence-dir":     return PERSIST_DIR;
                 default: throw new UnknownKeyException(key);
             }
         }
@@ -51,6 +53,8 @@ public class ServerConfig extends AbstractConfig {
 
     private long rewardInterval = -1;
     private int authorRewardPerc = -1;
+
+    private String persistenceDir = null;
 
     public ServerConfig(final String configPath) throws 
             NullPointerException, FileNotFoundException, 
@@ -119,6 +123,10 @@ public class ServerConfig extends AbstractConfig {
                         try { authorRewardPerc = Integer.parseInt(entry.value); }
                         catch(NumberFormatException ex){ throw new NumberFormatException("argument of \"" + SCField.REWARD_PERC.key + "\" must be an integer"); }
                         break;
+                    case PERSIST_DIR:
+                        if(persistenceDir != null) throw new DuplicateKeyException(SCField.PERSIST_DIR.key);
+                        persistenceDir = entry.value;
+                        break;
                 }
             }
         } catch (IOException ex) { throw new IOException("IO error while reading config file", ex); }
@@ -136,6 +144,7 @@ public class ServerConfig extends AbstractConfig {
     public long getSockTimeout(){ return this.sockTimeout; }
     public long getRewardInterval(){ return this.rewardInterval; }
     public int getRewardPerc(){ return this.authorRewardPerc; }
+    public String getPersistenceDir(){ return this.persistenceDir; }
 
     private void checkEmptyFields() throws KeyNotSetException {
         if(serverAddr == null) throw new KeyNotSetException(SCField.SERVER_ADDR.key);
@@ -148,5 +157,6 @@ public class ServerConfig extends AbstractConfig {
         if(sockTimeout == -1) throw new KeyNotSetException(SCField.SOCK_TIMEOUT.key);
         if(rewardInterval == -1) throw new KeyNotSetException(SCField.REWARD_INT.key);
         if(authorRewardPerc == -1) throw new KeyNotSetException(SCField.REWARD_PERC.key);
+        if(persistenceDir == null) throw new KeyNotSetException(SCField.PERSIST_DIR.key);
     }
 }

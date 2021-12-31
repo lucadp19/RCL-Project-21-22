@@ -29,3 +29,6 @@ reward-interval: 1000
 
 # Percentage of the reward going to the author
 reward-percentage: 70
+
+# Directory containing the persisted state
+persistence-dir: ./.persisted-data
