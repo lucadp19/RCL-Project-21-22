@@ -9,8 +9,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.gson.JsonObject;
+import com.google.gson.annotations.JsonAdapter;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
+import com.google.gson.JsonNull;
 
 /**
  * A Post in the Winsome Social Network.
@@ -260,6 +262,49 @@ public class Post {
         if(author == null || contents == null) throw new NullPointerException("null parameter in comment creation");
         if(author == this.author) throw new IllegalArgumentException("author cannot add a comment to their own post");
         comments.add(new Comment(author, contents));
+    }
+
+    // ------------------- To/From JSON ------------------- //
+
+    public JsonObject toJson(){
+        JsonObject json = new JsonObject();
+        // adding standard properties
+        json.addProperty("id", id);
+        json.addProperty("author", author);
+        json.addProperty("title", title);
+        json.addProperty("contents", contents);
+
+        // rewin info
+        if(isRewin()) {
+            json.addProperty("rewinner", rewinner.get());
+            json.addProperty("rewinID", rewinID.get());
+        } else {
+            json.add("rewinner", JsonNull.INSTANCE);
+            json.add("rewinID", JsonNull.INSTANCE);
+        }
+
+        // adding votes
+        JsonArray jsonVotes = new JsonArray();
+        for(Entry<String, Vote> vote : votes.entrySet()){
+            JsonObject jsonVote = new JsonObject();
+
+            jsonVote.addProperty("voter", vote.getKey());
+            jsonVote.addProperty("vote", vote.getValue().toString());
+
+            jsonVotes.add(jsonVote);
+        }
+        json.add("votes", jsonVotes);
+
+        // adding comments
+        JsonArray jsonComments = new JsonArray();
+        for(Comment comment : comments){ jsonComments.add(comment.toJson()); }
+        json.add("comments", jsonComments);
+
+        // adding counters
+        json.addProperty("oldUpvoteNumber", oldUpvoteNumber);
+        json.addProperty("rewardsCounter", rewardsCounter);
+
+        return json;
     }
 
     // TODO: change the logic of all this last section
