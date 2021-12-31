@@ -2,6 +2,7 @@ package winsome.server;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.gson.JsonObject;
@@ -31,7 +32,7 @@ public class Post {
     /** Users who have downvoted this post */
     private final Set<String> downvotes = ConcurrentHashMap.newKeySet();
     /** The comments under this post */
-    private final List<Comment> comments = new ArrayList<>();
+    private final Collection<Comment> comments = new ConcurrentLinkedQueue<>();
     
     /** Number of upvotes at the last iteration of the Rewards Algorithm */
     private int oldUpvoteNumber = 0;
