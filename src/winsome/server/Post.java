@@ -1,8 +1,11 @@
 package winsome.server;
 
 import java.util.*;
+import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.gson.JsonObject;
@@ -13,6 +16,9 @@ import com.google.gson.JsonElement;
  * A Post in the Winsome Social Network.
  */
 public class Post {
+    public static enum Vote {
+        UP, DOWN;
+    }
     /** This post's unique identifier */
     public final int id;
     /** This post's author */
@@ -31,6 +37,8 @@ public class Post {
     private final Set<String> upvotes = ConcurrentHashMap.newKeySet();
     /** Users who have downvoted this post */
     private final Set<String> downvotes = ConcurrentHashMap.newKeySet();
+    /** Users who have rated this post */
+    private final ConcurrentMap<String, Vote> votes = new ConcurrentHashMap<>();
     /** The comments under this post */
     private final Collection<Comment> comments = new ConcurrentLinkedQueue<>();
     
@@ -96,7 +104,7 @@ public class Post {
 
     /**
      *  Creates a post, taking the ID, up/downvotes as arguments.
-     * 
+     * w in a
      * Useful to deserialize posts.
      * @param id id of this post
      * @param author author of this post
@@ -104,8 +112,7 @@ public class Post {
      * @param contents contents of this post
      * @param rewinner user that created this rewin, if any
      * @param rewinID ID of the rewinned post, if any
-     * @param upvotes list of users who have upvoted this post
-     * @param downvotes list of users who have downvoted this post
+     * @param votes map with  users who have voted this post as keys, and votes as values
      * @param oldUpvoteNumber number of upvotes at the latest iteration of the Reward Algorithm
      * @param comments list of comments of the post
      * @param noIterations number of iterations at the latest iteration of the Reward Algorithm
@@ -114,7 +121,7 @@ public class Post {
     private Post(
         int id, String author, String title, String contents, 
         Optional<String> rewinner, Optional<Integer> rewinID,
-        List<String> upvotes, List<String> downvotes,
+        Map<String, Vote> votes,
         int oldUpvoteNumber, List<Comment> comments,
         int noIterations
     ) throws NullPointerException {
@@ -122,13 +129,10 @@ public class Post {
                 || upvotes == null || downvotes == null || comments == null) 
             throw new NullPointerException("null parameters in Post creation");
 
-        for(String upvote : upvotes){
-            if(upvote == null) throw new NullPointerException("null parameters in Post creation");
-            this.upvotes.add(upvote);
-        }
-        for(String downvote : downvotes){
-            if(downvote == null) throw new NullPointerException("null parameters in Post creation");
-            this.downvotes.add(downvote);
+        for(Entry<String, Vote> vote : votes.entrySet()){
+            if(vote == null || vote.getKey() == null || vote.getValue() == null) 
+                throw new NullPointerException("null parameters in Post creation");
+            this.votes.put(vote.getKey(), vote.getValue());
         }
         for(Comment comment : comments){
             if(comment == null) throw new NullPointerException("null parameters in Post creation");
@@ -189,12 +193,24 @@ public class Post {
      * Returns the users who have upvoted this post.
      * @return a list of the users who have upvoted this post
      */
-    public List<String> getUpvotes(){ return new ArrayList<>(upvotes); }
+    public List<String> getUpvotes(){ 
+        List<String> upvoters = new ArrayList<>();
+        for(Entry<String, Vote> vote : votes.entrySet())
+            if(vote.getValue() == Vote.UP) upvoters.add(vote.getKey());
+        
+        return upvoters; 
+    }
     /**
      * Returns the users who have downvoted this post.
      * @return a list of the users who have downvoted this post
      */
-    public List<String> getDownvotes(){ return new ArrayList<>(downvotes); }
+    public List<String> getDownvotes(){ 
+        List<String> downvoters = new ArrayList<>();
+        for(Entry<String, Vote> vote : votes.entrySet())
+            if(vote.getValue() == Vote.DOWN) downvoters.add(vote.getKey());
+        
+        return downvoters;
+    }
     /**
      * Returns the comments under this post.
      * @return a list of the comments under this post
@@ -215,8 +231,9 @@ public class Post {
      */
     public void upvote(String voter) throws NullPointerException, IllegalArgumentException {
         if(voter == null) throw new NullPointerException("null parameter in upvoting post");
-        if(!upvotes.add(voter)) 
-            throw new IllegalArgumentException("post has already been upvoted");
+
+        if(votes.putIfAbsent(voter, Vote.UP) != null)
+            throw new IllegalArgumentException("post had already been voted");
     }
     
     /**
@@ -227,8 +244,9 @@ public class Post {
      */
     public void downvote(String voter) throws NullPointerException, IllegalArgumentException {
         if(voter == null) throw new NullPointerException("null parameter in downvoting post");
-        if(!downvotes.add(voter)) 
-            throw new IllegalArgumentException("post has already been downvoted");
+
+        if(votes.putIfAbsent(voter, Vote.DOWN) != null)
+            throw new IllegalArgumentException("post had already been voted");
     }
 
     /**
