@@ -57,15 +57,17 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             ConcurrentHashMap<String, User> users;
             ConcurrentHashMap<Integer, Post> posts;
             ConcurrentHashMap<String, Set<String>> followers;
-            ConcurrentHashMap<String, Transaction> transactions;
+            ConcurrentHashMap<String, Collection<Transaction>> transactions;
 
             try {
                 users = parseUsers(usersFile);
                 followers = parseFollowers(followersFile);
+                transactions = parseTransactions(transactionFile);
             } catch(IOException | InvalidJSONFileException ex) { ex.printStackTrace(); setEmptyData(); return; }
 
             WinsomeServer.this.users = users;
             WinsomeServer.this.followerMap = followers;
+            WinsomeServer.this.transactions = transactions;
         }
 
         private void setEmptyData(){
@@ -123,6 +125,33 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             }
             return followers;
         }
+
+        private ConcurrentHashMap<String, Collection<Transaction>> parseTransactions(File transactionsFile) throws InvalidJSONFileException, IOException {
+            ConcurrentHashMap<String, Collection<Transaction>> transactionMap = new ConcurrentHashMap<>();
+            
+            try (
+                JsonReader reader = new JsonReader(new BufferedReader(new FileReader(transactionsFile)));
+            ){
+                reader.beginArray();
+                while(reader.hasNext()){
+                    reader.beginObject();
+
+                    String username = reader.nextName();
+                    ConcurrentLinkedQueue<Transaction> userTrans = new ConcurrentLinkedQueue<>();
+
+                    reader.beginArray();
+                    while(reader.hasNext()){
+                        userTrans.add(Transaction.fromJson(reader));
+                    }
+                    reader.endArray();
+                    reader.endObject();
+
+                    transactionMap.put(username, userTrans);
+                }
+                reader.endArray();
+            }
+            return transactionMap;
+        }
     }
 
     private static AtomicBoolean isDataInit = new AtomicBoolean(false);
@@ -139,7 +168,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
     private ConcurrentMap<Integer, Post> posts;
     private ConcurrentMap<String, Set<String>> followerMap;
     private ConcurrentMap<String, Set<String>> followingMap;
-    private ConcurrentMap<String, List<Transaction>> transactions;
+    private ConcurrentMap<String, Collection<Transaction>> transactions;
     
     private final ConcurrentMap<String, SelectionKey> userSessions = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, RemoteClient> registeredToCallbacks = new ConcurrentHashMap<>();
@@ -156,8 +185,6 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         // TODO: read persisted data
         persistenceWorker = new ServerPersistence(config.getPersistenceDir());
         persistenceWorker.getPersistedData();
-
-        System.out.println("Followers: " + followerMap);
     }
 
     /* **************** Connection methods **************** */
@@ -238,7 +265,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 throw new UserAlreadyExistsException("\"" + username + "\" is not available as a new username");
             followerMap.put(username, ConcurrentHashMap.newKeySet());
             followingMap.put(username, ConcurrentHashMap.newKeySet());
-            transactions.put(username, new ArrayList<>());
+            transactions.put(username, new ConcurrentLinkedQueue<>());
         }
     }
 
