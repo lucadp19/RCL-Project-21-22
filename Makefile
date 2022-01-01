@@ -15,7 +15,6 @@ GSON_LIB = $(LIB_DIR)/gson-2.8.6.jar
 
 # Arguments for -cp
 SRC_CP = $(SRC_DIR):$(GSON_LIB):.
-OUT_CP = $(OUT_DIR):$(GSON_LIB):.
 
 # Source files
 SRC_FILES := $(shell find $(SRC_DIR) -name *.java)
@@ -42,6 +41,7 @@ compile:
 
 SERVER_MAIN=winsome.server.WinsomeServerMain
 SERVER_JAR=$(BIN_DIR)/winsome-server.jar
+SERVER_CP=$(SERVER_JAR):$(GSON_LIB):.
 
 server:
 	@echo -e "$(BLUE)-> $(RESET)Creating Server .jar file..."
@@ -55,6 +55,7 @@ server:
 
 CLIENT_MAIN=winsome.client.WinsomeClientMain
 CLIENT_JAR=$(BIN_DIR)/winsome-client.jar
+CLIENT_CP=$(CLIENT_JAR):$(GSON_LIB):.
 
 client:
 	@echo -e "$(BLUE)-> $(RESET)Creating Client .jar file..."
@@ -76,7 +77,7 @@ clean: title
 # -------------- RUN -------------- #
 
 run-server:
-	@java -cp $(OUT_CP) -jar $(SERVER_JAR)
+	@java -cp $(SERVER_CP) $(SERVER_MAIN)
 
 run-client:
-	@java -cp $(OUT_CP) -jar $(CLIENT_JAR)
+	@java -cp $(CLIENT_CP) $(CLIENT_MAIN)

@@ -1,10 +1,14 @@
 package winsome.server.datastructs;
 
+import java.io.IOException;
 import java.util.*;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.stream.JsonReader;
+
+import winsome.server.exceptions.InvalidJSONFileException;
 
 /**
  * A User of the Winsome Social Network.
@@ -119,6 +123,55 @@ public class User {
             user = new User(username, password, tags);
         } catch (ClassCastException | IllegalStateException | NullPointerException ex) {
             throw new IllegalArgumentException("parameter did not represent a valid User"); // TODO: create exception
+        }
+
+        return user;        
+    }
+ 
+    /**
+     * Takes a JsonReader and creates a new User from the given information.
+     * @param reader the given JsonReader
+     * @return the User created from the JsonObject
+     * @throws InvalidJSONFileException whenever the reader does not read a valid User
+     * @throws IOException whenever there is an IO error
+     */
+    public static User fromJson(JsonReader reader) throws InvalidJSONFileException, IOException {
+        // null checking
+        if(reader == null) throw new NullPointerException("null json reader");
+
+        User user = null;
+        
+        try {
+            String username = null;
+            String password = null;
+            Set<String> tags = new HashSet<>();
+            
+            reader.beginObject();
+            while(reader.hasNext()){
+                String property = reader.nextName();
+
+                switch (property) {
+                    case "username":
+                        username = reader.nextString();
+                        break;
+                    case "password":
+                        password = reader.nextString();
+                        break;
+                    case "tags": {
+                        reader.beginArray();
+                        while(reader.hasNext()){
+                            tags.add(reader.nextString());
+                        }
+                        reader.endArray();
+                    }
+                    default:
+                        throw new InvalidJSONFileException("parse error in json file");
+                }
+            }
+
+            user = new User(username, password, tags);
+        } catch (ClassCastException | IllegalStateException | NullPointerException ex) {
+            throw new InvalidJSONFileException("parameter did not represent a valid User", ex);
         }
 
         return user;        
