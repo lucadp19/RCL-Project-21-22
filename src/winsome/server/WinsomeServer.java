@@ -46,8 +46,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             // TODO: read the files and get the persisted data
             File usersFile = new File(dir, "users.json");
             File postsFile = new File(dir, "posts.json");
-            File followersFile = new File(dir, "follower.json");
-            File transactionFile = new File(dir, "users.json");
+            File followersFile = new File(dir, "followers.json");
+            File transactionFile = new File(dir, "transactions.json");
 
             // if(!postsFile.exists() || !postsFile.isFile()
             //     || !followersFile.exists() || !followersFile.isFile()
@@ -56,14 +56,16 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             
             ConcurrentHashMap<String, User> users;
             ConcurrentHashMap<Integer, Post> posts;
-            ConcurrentHashMap<String, User> followers;
+            ConcurrentHashMap<String, Set<String>> followers;
             ConcurrentHashMap<String, Transaction> transactions;
 
             try {
                 users = parseUsers(usersFile);
+                followers = parseFollowers(followersFile);
             } catch(IOException | InvalidJSONFileException ex) { ex.printStackTrace(); setEmptyData(); return; }
 
             WinsomeServer.this.users = users;
+            WinsomeServer.this.followerMap = followers;
         }
 
         private void setEmptyData(){
@@ -94,6 +96,33 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             }
             return users;
         }
+
+        private ConcurrentHashMap<String, Set<String>> parseFollowers(File followersFile) throws InvalidJSONFileException, IOException {
+            ConcurrentHashMap<String, Set<String>> followers = new ConcurrentHashMap<>();
+            
+            try (
+                JsonReader reader = new JsonReader(new BufferedReader(new FileReader(followersFile)));
+            ){
+                reader.beginArray();
+                while(reader.hasNext()){
+                    reader.beginObject();
+
+                    String username = reader.nextName();
+                    Set<String> userFollowers = ConcurrentHashMap.newKeySet();
+
+                    reader.beginArray();
+                    while(reader.hasNext()){
+                        userFollowers.add(reader.nextString());
+                    }
+                    reader.endArray();
+                    reader.endObject();
+
+                    followers.put(username, userFollowers);
+                }
+                reader.endArray();
+            }
+            return followers;
+        }
     }
 
     private static AtomicBoolean isDataInit = new AtomicBoolean(false);
@@ -108,8 +137,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
     private ConcurrentMap<String, User> users;
     private ConcurrentMap<Integer, Post> posts;
-    private ConcurrentMap<String, List<String>> followerMap;
-    private ConcurrentMap<String, List<String>> followingMap;
+    private ConcurrentMap<String, Set<String>> followerMap;
+    private ConcurrentMap<String, Set<String>> followingMap;
     private ConcurrentMap<String, List<Transaction>> transactions;
     
     private final ConcurrentMap<String, SelectionKey> userSessions = new ConcurrentHashMap<>();
@@ -127,6 +156,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         // TODO: read persisted data
         persistenceWorker = new ServerPersistence(config.getPersistenceDir());
         persistenceWorker.getPersistedData();
+
+        System.out.println("Followers: " + followerMap);
     }
 
     /* **************** Connection methods **************** */
@@ -203,13 +234,10 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             if(tag == null) throw new NullPointerException("null parameters in signUp method");
 
         synchronized(this){ // TODO: is this the best way to synchronize things?
-            if(users.containsKey(username)) throw new UserAlreadyExistsException();
-
-            User newUser = new User(username, password, tags);
-
-            users.put(username, newUser);
-            followerMap.put(username, new ArrayList<>());
-            followingMap.put(username, new ArrayList<>());
+            if(users.computeIfAbsent(username, k -> new User(username, password, tags)) != null)
+                throw new UserAlreadyExistsException("\"" + username + "\" is not available as a new username");
+            followerMap.put(username, ConcurrentHashMap.newKeySet());
+            followingMap.put(username, ConcurrentHashMap.newKeySet());
             transactions.put(username, new ArrayList<>());
         }
     }
