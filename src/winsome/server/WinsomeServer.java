@@ -21,9 +21,10 @@ import java.rmi.*;
 import java.rmi.registry.*;
 import java.rmi.server.RemoteObject;
 import java.rmi.server.UnicastRemoteObject;
+import java.security.Key;
 
 import winsome.api.*;
-import winsome.api.codes.RequestCode;
+import winsome.api.codes.*;
 import winsome.api.exceptions.*;
 import winsome.server.datastructs.*;
 import winsome.server.exceptions.*;
@@ -159,26 +160,66 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         JsonObject request;
         SelectionKey key;
 
-        public Worker(JsonObject request, SelectionKey key){ this.request = request; this.key = key; }
-
-        public void run(){
-
-            RequestCode code = RequestCode.valueOf(request.get("request").getAsString());
-
-            switch (code) {
-                default:
-                    // TODO: implement things
-                    break;
-            }
+        public Worker(JsonObject request, SelectionKey key){
+            this.request = request; this.key = key; 
         }
 
+        public void run(){
+            RequestCode code = RequestCode.valueOf(request.get("code").getAsString());
+
+            try {
+                JsonObject response = null;
+                switch (code) {
+                    case LOGIN:
+                        response = loginRequest();
+                    default:
+                        // TODO: implement things
+                        break;
+                }
+
+                send(response.toString(), key);
+            } catch(IOException ex){
+                // TODO: remove user
+            }
+        }     
         
+        private JsonObject loginRequest(){
+            JsonObject response = new JsonObject();
+            KeyAttachment attachment = (KeyAttachment) key.attachment();
+
+            String username = null; 
+            String password = null; 
+            
+            try {
+                username = request.get("username").getAsString();
+                password = request.get("password").getAsString();
+            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){
+                response.addProperty("code", ResponseCode.MALFORMED_JSON_REQUEST.toString());
+                return response;
+            }
+            
+            if(!users.containsKey(username)) {
+                response.addProperty("code", ResponseCode.USER_NOT_REGISTERED.toString());
+                return response;
+            }
+
+            if(!attachment.isLoggedIn() || WinsomeServer.this.userSessions.putIfAbsent(username, key) != null){
+                response.addProperty("code", ResponseCode.ALREADY_LOGGED.toString());
+            } else {
+                response.addProperty("code", ResponseCode.SUCCESS.toString());
+                attachment.login(username);
+            }
+
+            return response;
+        }
     }
 
     private static AtomicBoolean isDataInit = new AtomicBoolean(false);
 
     private ServerConfig config;
     private ServerPersistence persistenceWorker;
+
+    private Executor pool;
 
     private Selector selector;
     private ServerSocketChannel socketChannel;
@@ -205,6 +246,11 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         // TODO: read persisted data
         persistenceWorker = new ServerPersistence(config.getPersistenceDir());
         persistenceWorker.getPersistedData();
+
+        pool = new ThreadPoolExecutor(
+            config.getMinThreads(), config.getMaxThreads(), 
+            60L, TimeUnit.SECONDS, new LinkedBlockingQueue<>()
+        );
     }
 
     /* **************** Connection methods **************** */
@@ -240,6 +286,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             Iterator<SelectionKey> iter = keys.iterator();
             while(iter.hasNext()){
                 SelectionKey key = iter.next();
+                iter.remove();
+
                 try {
                     if(key.isAcceptable()){ 
                         SocketChannel client = socketChannel.accept();
@@ -251,10 +299,19 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     if(key.isReadable() && key.isValid()){
                         // TODO
                         System.out.println("Key is readable!");
-                        JsonObject request = getJsonRequest(key);
+                        
+                        JsonObject request = null;
+                        try { request = getJsonRequest(key); }
+                        catch (JsonParseException | IllegalStateException ex){
+                            JsonObject response = new JsonObject();
+                            response.addProperty("code", ResponseCode.MALFORMED_JSON_REQUEST.toString());
+                            send(response.toString(), key);
+                        }
+                        
+                        pool.execute(new Worker(request, key));
                         // TODO: create a worker and insert it into a thread pool
                     }
-                    iter.remove();
+                    
                 } catch(IOException ex){
                     // TODO: disconnect client
                     key.cancel();

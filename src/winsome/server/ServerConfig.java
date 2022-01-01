@@ -19,7 +19,9 @@ public class ServerConfig extends AbstractConfig {
         SOCK_TIMEOUT    ("socket-timeout"),
         REWARD_INT      ("reward-interval"),
         REWARD_PERC     ("reward-percentage"),
-        PERSIST_DIR     ("persistence-dir");
+        PERSIST_DIR     ("persistence-dir"),
+        MIN_THREADS     ("min-threads"),
+        MAX_THREADS     ("max-threads");
 
         public final String key;
         SCField(String key){ this.key = key; }
@@ -37,6 +39,8 @@ public class ServerConfig extends AbstractConfig {
                 case "reward-interval":     return REWARD_INT;
                 case "reward-percentage":   return REWARD_PERC;
                 case "persistence-dir":     return PERSIST_DIR;
+                case "min-threads":         return MIN_THREADS;
+                case "max-threads":         return MAX_THREADS;
                 default: throw new UnknownKeyException(key);
             }
         }
@@ -55,6 +59,9 @@ public class ServerConfig extends AbstractConfig {
     private int authorRewardPerc = -1;
 
     private String persistenceDir = null;
+
+    private int minThreads = -1;
+    private int maxThreads = -1;
 
     public ServerConfig(final String configPath) throws 
             NullPointerException, FileNotFoundException, 
@@ -127,6 +134,16 @@ public class ServerConfig extends AbstractConfig {
                         if(persistenceDir != null) throw new DuplicateKeyException(SCField.PERSIST_DIR.key);
                         persistenceDir = entry.value;
                         break;
+                    case MIN_THREADS:
+                        if(minThreads != -1) throw new DuplicateKeyException(SCField.MIN_THREADS.key);
+                        try { minThreads = Integer.parseInt(entry.value); }
+                        catch(NumberFormatException ex){ throw new NumberFormatException("argument of \"" + SCField.MIN_THREADS.key + "\" must be an integer"); }
+                        break;
+                    case MAX_THREADS:
+                        if(maxThreads != -1) throw new DuplicateKeyException(SCField.MAX_THREADS.key);
+                        try { maxThreads = Integer.parseInt(entry.value); }
+                        catch(NumberFormatException ex){ throw new NumberFormatException("argument of \"" + SCField.MAX_THREADS.key + "\" must be an integer"); }
+                        break;
                 }
             }
         } catch (IOException ex) { throw new IOException("IO error while reading config file", ex); }
@@ -145,6 +162,8 @@ public class ServerConfig extends AbstractConfig {
     public long getRewardInterval(){ return this.rewardInterval; }
     public int getRewardPerc(){ return this.authorRewardPerc; }
     public String getPersistenceDir(){ return this.persistenceDir; }
+    public int getMinThreads(){ return this.minThreads; }
+    public int getMaxThreads(){ return this.maxThreads; }
 
     private void checkEmptyFields() throws KeyNotSetException {
         if(serverAddr == null) throw new KeyNotSetException(SCField.SERVER_ADDR.key);

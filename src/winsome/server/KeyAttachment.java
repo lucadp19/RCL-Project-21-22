@@ -17,11 +17,12 @@ public class KeyAttachment {
     }
 
     public boolean isLoggedIn(){ return user == null; }
-    public void login(String user) throws UserAlreadyLoggedException {
+    public boolean login(String user) {
         if(user == null) throw new NullPointerException();
-        if(this.user != null) throw new UserAlreadyLoggedException();
+        if(this.user != null) return false;
 
         this.user = user;
+        return true;
     }
     public void logout(){ user = null; }
 

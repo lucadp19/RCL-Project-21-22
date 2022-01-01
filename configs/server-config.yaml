@@ -32,3 +32,9 @@ reward-percentage: 70
 
 # Directory containing the persisted state
 persistence-dir: ./.persisted-data
+
+# Minimum number of always active threads
+min-threads: 4
+
+# Maximum number of simultaneously active threads
+max-threads: 12
