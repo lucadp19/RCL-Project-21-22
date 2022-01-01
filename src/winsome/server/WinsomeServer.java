@@ -4,6 +4,12 @@ import java.util.*;
 import java.util.Map.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.google.gson.JsonSyntaxException;
+import com.google.gson.stream.JsonReader;
+
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.ByteBuffer;
@@ -24,7 +30,6 @@ import winsome.utils.exceptions.*;
 
 public class WinsomeServer extends RemoteObject implements RemoteServer {
     private class ServerPersistence {
-        private static AtomicBoolean isDataInit = new AtomicBoolean(false);
         private String dirpath;
 
         public ServerPersistence(String dirpath){ 
@@ -33,23 +38,65 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         }
 
         public void getPersistedData(){
+            if(isDataInit.get()) throw new IllegalStateException("data has already been initialized");
+
             File dir = new File(dirpath);
-            if(!dir.exists() || !dir.isDirectory()) { setEmptyData(); }
+            if(!dir.exists() || !dir.isDirectory()) { setEmptyData(); return; }
 
             // TODO: read the files and get the persisted data
-            setEmptyData(); // TODO: eliminate this
+            File usersFile = new File(dir, "users.json");
+            File postsFile = new File(dir, "posts.json");
+            File followersFile = new File(dir, "follower.json");
+            File transactionFile = new File(dir, "users.json");
+
+            // if(!postsFile.exists() || !postsFile.isFile()
+            //     || !followersFile.exists() || !followersFile.isFile()
+            //     || !transactionFile.exists() || !transactionFile.isFile()
+            // ){ setEmptyData(); return; }
+            
+            ConcurrentHashMap<String, User> users;
+            ConcurrentHashMap<Integer, Post> posts;
+            ConcurrentHashMap<String, User> followers;
+            ConcurrentHashMap<String, Transaction> transactions;
+
+            try {
+                users = parseUsers(usersFile);
+            } catch(IOException | InvalidJSONFileException ex) { ex.printStackTrace(); setEmptyData(); return; }
+
+            WinsomeServer.this.users = users;
         }
 
         private void setEmptyData(){
-            if(!isDataInit.compareAndSet(false, true)) throw new IllegalStateException("data has already been initialized");
+            if(!isDataInit.compareAndSet(false, true))
+                throw new IllegalStateException("data has already been initialized");
+
+            users = new ConcurrentHashMap<>();
+            posts = new ConcurrentHashMap<>();
+            followerMap = new ConcurrentHashMap<>();
+            followingMap = new ConcurrentHashMap<>();
+            transactions = new ConcurrentHashMap<>();
+        }
+
+        private ConcurrentHashMap<String, User> parseUsers(File usersFile) throws InvalidJSONFileException, IOException {
+            ConcurrentHashMap<String, User> users = new ConcurrentHashMap<>();
             
-            WinsomeServer.this.users         = new ConcurrentHashMap<>();
-            WinsomeServer.this.posts         = new ConcurrentHashMap<>();
-            WinsomeServer.this.followerMap   = new ConcurrentHashMap<>();
-            WinsomeServer.this.followingMap  = new ConcurrentHashMap<>();
-            WinsomeServer.this.transactions  = new ConcurrentHashMap<>();
+            try (
+                JsonReader reader = new JsonReader(new BufferedReader(new FileReader(usersFile)));
+            ){
+                reader.beginArray();
+                while(reader.hasNext()){
+                    User nextUser = User.fromJson(reader);
+                    String nextUsername = nextUser.getUsername();
+
+                    users.put(nextUsername, nextUser);
+                }
+                reader.endArray();
+            }
+            return users;
         }
     }
+
+    private static AtomicBoolean isDataInit = new AtomicBoolean(false);
 
     private ServerConfig config;
     private ServerPersistence persistenceWorker;
@@ -65,8 +112,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
     private ConcurrentMap<String, List<String>> followingMap;
     private ConcurrentMap<String, List<Transaction>> transactions;
     
-    private ConcurrentMap<String, SelectionKey> userSessions = new ConcurrentHashMap<>();
-    private ConcurrentMap<String, RemoteClient> registeredToCallbacks = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, SelectionKey> userSessions = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, RemoteClient> registeredToCallbacks = new ConcurrentHashMap<>();
 
     public WinsomeServer(){
         super();
@@ -80,9 +127,6 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         // TODO: read persisted data
         persistenceWorker = new ServerPersistence(config.getPersistenceDir());
         persistenceWorker.getPersistedData();
-
-        userSessions = new ConcurrentHashMap<>();        
-        registeredToCallbacks = new ConcurrentHashMap<>();
     }
 
     /* **************** Connection methods **************** */
