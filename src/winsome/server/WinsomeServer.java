@@ -6,12 +6,12 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.stream.JsonReader;
 
 import java.io.*;
-import java.nio.ByteBuffer;
 import java.nio.ByteBuffer;
 import java.nio.channels.*;
 import java.nio.charset.StandardCharsets;
@@ -23,10 +23,10 @@ import java.rmi.server.RemoteObject;
 import java.rmi.server.UnicastRemoteObject;
 
 import winsome.api.*;
+import winsome.api.codes.RequestCode;
 import winsome.api.exceptions.*;
 import winsome.server.datastructs.*;
 import winsome.server.exceptions.*;
-import winsome.utils.exceptions.*;
 
 public class WinsomeServer extends RemoteObject implements RemoteServer {
     private class ServerPersistence {
@@ -155,6 +155,26 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         }
     }
 
+    private class Worker implements Runnable {
+        JsonObject request;
+        SelectionKey key;
+
+        public Worker(JsonObject request, SelectionKey key){ this.request = request; this.key = key; }
+
+        public void run(){
+
+            RequestCode code = RequestCode.valueOf(request.get("request").getAsString());
+
+            switch (code) {
+                default:
+                    // TODO: implement things
+                    break;
+            }
+        }
+
+        
+    }
+
     private static AtomicBoolean isDataInit = new AtomicBoolean(false);
 
     private ServerConfig config;
@@ -231,7 +251,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     if(key.isReadable() && key.isValid()){
                         // TODO
                         System.out.println("Key is readable!");
-                        echo(key);
+                        JsonObject request = getJsonRequest(key);
+                        // TODO: create a worker and insert it into a thread pool
                     }
                     iter.remove();
                 } catch(IOException ex){
@@ -395,5 +416,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         buf.flip();
         while(buf.hasRemaining()) client.write(buf);
         buf.clear();
+    }
+
+    private JsonObject getJsonRequest(SelectionKey key) throws IOException, JsonParseException, IllegalStateException {
+        return JsonParser.parseString(receive(key)).getAsJsonObject();
     }
 }
