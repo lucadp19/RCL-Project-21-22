@@ -12,6 +12,7 @@ import java.rmi.server.*;
 import java.util.*;
 
 import winsome.api.exceptions.NotImplementedException;
+import winsome.api.exceptions.UserAlreadyExistsException;
 
 public class WinsomeAPI extends RemoteObject implements RemoteClient {
     private final String serverAddr;
@@ -26,7 +27,6 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
     private RemoteClient remoteClient;
     
     private String loggedUser = null;
-    private Map<Integer, PostInfo> posts = null;
     private Map<String, List<String>> followers = null;
     private Map<String, List<String>> following = null;
 
@@ -99,8 +99,15 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
 
     /* *************** Stubs for TCP Methods *************** */
 
-    public void register(String user, String passw, Set<String> tags) throws NotImplementedException {
-        throw new NotImplementedException("method not yet implemented");
+    public void register(String username, String password, Set<String> tags) 
+            throws NullPointerException, IllegalStateException, UserAlreadyExistsException, RemoteException {
+        if(username == null || password == null || tags == null) throw new NullPointerException("null arguments to register");
+        for(String tag : tags)
+            if(tag == null) throw new NullPointerException("null tag in register");
+        
+        if(isLogged()) throw new IllegalStateException("a user is already logged; please log out before trying to sign up");
+
+        remoteServer.signUp(username, password, tags);
     }
 
     public void login(String user, String passw) throws NotImplementedException {
@@ -194,4 +201,8 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
 
         return new String(buf, StandardCharsets.UTF_8);
     }  
+
+    // ------------ Utility functions ------------ //
+
+    public boolean isLogged(){ return loggedUser != null; }
 }

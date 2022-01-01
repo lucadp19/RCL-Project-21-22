@@ -61,11 +61,13 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
             try {
                 users = parseUsers(usersFile);
+                posts = new ConcurrentHashMap<>(); // TODO: parse post files
                 followers = parseFollowers(followersFile);
                 transactions = parseTransactions(transactionFile);
             } catch(IOException | InvalidJSONFileException ex) { ex.printStackTrace(); setEmptyData(); return; }
 
             WinsomeServer.this.users = users;
+            WinsomeServer.this.posts = posts;
             WinsomeServer.this.followerMap = followers;
             WinsomeServer.this.transactions = transactions;
         }
@@ -77,7 +79,6 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             users = new ConcurrentHashMap<>();
             posts = new ConcurrentHashMap<>();
             followerMap = new ConcurrentHashMap<>();
-            followingMap = new ConcurrentHashMap<>();
             transactions = new ConcurrentHashMap<>();
         }
 
@@ -167,7 +168,6 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
     private ConcurrentMap<String, User> users;
     private ConcurrentMap<Integer, Post> posts;
     private ConcurrentMap<String, Set<String>> followerMap;
-    private ConcurrentMap<String, Set<String>> followingMap;
     private ConcurrentMap<String, Collection<Transaction>> transactions;
     
     private final ConcurrentMap<String, SelectionKey> userSessions = new ConcurrentHashMap<>();
@@ -255,18 +255,23 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
     /* **************** Remote Methods **************** */
 
-    public void signUp(String username, String password, List<String> tags) throws RemoteException, UserAlreadyExistsException {
+    public void signUp(String username, String password, Collection<String> tags) throws RemoteException, UserAlreadyExistsException {
         if(username == null || password == null || tags == null) throw new NullPointerException("null parameters in signUp method");
         for(String tag : tags) 
             if(tag == null) throw new NullPointerException("null parameters in signUp method");
+        
+        System.out.println("New user: \n\tUsername: " + username + "\n\tPassword: " + password + "\n\tTags: " + tags);
+
+        User newUser = new User(username, password, tags);
 
         synchronized(this){ // TODO: is this the best way to synchronize things?
-            if(users.computeIfAbsent(username, k -> new User(username, password, tags)) != null)
+            if(users.putIfAbsent(username, newUser) != null)
                 throw new UserAlreadyExistsException("\"" + username + "\" is not available as a new username");
             followerMap.put(username, ConcurrentHashMap.newKeySet());
-            followingMap.put(username, ConcurrentHashMap.newKeySet());
             transactions.put(username, new ConcurrentLinkedQueue<>());
         }
+
+        System.out.println("New user: \n\tUsername: " + username + "\n\tPassword: " + password + "\n\tTags: " + tags);
     }
 
     public void registerForUpdates(String username, RemoteClient client) throws RemoteException, NoSuchUserException {

@@ -16,7 +16,7 @@ public interface RemoteServer extends Remote {
      * @param tags the new user's tags
      * @throws RemoteException
      */
-    void signUp(String username, String password, List<String> tags) throws RemoteException, UserAlreadyExistsException;
+    void signUp(String username, String password, Collection<String> tags) throws RemoteException, UserAlreadyExistsException;
 
     /**
      * Registers a remote client in the update list.

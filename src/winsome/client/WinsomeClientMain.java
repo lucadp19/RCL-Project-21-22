@@ -1,11 +1,12 @@
 package winsome.client;
 
 import java.io.*;
-
+import java.rmi.RemoteException;
 import java.util.*;
 
 import winsome.api.WinsomeAPI;
 import winsome.api.exceptions.NotImplementedException;
+import winsome.api.exceptions.UserAlreadyExistsException;
 import winsome.client.ClientConfig;
 import winsome.client.exceptions.UnknownCommandException;
 import winsome.utils.ConsoleColors;
@@ -107,11 +108,29 @@ public class WinsomeClientMain {
                 System.out.println(ConsoleColors.blue("-> ") + "Signing up user \"" + ConsoleColors.blue(args[0]) + "\"...");
                 Set<String> tags = new HashSet<>(args.length - 2);
                 for(int i = 0; i < args.length - 2; i++) tags.add(args[i+2]);
+
                 try { api.register(args[0], args[1], tags); }
-                catch(NotImplementedException ex){
-                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                catch (NullPointerException ex){
+                    System.err.println(ConsoleColors.red("==> Internal error: ") + ex.getMessage());
                     return;
                 }
+                catch (IllegalStateException ex){
+                    System.err.println(ConsoleColors.red("==> Error: ") + ex.getMessage());
+                    return;
+                }
+                catch (UserAlreadyExistsException ex){
+                    System.err.println(ConsoleColors.red("==> Error: ") + "this username is not available");
+                    return;
+                }
+                catch (RemoteException ex){
+                    System.err.println(ConsoleColors.red("==> Communication error!"));
+                    return;
+                }
+
+                System.out.println(
+                    ConsoleColors.blue("==> SUCCESS: ") + "user \"" + 
+                    ConsoleColors.blue(args[0]) + "\" has been registered in the Social Network!");
+                break;
             }
             case LOGIN: {
                 String[] args = argStr.split("\\s+"); // splitting on space
@@ -132,6 +151,7 @@ public class WinsomeClientMain {
                     System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
                     return;
                 }
+                break;
             }
 
             case LOGOUT: {
@@ -153,6 +173,7 @@ public class WinsomeClientMain {
                     System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
                     return;
                 }
+                break;
             }
 
             case LIST_USERS: {
@@ -172,6 +193,7 @@ public class WinsomeClientMain {
                     System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
                     return;
                 }
+                break;
             }
 
             case LIST_FOLLOWERS: {
@@ -191,6 +213,7 @@ public class WinsomeClientMain {
                     System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
                     return;
                 }
+                break;
             }
 
             case LIST_FOLLOWING: {
@@ -210,6 +233,7 @@ public class WinsomeClientMain {
                     System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
                     return;
                 }
+                break;
             }
 
             case FOLLOW: {
@@ -231,6 +255,7 @@ public class WinsomeClientMain {
                     System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
                     return;
                 }
+                break;
             }
 
             case UNFOLLOW: {
@@ -252,6 +277,7 @@ public class WinsomeClientMain {
                     System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
                     return;
                 }
+                break;
             }
 
             case BLOG: {
@@ -271,6 +297,7 @@ public class WinsomeClientMain {
                     System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
                     return;
                 }
+                break;
             }
 
             case POST: {
@@ -292,6 +319,7 @@ public class WinsomeClientMain {
                     System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
                     return;
                 }
+                break;
             }
 
             case SHOW_FEED: {
@@ -311,6 +339,7 @@ public class WinsomeClientMain {
                     System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
                     return;
                 }
+                break;
             }
 
             case SHOW_POST: {
@@ -343,6 +372,7 @@ public class WinsomeClientMain {
                     System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
                     return;
                 } 
+                break;
             }
 
             
@@ -376,6 +406,7 @@ public class WinsomeClientMain {
                     System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
                     return;
                 } 
+                break;
             }
 
             case REWIN: {
@@ -408,6 +439,7 @@ public class WinsomeClientMain {
                     System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
                     return;
                 } 
+                break;
             }
 
             case RATE: {
@@ -457,6 +489,7 @@ public class WinsomeClientMain {
                     System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
                     return;
                 } 
+                break;
             }
 
             case COMMENT: {
@@ -489,6 +522,7 @@ public class WinsomeClientMain {
                     System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
                     return;
                 }
+                break;
             }
 
             case WALLET: {
@@ -508,6 +542,7 @@ public class WinsomeClientMain {
                     System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
                     return;
                 }
+                break;
             }
 
             case WALLET_BTC: {
@@ -527,6 +562,7 @@ public class WinsomeClientMain {
                     System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
                     return;
                 }
+                break;
             }
 
             default: {
