@@ -1,9 +1,13 @@
 package winsome.server.datastructs;
 
+import java.io.IOException;
 import java.security.Timestamp;
 import java.time.Instant;
 
 import com.google.gson.JsonObject;
+import com.google.gson.stream.JsonReader;
+
+import winsome.server.exceptions.InvalidJSONFileException;
 
 /** A Transaction created by the Rewards Algorithm */
 public class Transaction {
@@ -73,6 +77,47 @@ public class Transaction {
             return new Transaction(user, increment, timestamp);
         } catch (ClassCastException | IllegalStateException | NullPointerException ex){
             throw new IllegalArgumentException("parameter does not represent a valid OriginalPost", ex);
+        }
+    }
+
+    /**
+     * Deserializes a JSON File representing a transaction through a JsonReader
+     * @param reader the given json reader
+     * @return the transaction obtained from the given json
+     * @throws InvalidJSONFileException if the given json reader does not read a valid Transaction
+     * @throws IOException whenever there is an IO error
+     */
+    public static Transaction fromJson(JsonReader reader) throws InvalidJSONFileException, IOException {
+        if(reader == null) throw new NullPointerException("null parameter");
+
+        try {
+            String user = null;
+            Double increment = null;
+            Instant timestamp = null;
+            
+            reader.beginObject();
+            while(reader.hasNext()){
+                String property = reader.nextName();
+
+                switch (property) {
+                    case "user":
+                        user = reader.nextString();
+                        break;
+                    case "increment":
+                        increment = reader.nextDouble();
+                        break;
+                    case "timestamp":
+                        timestamp = Instant.parse(reader.nextString());
+                        break;
+                    default:
+                        throw new InvalidJSONFileException("parse error in json file");
+                }
+            }
+            reader.endObject();
+
+            return new Transaction(user, increment, timestamp);
+        } catch (ClassCastException | IllegalStateException | NullPointerException | NumberFormatException ex){
+            throw new InvalidJSONFileException("parameter does not represent a valid OriginalPost", ex);
         }
     }
 }

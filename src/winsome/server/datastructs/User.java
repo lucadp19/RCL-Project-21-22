@@ -163,11 +163,13 @@ public class User {
                             tags.add(reader.nextString());
                         }
                         reader.endArray();
+                        break;
                     }
                     default:
-                        throw new InvalidJSONFileException("parse error in json file");
+                        throw new InvalidJSONFileException(property + ": parse error in json file");
                 }
             }
+            reader.endObject();
 
             user = new User(username, password, tags);
         } catch (ClassCastException | IllegalStateException | NullPointerException ex) {

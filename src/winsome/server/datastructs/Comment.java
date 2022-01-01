@@ -1,6 +1,12 @@
 package winsome.server.datastructs;
 
 import com.google.gson.JsonObject;
+import com.google.gson.stream.JsonReader;
+
+import winsome.server.exceptions.InvalidJSONFileException;
+
+import java.io.IOException;
+
 import com.google.gson.JsonElement;
     
 /** A Comment on a Post in the Winsome Social Network */
@@ -72,6 +78,47 @@ public class Comment {
             String author   = json.get("author").getAsString();
             String contents = json.get("contents").getAsString();
             boolean read    = json.get("read").getAsBoolean();
+
+            return new Comment(author, contents, read);
+        } catch(NullPointerException | ClassCastException | IllegalStateException ex){
+            throw new IllegalArgumentException("parameter does not represent a valid Comment");
+        }
+    }
+
+    /**
+     * Parses a new Comment from a JsonReader.
+     * @param reader the given JsonReader
+     * @return a new Comment, obtained from the given json
+     * @throws InvalidJSONFileException if reader does not read a valid Comment
+     * @throws IOException if an IO error occurs
+     */
+    public static Comment fromJson(JsonReader reader) throws InvalidJSONFileException, IOException {
+        if(reader == null) throw new NullPointerException("null parameter");
+        
+        try {
+            String author   = null;
+            String contents = null;
+            Boolean read    = null;
+
+            reader.beginObject();
+            while(reader.hasNext()){
+                String property = reader.nextName();
+                
+                switch (property) {
+                    case "author":
+                        author = reader.nextString();
+                        break;
+                    case "contents":
+                        contents = reader.nextString();
+                        break;
+                    case "read":
+                        read = reader.nextBoolean();
+                        break;
+                    default:
+                        throw new InvalidJSONFileException("parse error in json file");
+                }
+            }
+            reader.endObject();
 
             return new Comment(author, contents, read);
         } catch(NullPointerException | ClassCastException | IllegalStateException ex){

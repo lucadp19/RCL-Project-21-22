@@ -1,5 +1,6 @@
 package winsome.server.datastructs;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
@@ -14,6 +15,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.stream.JsonReader;
+
+import winsome.server.exceptions.InvalidJSONFileException;
 
 /**
  * An Original Post in the Winsome Social Network.
@@ -21,6 +25,11 @@ import com.google.gson.JsonObject;
 public class OriginalPost extends Post {
     public static enum Vote {
         UP, DOWN;
+
+        public static Vote fromJson(JsonReader reader) throws IOException, InvalidJSONFileException {
+            try { return Vote.valueOf(reader.nextString()); }
+            catch(IllegalArgumentException | NullPointerException ex){ throw new InvalidJSONFileException("invalid vote"); }
+        }
     }
     
     /** This post's unique identifier */
@@ -263,6 +272,100 @@ public class OriginalPost extends Post {
             throw new IllegalArgumentException("parameter does not represent a valid OriginalPost", ex);
         }
     }
+
+    public static OriginalPost fromJson(JsonReader reader) throws InvalidJSONFileException, IOException {
+        if(reader == null) throw new NullPointerException("null parameters");
+
+        try {
+            Integer id      = null;
+            String author   = null;
+            String title    = null;
+            String contents = null;
+            
+            ConcurrentHashMap<String, Vote> votes   = new ConcurrentHashMap<>();
+            ConcurrentLinkedQueue<Comment> comments = new ConcurrentLinkedQueue<>();
+            
+            Integer oldUpvoteNumber = null;
+            Integer noIterations    = null;
+
+            reader.beginObject();
+            while(reader.hasNext()){
+                String property = reader.nextName();
+
+                switch (property) {
+                    case "id":
+                        id = reader.nextInt();
+                        break;
+                    case "author":
+                        author = reader.nextString();
+                        break;
+                    case "title":
+                        title = reader.nextString();
+                        break;
+                    case "contents":
+                        contents = reader.nextString();
+                        break;
+                    case "votes": {
+                        // opening array of votes
+                        reader.beginArray();
+                        while(reader.hasNext()){
+                            String voter = null;
+                            Vote vote = null;
+                            
+                            // opening single vote
+                            reader.beginObject();
+                            while(reader.hasNext()){
+                                String innerProperty = reader.nextName();
+
+                                
+                                switch (innerProperty) {
+                                    case "voter":
+                                        voter = reader.nextString();
+                                        break;
+                                    case "vote":
+                                        vote = Vote.fromJson(reader);
+                                        break;
+                                    default:
+                                        throw new InvalidJSONFileException("parameter does not represent a valid OriginalPost");
+                                }
+                            }
+                            reader.endObject();
+                            // closing single vote
+
+                            votes.put(voter, vote);
+                        }
+
+                        reader.endArray();
+                        // closing array of votes
+                        break;
+                    }
+                    case "comments": {
+                        reader.beginArray();
+                        while(reader.hasNext()){
+                            // reading comment
+                            comments.add(Comment.fromJson(reader));
+                        }
+                        reader.endArray();
+                        break;
+                    }
+                    case "oldUpvoteNumber":
+                        oldUpvoteNumber = reader.nextInt();
+                        break;
+                    case "rewardsCounter":
+                        noIterations = reader.nextInt();
+                        break;
+                    default:
+                        throw new InvalidJSONFileException("json reader does not represent a valid Post");
+                }
+            }
+            reader.endObject();
+            
+            return new OriginalPost(id, author, title, contents, votes, oldUpvoteNumber, comments, noIterations);
+        } catch (ClassCastException | IllegalStateException | NullPointerException | NumberFormatException ex){
+            throw new InvalidJSONFileException("json reader does not represent a valid Post", ex);
+        }
+    }
+
 
     // TODO: change the logic of all this last section
 
