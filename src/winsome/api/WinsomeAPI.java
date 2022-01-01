@@ -11,6 +11,13 @@ import java.rmi.server.*;
 
 import java.util.*;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
+import com.google.gson.JsonParser;
+
+import winsome.api.codes.RequestCode;
+import winsome.api.codes.ResponseCode;
+import winsome.api.exceptions.MalformedJSONException;
 import winsome.api.exceptions.NotImplementedException;
 import winsome.api.exceptions.UserAlreadyExistsException;
 
@@ -110,8 +117,28 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         remoteServer.signUp(username, password, tags);
     }
 
-    public void login(String user, String passw) throws NotImplementedException {
-        throw new NotImplementedException("method not yet implemented");
+    public void login(String user, String passw) throws IOException, MalformedJSONException {
+        JsonObject request = new JsonObject();
+
+        request.addProperty("code", RequestCode.LOGIN.toString());
+        request.addProperty("username", user);
+        request.addProperty("password", passw);
+
+        send(request.toString());
+
+        JsonObject response = null;
+        try { response = JsonParser.parseString(receive()).getAsJsonObject(); }
+        catch (JsonParseException | IllegalStateException ex){ throw new IOException("received malformed JSON"); }
+
+        ResponseCode responseCode = getResponseFromJSON(response);
+        switch (responseCode) {
+            case SUCCESS:
+                return;
+            case USER_NOT_REGISTERED:
+                throw new IllegalArgumentException("user does not exist"); // TODO: better exception
+            default:
+                throw new IllegalStateException("FATAL"); // TODO: distinguish other errors
+        }
     }
 
     public void logout(String user) throws NotImplementedException {
@@ -205,4 +232,11 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
     // ------------ Utility functions ------------ //
 
     public boolean isLogged(){ return loggedUser != null; }
+
+    private ResponseCode getResponseFromJSON(JsonObject response) throws MalformedJSONException {
+        try { return ResponseCode.valueOf(response.get("code").getAsString()); }
+        catch (ClassCastException | IllegalStateException | NullPointerException ex){
+            throw new MalformedJSONException("malformed response from server");
+        }
+    }
 }

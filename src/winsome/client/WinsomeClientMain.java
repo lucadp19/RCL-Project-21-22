@@ -5,6 +5,7 @@ import java.rmi.RemoteException;
 import java.util.*;
 
 import winsome.api.WinsomeAPI;
+import winsome.api.exceptions.MalformedJSONException;
 import winsome.api.exceptions.NotImplementedException;
 import winsome.api.exceptions.UserAlreadyExistsException;
 import winsome.client.ClientConfig;
@@ -146,10 +147,13 @@ public class WinsomeClientMain {
                 }
 
                 System.out.println(ConsoleColors.blue("-> ") + "Logging in as user \"" + ConsoleColors.blue(args[0]) + "\"...");
+
                 try { api.login(args[0], args[1]); }
-                catch(NotImplementedException ex){
-                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
-                    return;
+                catch(IOException ex){
+                    System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
+                } catch(MalformedJSONException | RuntimeException ex){
+                    System.out.println(ConsoleColors.red("==> Error!"));
+                    ex.printStackTrace();
                 }
                 break;
             }
