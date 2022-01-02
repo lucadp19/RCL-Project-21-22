@@ -1,4 +1,4 @@
-package winsome.server.exceptions;
+package winsome.api.exceptions;
 
 public class WrongPasswordException extends Exception {
     public WrongPasswordException(){ super(); }
