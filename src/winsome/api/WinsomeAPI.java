@@ -13,40 +13,41 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParseException;
-import com.google.gson.JsonParser;
+import com.google.gson.*;
 
-import winsome.api.codes.RequestCode;
-import winsome.api.codes.ResponseCode;
-import winsome.api.exceptions.MalformedJSONException;
-import winsome.api.exceptions.NoLoggedUserException;
-import winsome.api.exceptions.NoSuchUserException;
-import winsome.api.exceptions.NotImplementedException;
-import winsome.api.exceptions.UserAlreadyExistsException;
-import winsome.api.exceptions.UserAlreadyLoggedException;
-import winsome.api.exceptions.WrongPasswordException;
-import winsome.api.exceptions.WrongUserException;
-import winsome.server.datastructs.User;
+import winsome.api.codes.*;
+import winsome.api.exceptions.*;
 
+/** The API interface to communicate with the Winsome Social Network Server. */
 public class WinsomeAPI extends RemoteObject implements RemoteClient {
+    /** The address of the Winsome Server */
     private final String serverAddr;
+    /** The port of the Winsome Server */
     private final int serverPort; 
+    /** The address (name) of the Registry containing the Remote Server */
     private final String registryAddr;
+    /** The port of the Registry */
     private final int registryPort;
 
+    /** The socket used to communicate with the server */
     private Socket socket = null;
-    // private SocketChannel socketChannel = null;
+    /** The Remote Server instance */
     private RemoteServer remoteServer = null;
 
-    private RemoteClient remoteClient;
-    
+    /** The username of the currently logged user */
     private String loggedUser = null;
+    /** The followers of the currently logged user */
     private Map<String, List<String>> followers = null;
+    /** The users followed by the currently logged user */
     private Map<String, List<String>> following = null;
 
+    /**
+     * Creates a new instance of a Winsome API.
+     * @param serverAddr the server address
+     * @param serverPort the server port
+     * @param registryAddr the registry nome
+     * @param registryPort the registry port
+     */
     public WinsomeAPI(
         String serverAddr, 
         int serverPort,
@@ -62,20 +63,30 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
     }
 
     /* *************** Connection methods *************** */
-
-    public void connect() throws IOException, RemoteException, NotBoundException {
+    /**
+     * Establishes a connection with the Server.
+     * @throws IOException if there is an IO error
+     * @throws NotBoundException if the registry does not contain the given registry address
+     */    
+    public void connect() throws IOException, NotBoundException {
         connectTCP(); connectRegistry();
     }
 
+    /**
+     * Connects the TCP Socket.
+     * @throws IOException if an IO error occurs
+     */
     private void connectTCP() throws IOException {
         if(socket != null) throw new IllegalStateException("already connected to server");
 
         socket = new Socket(serverAddr, serverPort);
-        // opening channel in blocking mode, so there's no need to wait for the connection to be fully established
-        // socketChannel = SocketChannel.open(new InetSocketAddress(serverAddr, serverPort));
-        // System.out.println("Connected to socket!");
     }
 
+    /**
+     * Connects the Registry and exports this as a RemoteClient.
+     * @throws RemoteException if there is a remote error
+     * @throws NotBoundException if the registry does not contain the given registry address
+     */
     private void connectRegistry() throws RemoteException, NotBoundException {
         if(remoteServer != null) throw new IllegalStateException("already connected to server");
 
@@ -83,12 +94,13 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         Remote remoteObj = reg.lookup(registryAddr);
         remoteServer = (RemoteServer) remoteObj;
 
-        remoteClient = (RemoteClient) UnicastRemoteObject.exportObject(this, 0);
+        RemoteClient remoteClient = (RemoteClient) UnicastRemoteObject.exportObject(this, 0);
         // System.out.println("Connected to registry!");
     }
 
     /* *************** Callback methods *************** */
 
+    @Override
     public void addFollower(String user, List<String> tags) throws RemoteException {
         if(loggedUser == null) throw new IllegalStateException(); // TODO: make new exception
         if(user == null || tags == null) throw new NullPointerException("null parameters while adding new follower");
@@ -100,6 +112,7 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         followers.put(user, tags);
     }
 
+    @Override
     public void removeFollower(String user) throws RemoteException {
         if(loggedUser == null) throw new IllegalStateException(); // TODO: make new exception
         if(user == null) throw new NullPointerException("null parameter while removing follower");
@@ -116,43 +129,68 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
 
     /* *************** Stubs for TCP Methods *************** */
 
+    /**
+     * Tries to register a new user into the Social Network.
+     * @param username the username of the new user
+     * @param password the password of the new user
+     * @param tags the tags the new user's interested in
+     * @throws NullPointerException if any of the arguments are null
+     * @throws UserAlreadyLoggedException if this client is already logged as some user
+     * @throws UserAlreadyExistsException if the given username is not available
+     * @throws RemoteException
+     */
     public void register(String username, String password, Set<String> tags) 
             throws NullPointerException, IllegalStateException, UserAlreadyExistsException, RemoteException {
         if(username == null || password == null || tags == null) throw new NullPointerException("null arguments to register");
         for(String tag : tags)
             if(tag == null) throw new NullPointerException("null tag in register");
         
-        if(isLogged()) throw new IllegalStateException("a user is already logged; please log out before trying to sign up");
+        if(isLogged()) throw new UserAlreadyLoggedException("a user is already logged; please log out before trying to sign up");
 
         remoteServer.signUp(username, password, tags);
     }
 
+    /**
+     * Tries to login as a given user.
+     * @param user the given username
+     * @param passw the password of the given user
+     * @throws IOException if some IO error occurs
+     * @throws MalformedJSONException if the response is a malformed JSON
+     * @throws UserAlreadyLoggedException if this client or the user is already logged in
+     * @throws NoSuchUserException if no user with the given username exists
+     * @throws WrongPasswordException if the password does not match the actual password
+     */
     public void login(String user, String passw) 
             throws IOException, MalformedJSONException, UserAlreadyLoggedException, 
                 NoSuchUserException, WrongPasswordException {
         if(isLogged()) throw new UserAlreadyLoggedException(
             "already logged as " + loggedUser + ". Please logout before trying to login with another user.");
 
+        // creating the request object
         JsonObject request = new JsonObject();
 
         RequestCode.LOGIN.addRequestToJson(request);
         request.addProperty("username", user);
         request.addProperty("password", passw);
 
+        // sending the request
         send(request.toString());
 
+        // reading response
         JsonObject response = getJsonResponse();
         ResponseCode responseCode = ResponseCode.getResponseFromJson(response);
         switch (responseCode) {
-            case SUCCESS:
+            case SUCCESS: // successful login
                 loggedUser = user;
                 followers = new ConcurrentHashMap<>();
                 following = new ConcurrentHashMap<>();
                 remoteServer.registerForUpdates(user, this);
+
+                // initialize followers and following maps
                 try {
                     addUsersAndTags(response.get("followers").getAsJsonArray(), followers);
                     addUsersAndTags(response.get("following").getAsJsonArray(), following);
-                } catch (NullPointerException | IllegalStateException ex) { }
+                } catch (NullPointerException | IllegalStateException ex) { } // leave everything empty
 
                 return;
             case USER_NOT_REGISTERED:
@@ -166,6 +204,13 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         }
     }
 
+    /**
+     * Logout of the current user.
+     * @throws IOException if some IO error occurs
+     * @throws IllegalStateException if an unexpected error is thrown
+     * @throws MalformedJSONException if the response is a malformed JSON
+     * @throws NoLoggedUserException if this client is not currently logged in as any user
+     */
     public void logout() 
             throws IOException, IllegalStateException, MalformedJSONException, NoLoggedUserException {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
@@ -183,8 +228,7 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
                 remoteServer.unregisterForUpdates(loggedUser);
                 loggedUser = null;
                 break;
-            // there should not be any errors on logout
-            default: {
+            default: {  // there should not be any errors on logout, hence they are all in default
                 String msg;
                 switch (responseCode) {
                     case USER_NOT_REGISTERED:

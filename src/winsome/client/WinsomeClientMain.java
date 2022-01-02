@@ -120,7 +120,7 @@ public class WinsomeClientMain {
                     System.err.println(ConsoleColors.red("==> Internal error: ") + ex.getMessage());
                     return;
                 }
-                catch (IllegalStateException ex){
+                catch (UserAlreadyLoggedException ex){
                     System.err.println(ConsoleColors.red("==> Error: ") + ex.getMessage());
                     return;
                 }
