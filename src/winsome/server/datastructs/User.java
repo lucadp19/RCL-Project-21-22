@@ -62,6 +62,15 @@ public class User {
     public Set<String> getTags(){ return new HashSet<>(tags); }
 
     /**
+     * Checks if this user has tags in common with another user
+     * @param other user we want to compare this to
+     * @return true if and only if this user has tags in common with other
+     */
+    public boolean hasCommonTags(User other){
+        return !Collections.disjoint(this.tags, other.getTags());
+    }
+    
+    /**
      * Checks if this user has tags in common with another set of tags
      * @param otherTags tags used for the comparison
      * @return true if and only if this user has tags in common with otherTags

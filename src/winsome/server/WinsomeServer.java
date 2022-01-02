@@ -1,9 +1,11 @@
 package winsome.server;
 
 import java.util.*;
+import java.util.Map.Entry;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
@@ -182,6 +184,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     case LOGOUT:
                         response = logoutRequest();
                         break;
+                    case GET_USERS:
+                        response = getUsersRequest();
+                        break;
                     default:
                         // TODO: implement things
                         response = new JsonObject();
@@ -266,6 +271,61 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             
             // success!
             ResponseCode.SUCCESS.addResponseToJson(response);
+            return response;
+        }
+
+        /**
+         * Fulfills a client's "GET_USERS" request.
+         * @return the response, formatted as a JsonObject
+         */
+        private JsonObject getUsersRequest(){
+            JsonObject response = new JsonObject();
+
+            String username = null;
+            
+            // reading username and password from the request
+            try {
+                username = request.get("username").getAsString();
+            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username/password => malformed Json
+                ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
+                return response;
+            }
+
+            List<User> visibleUsers;
+            try { 
+                WinsomeServer.this.checkIfLogged(username, key);
+                visibleUsers = WinsomeServer.this.getVisibleUsers(username); 
+            }
+            catch (NoSuchUserException ex){// if no user with the given username is registered
+                ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
+                return response;
+            }
+            catch (NoLoggedUserException ex){ // if this client is not logged in
+                ResponseCode.NO_LOGGED_USER.addResponseToJson(response);
+                return response;
+            }
+            catch (WrongUserException ex){ // if this client is not logged in with the given user
+                ResponseCode.WRONG_USER.addResponseToJson(response);
+                return response;
+            }
+
+            // adding users to JSON
+            JsonArray usersJson = new JsonArray();
+            for(User user : visibleUsers){
+                JsonObject toAdd = new JsonObject();
+                toAdd.addProperty("username", user.getUsername());
+
+                JsonArray tags = new JsonArray();
+                for(String tag : user.getTags())
+                    tags.add(tag);
+                toAdd.add("tags", tags);
+
+                usersJson.add(toAdd);
+            }
+            
+            // success!
+            ResponseCode.SUCCESS.addResponseToJson(response);
+            response.add("users", usersJson);
             return response;
         }
     }
@@ -448,6 +508,15 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
     }
 
     public void logout(String username, SelectionKey client) throws NullPointerException, NoSuchUserException, NoLoggedUserException, WrongUserException {
+        checkIfLogged(username, client);
+
+        KeyAttachment attachment = (KeyAttachment) client.attachment();
+        
+        userSessions.remove(username, client);
+        attachment.logout();
+    }
+
+    private void checkIfLogged(String username, SelectionKey client) throws NullPointerException, NoSuchUserException, NoLoggedUserException, WrongUserException {
         if(username == null || client == null) throw new NullPointerException("null parameters in logout");
 
         if(!users.containsKey(username)) throw new NoSuchUserException("user is not registered");
@@ -458,9 +527,6 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             throw new NoLoggedUserException("no user is currently logged in the given client");
         if(!attachment.loggedUser().equals(username))
             throw new WrongUserException("user to logout does not correspond to the given client");
-        
-        userSessions.remove(username, client);
-        attachment.logout();
     }
 
     private void endUserSession(SelectionKey key) {
@@ -475,6 +541,25 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         } 
 
         key.cancel();
+    }
+
+    /* ************** Get users/posts ************** */
+
+    private List<User> getVisibleUsers(String username) throws NoSuchUserException {
+        if(username == null) throw new NullPointerException();
+        
+        User user;
+        if((user = users.get(username)) == null) throw new NoSuchUserException();
+
+        List<User> visibleUsers = new ArrayList<>();
+        for(User otherUser : users.values()){
+            // same user => skip
+            if(otherUser.getUsername().equals(username)) continue;
+
+            if(user.hasCommonTags(otherUser)) visibleUsers.add(otherUser);
+        }
+
+        return visibleUsers;
     }
 
     /* ************** Send/receive methods ************** */
