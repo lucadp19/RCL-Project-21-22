@@ -183,6 +183,10 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             }
         }     
         
+        /**
+         * Fulfills a client's login request.
+         * @return the response, formatted as a JsonObject
+         */
         private JsonObject loginRequest(){
             JsonObject response = new JsonObject();
             KeyAttachment attachment = (KeyAttachment) key.attachment();
@@ -190,25 +194,36 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             String username = null; 
             String password = null; 
             
+            // reading username and password from the request
             try {
                 username = request.get("username").getAsString();
                 password = request.get("password").getAsString();
-            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){
+            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username/password => malformed Json
                 response.addProperty("code", ResponseCode.MALFORMED_JSON_REQUEST.toString());
                 return response;
             }
-            
-            if(!users.containsKey(username)) {
+
+            User user = null;
+
+            // if no user with the given username is registered
+            if((user = users.get(username)) == null) { 
                 response.addProperty("code", ResponseCode.USER_NOT_REGISTERED.toString());
                 return response;
             }
-
+            // if the password does not match
+            if(user.getPassword() != password){ 
+                response.addProperty("code", ResponseCode.WRONG_PASSW.toString());
+                return response;
+            }
+            // if the user or the key is already logged in
             if(!attachment.isLoggedIn() || WinsomeServer.this.userSessions.putIfAbsent(username, key) != null){
                 response.addProperty("code", ResponseCode.ALREADY_LOGGED.toString());
-            } else {
-                response.addProperty("code", ResponseCode.SUCCESS.toString());
-                attachment.login(username);
-            }
+                return response;
+            } 
+            
+            // success!
+            response.addProperty("code", ResponseCode.SUCCESS.toString());
+            attachment.login(username);
 
             return response;
         }
