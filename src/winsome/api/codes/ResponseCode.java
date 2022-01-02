@@ -16,6 +16,10 @@ public enum ResponseCode {
     WRONG_PASSW,
     /** User or client is already logged */
     ALREADY_LOGGED,
+    /** Client is not logged in */
+    NO_LOGGED_USER,
+    /** Client is logged on another user */
+    WRONG_USER,
     /** Fatal communication error */
     FATAL_ERR;
 
