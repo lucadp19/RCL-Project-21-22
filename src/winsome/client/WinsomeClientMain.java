@@ -6,6 +6,7 @@ import java.util.*;
 
 import winsome.api.WinsomeAPI;
 import winsome.api.exceptions.MalformedJSONException;
+import winsome.api.exceptions.NoLoggedUserException;
 import winsome.api.exceptions.NoSuchUserException;
 import winsome.api.exceptions.NotImplementedException;
 import winsome.api.exceptions.UserAlreadyExistsException;
@@ -172,6 +173,9 @@ public class WinsomeClientMain {
                     System.out.println(ConsoleColors.red("==> Error! Wrong password: ") + ex.getMessage());
                     return;
                 }
+                catch (IllegalStateException ex){
+                    System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
+                }
 
                 System.out.println(
                     ConsoleColors.blue("==> SUCCESS: ") + "you are now logged in as \"" + 
@@ -180,10 +184,8 @@ public class WinsomeClientMain {
             }
 
             case LOGOUT: {
-                String[] args = argStr.split("\\s+"); // splitting on space
-
                 // checking argument number
-                if(args.length != 1){
+                if(!argStr.isEmpty()){
                     System.out.println(
                         ConsoleColors.red("==> ERROR! ") + 
                         "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
@@ -192,12 +194,25 @@ public class WinsomeClientMain {
                     return;
                 }
 
-                System.out.println(ConsoleColors.blue("-> ") + "Logging out from user \"" + ConsoleColors.blue(args[0]) + "\"...");
-                try { api.logout(args[0]); }
-                catch(NotImplementedException ex){
-                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                System.out.println(ConsoleColors.blue("-> ") + "Attempting to log out...");
+                try { api.logout(); }
+                catch (IOException ex){
+                    System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
                     return;
                 }
+                catch (MalformedJSONException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "Server sent malformed response message.");
+                    return;
+                }
+                catch (NoLoggedUserException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
+                    return;
+                }
+                catch (IllegalStateException ex){
+                    System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
+                    return;
+                }
+                System.out.println(ConsoleColors.blue("==> SUCCESS!"));
                 break;
             }
 

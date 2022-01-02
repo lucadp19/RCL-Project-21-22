@@ -1,14 +1,12 @@
 package winsome.server;
 
 import java.util.*;
-import java.util.Map.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
-import com.google.gson.JsonSyntaxException;
 import com.google.gson.stream.JsonReader;
 
 import java.io.*;
@@ -21,7 +19,6 @@ import java.rmi.*;
 import java.rmi.registry.*;
 import java.rmi.server.RemoteObject;
 import java.rmi.server.UnicastRemoteObject;
-import java.security.Key;
 
 import winsome.api.*;
 import winsome.api.codes.*;
@@ -182,13 +179,13 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     case LOGIN:
                         response = loginRequest();
                         break;
+                    case LOGOUT:
+                        response = logoutRequest();
+                        break;
                     default:
                         // TODO: implement things
                         response = new JsonObject();
                         ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
-                        send(response.toString(), key);
-
-                        return;
                 }
 
                 send(response.toString(), key);
@@ -228,6 +225,42 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             }
             catch (UserAlreadyLoggedException ex){ // if the user or the key is already logged in
                 ResponseCode.ALREADY_LOGGED.addResponseToJson(response);
+                return response;
+            }
+            
+            // success!
+            ResponseCode.SUCCESS.addResponseToJson(response);
+            return response;
+        }
+
+        /**
+         * Fulfills a client's logout request.
+         * @return the response, formatted as a JsonObject
+         */
+        private JsonObject logoutRequest(){
+            JsonObject response = new JsonObject();
+
+            String username = null;
+            
+            // reading username and password from the request
+            try {
+                username = request.get("username").getAsString();
+            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username/password => malformed Json
+                ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
+                return response;
+            }
+
+            try { WinsomeServer.this.logout(username, key); }
+            catch (NoSuchUserException ex){// if no user with the given username is registered
+                ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
+                return response;
+            }
+            catch (NoLoggedUserException ex){ // if this client is not logged in
+                ResponseCode.NO_LOGGED_USER.addResponseToJson(response);
+                return response;
+            }
+            catch (WrongUserException ex){ // if this client is not logged in with the given user
+                ResponseCode.WRONG_USER.addResponseToJson(response);
                 return response;
             }
             
@@ -330,15 +363,18 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                             response.addProperty("code", ResponseCode.MALFORMED_JSON_REQUEST.toString());
                             send(response.toString(), key);
                         }
+                        catch (EOFException ex){
+                            endUserSession(key);
+                            continue;
+                        }
                         
                         pool.execute(new Worker(request, key));
                         // TODO: create a worker and insert it into a thread pool
                     }
                     
                 } catch(IOException ex){
-                    // TODO: disconnect client
-                    key.cancel();
                     System.err.println("Connection closed as a result of an IO Exception.");
+                    endUserSession(key);
                 }
             }
         }
@@ -382,11 +418,12 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         registeredToCallbacks.putIfAbsent(username, client);
     }
 
-    public void unregisterForUpdates(String username) throws RemoteException, NoSuchUserException {
+    public boolean unregisterForUpdates(String username) throws RemoteException {
         if(username == null) throw new NullPointerException("null parameters while unregistering user from callback system");
-        if(!users.containsKey(username)) throw new NoSuchUserException();
+        if(!users.containsKey(username)) return false;
 
         registeredToCallbacks.remove(username);
+        return true;
     }
 
     /* ************** Login/logout ************** */
@@ -403,17 +440,41 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         // if the password does not match
         if(!user.getPassword().equals(password)){ throw new WrongPasswordException("password does not match"); }
         // if the user or the key is already logged in
-        if(!attachment.isLoggedIn() || WinsomeServer.this.userSessions.putIfAbsent(username, client) != null){
+        if(attachment.isLoggedIn() || WinsomeServer.this.userSessions.putIfAbsent(username, client) != null){
             throw new UserAlreadyLoggedException("user or client is already logged in");
         } 
 
         attachment.login(username);
     }
 
-    public void logout(String username, SelectionKey client) throws NullPointerException {
+    public void logout(String username, SelectionKey client) throws NullPointerException, NoSuchUserException, NoLoggedUserException, WrongUserException {
         if(username == null || client == null) throw new NullPointerException("null parameters in logout");
 
+        if(!users.containsKey(username)) throw new NoSuchUserException("user is not registered");
+
+        KeyAttachment attachment = (KeyAttachment) client.attachment();
+
+        if(!attachment.isLoggedIn())
+            throw new NoLoggedUserException("no user is currently logged in the given client");
+        if(!attachment.loggedUser().equals(username))
+            throw new WrongUserException("user to logout does not correspond to the given client");
+        
         userSessions.remove(username, client);
+        attachment.logout();
+    }
+
+    private void endUserSession(SelectionKey key) {
+        KeyAttachment attachment = (KeyAttachment) key.attachment();
+
+        if(attachment.isLoggedIn()){
+            String username = attachment.loggedUser();
+
+            userSessions.remove(username);
+            registeredToCallbacks.remove(username);
+            attachment.logout();
+        } 
+
+        key.cancel();
     }
 
     /* ************** Send/receive methods ************** */
@@ -463,8 +524,6 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
     }
 
     private void send(String msg, SelectionKey key) throws IOException {
-        System.out.println("Message is:\n" + msg);
-
         SocketChannel client = (SocketChannel) key.channel();
         ByteBuffer buf = (key.attachment() != null) ? 
             ((KeyAttachment) key.attachment()).getBuffer() :
@@ -504,6 +563,11 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
     }
 
     private JsonObject getJsonRequest(SelectionKey key) throws IOException, JsonParseException, IllegalStateException {
-        return JsonParser.parseString(receive(key)).getAsJsonObject();
+        String requestStr = receive(key);
+
+        if(requestStr == null) // EOF
+            throw new EOFException("EOF reached");
+        
+        return JsonParser.parseString(requestStr).getAsJsonObject();
     }
 }

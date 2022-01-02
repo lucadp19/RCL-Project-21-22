@@ -18,11 +18,13 @@ import com.google.gson.JsonParser;
 import winsome.api.codes.RequestCode;
 import winsome.api.codes.ResponseCode;
 import winsome.api.exceptions.MalformedJSONException;
+import winsome.api.exceptions.NoLoggedUserException;
 import winsome.api.exceptions.NoSuchUserException;
 import winsome.api.exceptions.NotImplementedException;
 import winsome.api.exceptions.UserAlreadyExistsException;
 import winsome.api.exceptions.UserAlreadyLoggedException;
 import winsome.api.exceptions.WrongPasswordException;
+import winsome.api.exceptions.WrongUserException;
 import winsome.server.datastructs.User;
 
 public class WinsomeAPI extends RemoteObject implements RemoteClient {
@@ -135,10 +137,7 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
 
         send(request.toString());
 
-        JsonObject response = null;
-        try { response = JsonParser.parseString(receive()).getAsJsonObject(); }
-        catch (JsonParseException | IllegalStateException ex){ throw new MalformedJSONException("received malformed JSON"); }
-
+        JsonObject response = getJsonResponse();
         ResponseCode responseCode = ResponseCode.getResponseFromJson(response);
         switch (responseCode) {
             case SUCCESS:
@@ -152,12 +151,43 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
             case ALREADY_LOGGED:
                 throw new UserAlreadyLoggedException("user is already logged in");
             default:
-                throw new IllegalStateException("server sent unexpected error message: " + responseCode);
+                throw new IllegalStateException(responseCode.toString());
         }
     }
 
-    public void logout(String user) throws NotImplementedException {
-        throw new NotImplementedException("method not yet implemented");
+    public void logout() 
+            throws IOException, IllegalStateException, MalformedJSONException, NoLoggedUserException {
+        if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
+
+        JsonObject request = new JsonObject();
+        RequestCode.LOGOUT.addRequestToJson(request);
+        request.addProperty("username", loggedUser);
+        
+        send(request.toString());
+
+        JsonObject response = getJsonResponse();
+        ResponseCode responseCode = ResponseCode.getResponseFromJson(response);
+        switch (responseCode) {
+            case SUCCESS:
+                remoteServer.unregisterForUpdates(loggedUser);
+                loggedUser = null;
+                break;
+            // there should not be any errors on logout
+            default: {
+                String msg;
+                switch (responseCode) {
+                    case USER_NOT_REGISTERED:
+                        msg = ("the user \"" + loggedUser + "\" is not signed up in the Social Network");
+                    case NO_LOGGED_USER:
+                        msg = ("no user is currently logged; please log in first");
+                    case WRONG_USER:
+                        msg = ("the user currently logged does not correspond to the user to log out");
+                    default:
+                        msg = responseCode.toString();
+                }
+                throw new IllegalStateException(msg);
+            }
+        }
     }
 
     public void listUsers() throws NotImplementedException {
@@ -247,4 +277,9 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
     // ------------ Utility functions ------------ //
 
     public boolean isLogged(){ return loggedUser != null; }
+
+    private JsonObject getJsonResponse() throws IOException, MalformedJSONException {
+        try { return JsonParser.parseString(receive()).getAsJsonObject(); }
+        catch (JsonParseException | IllegalStateException ex){ throw new MalformedJSONException("received malformed JSON"); }
+    }
 }

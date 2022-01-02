@@ -28,7 +28,8 @@ public interface RemoteServer extends Remote {
     /**
      * Unregisters a remote client from the update list.
      * @param username the logged user
+     * @returns true if and only if the removal is successful
      * @throws RemoteException
      */
-    void unregisterForUpdates(String username) throws RemoteException, NoSuchUserException;
+    boolean unregisterForUpdates(String username) throws RemoteException;
 }

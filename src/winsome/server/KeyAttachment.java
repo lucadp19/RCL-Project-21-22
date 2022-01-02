@@ -15,10 +15,11 @@ public class KeyAttachment {
         this(null);
     }
 
-    public boolean isLoggedIn(){ return user == null; }
+    public boolean isLoggedIn(){ return user != null; }
+    public String loggedUser(){ return user; }
     public boolean login(String user) {
         if(user == null) throw new NullPointerException();
-        if(this.user != null) return false;
+        if(isLoggedIn()) return false;
 
         this.user = user;
         return true;
