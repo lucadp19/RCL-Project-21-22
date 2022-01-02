@@ -11,6 +11,8 @@ import java.rmi.server.*;
 
 import java.util.*;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
@@ -190,8 +192,37 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         }
     }
 
-    public void listUsers() throws NotImplementedException {
-        throw new NotImplementedException("method not yet implemented");
+    public Map<String, List<String>> listUsers() throws IOException, NoLoggedUserException, MalformedJSONException {
+        if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
+
+        JsonObject request = new JsonObject();
+        RequestCode.GET_USERS.addRequestToJson(request);
+        request.addProperty("username", loggedUser);
+        
+        send(request.toString());
+
+        JsonObject response = getJsonResponse();
+        ResponseCode responseCode = ResponseCode.getResponseFromJson(response);
+        switch (responseCode) {
+            case SUCCESS: {
+                return getUsersAndTags(response);
+            }
+            // there should not be any errors on list_users
+            default: {
+                String msg;
+                switch (responseCode) {
+                    case USER_NOT_REGISTERED:
+                        msg = ("the user \"" + loggedUser + "\" is not signed up in the Social Network");
+                    case NO_LOGGED_USER:
+                        msg = ("no user is currently logged; please log in first");
+                    case WRONG_USER:
+                        msg = ("the user currently logged does not correspond to the username in the request");
+                    default:
+                        msg = responseCode.toString();
+                }
+                throw new IllegalStateException(msg);
+            }
+        }
     }
 
     public void listFollowers() throws NotImplementedException {
@@ -281,5 +312,30 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
     private JsonObject getJsonResponse() throws IOException, MalformedJSONException {
         try { return JsonParser.parseString(receive()).getAsJsonObject(); }
         catch (JsonParseException | IllegalStateException ex){ throw new MalformedJSONException("received malformed JSON"); }
+    }
+
+    private Map<String, List<String>> getUsersAndTags(JsonObject request) throws MalformedJSONException {
+        JsonArray usersJson;
+        Map<String, List<String>> users = new HashMap<>();
+        try { 
+            usersJson = request.get("users").getAsJsonArray();
+
+            Iterator<JsonElement> iter = usersJson.iterator();
+            while(iter.hasNext()){
+                JsonObject user = iter.next().getAsJsonObject();
+                String username = user.get("username").getAsString();
+                List<String> tags = new ArrayList<>();
+
+                Iterator<JsonElement> innerIter = user.get("tags").getAsJsonArray().iterator();
+                while(innerIter.hasNext())
+                    tags.add(innerIter.next().getAsString());
+                
+                users.put(username, tags);
+            } 
+        } catch (NullPointerException | IllegalStateException ex) {
+            throw new MalformedJSONException("json response does not contain the requested information");
+        }
+
+        return users;
     }
 }

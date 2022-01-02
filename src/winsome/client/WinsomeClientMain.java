@@ -3,6 +3,7 @@ package winsome.client;
 import java.io.*;
 import java.rmi.RemoteException;
 import java.util.*;
+import java.util.Map.*;
 
 import winsome.api.WinsomeAPI;
 import winsome.api.exceptions.MalformedJSONException;
@@ -228,10 +229,32 @@ public class WinsomeClientMain {
                 }
 
                 System.out.println(ConsoleColors.blue("-> ") + "Getting users...");
-                try { api.listUsers(); }
-                catch(NotImplementedException ex){
-                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                Map<String, List<String>> users;
+                try { users = api.listUsers(); }
+                catch(IOException ex){
+                    System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
                     return;
+                }
+                catch(MalformedJSONException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "Server sent malformed response message.");
+                    return;
+                }
+                catch(NoLoggedUserException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
+                    return;
+                }
+                catch(IllegalStateException ex){
+                    System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
+                    return;
+                }
+
+                System.out.println(ConsoleColors.blue("==> SUCCESS! ") + "Listing users:\n");
+                for(Entry<String, List<String>> userTags : users.entrySet()){
+                    System.out.println(ConsoleColors.yellow("--> Username: ") + userTags.getKey());
+                    System.out.print(ConsoleColors.yellow("      Tags:"));
+                    for(String tag : userTags.getValue())
+                        System.out.print(" " + tag);
+                    System.out.println();
                 }
                 break;
             }

@@ -11,7 +11,7 @@ public enum RequestCode {
     /** Logout request */
     LOGOUT,
     /** Get Winsome Users */
-    SHOW_USERS,
+    GET_USERS,
     /** Follow request */
     FOLLOW,
     /** Unfollow request */
