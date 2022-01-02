@@ -10,6 +10,8 @@ import java.rmi.registry.Registry;
 import java.rmi.server.*;
 
 import java.util.*;
+import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -144,7 +146,14 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         switch (responseCode) {
             case SUCCESS:
                 loggedUser = user;
+                followers = new ConcurrentHashMap<>();
+                following = new ConcurrentHashMap<>();
                 remoteServer.registerForUpdates(user, this);
+                try {
+                    addUsersAndTags(response.get("followers").getAsJsonArray(), followers);
+                    addUsersAndTags(response.get("following").getAsJsonArray(), following);
+                } catch (NullPointerException | IllegalStateException ex) { }
+
                 return;
             case USER_NOT_REGISTERED:
                 throw new NoSuchUserException("\"" + user + "\" is not signed up");
@@ -225,12 +234,24 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         }
     }
 
-    public void listFollowers() throws NotImplementedException {
-        throw new NotImplementedException("method not yet implemented");
+    public Map<String, List<String>> listFollowers() throws NoLoggedUserException {
+        if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
+
+        Map<String, List<String>> ans = new HashMap<>();
+        for(Entry<String, List<String>> entry : followers.entrySet())
+            ans.put(entry.getKey(), new ArrayList<>(entry.getValue()));
+        
+        return ans;
     }
 
-    public void listFollowing() throws NotImplementedException {
-        throw new NotImplementedException("method not yet implemented");
+    public Map<String, List<String>> listFollowing() throws NoLoggedUserException {
+        if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
+
+        Map<String, List<String>> ans = new HashMap<>();
+        for(Entry<String, List<String>> entry : following.entrySet())
+            ans.put(entry.getKey(), new ArrayList<>(entry.getValue()));
+        
+        return ans;
     }
 
     public void followUser(String user) throws NotImplementedException {
@@ -320,7 +341,19 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         try { 
             usersJson = request.get("users").getAsJsonArray();
 
-            Iterator<JsonElement> iter = usersJson.iterator();
+            addUsersAndTags(usersJson, users);
+        } catch (NullPointerException | IllegalStateException ex) {
+            throw new MalformedJSONException("json response does not contain the requested information");
+        }
+
+        return users;
+    }
+
+    private void addUsersAndTags(JsonArray array, Map<String, List<String>> users) throws MalformedJSONException {
+        if(users == null) throw new NullPointerException();
+
+        try { 
+            Iterator<JsonElement> iter = array.iterator();
             while(iter.hasNext()){
                 JsonObject user = iter.next().getAsJsonObject();
                 String username = user.get("username").getAsString();
@@ -335,7 +368,6 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         } catch (NullPointerException | IllegalStateException ex) {
             throw new MalformedJSONException("json response does not contain the requested information");
         }
-
-        return users;
     }
+
 }

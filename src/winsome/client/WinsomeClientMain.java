@@ -249,13 +249,7 @@ public class WinsomeClientMain {
                 }
 
                 System.out.println(ConsoleColors.blue("==> SUCCESS! ") + "Listing users:\n");
-                for(Entry<String, List<String>> userTags : users.entrySet()){
-                    System.out.println(ConsoleColors.yellow("--> Username: ") + userTags.getKey());
-                    System.out.print(ConsoleColors.yellow("      Tags:"));
-                    for(String tag : userTags.getValue())
-                        System.out.print(" " + tag);
-                    System.out.println();
-                }
+                printUsers(users);
                 break;
             }
 
@@ -269,13 +263,17 @@ public class WinsomeClientMain {
                     System.out.println(cmd.getHelpString());
                     return;
                 }
-
+                
+                Map<String, List<String>> followers;  
                 System.out.println(ConsoleColors.blue("-> ") + "Listing followers...");
-                try { api.listFollowers(); }
-                catch(NotImplementedException ex){
-                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                try { followers = api.listFollowers(); }
+                catch(NoLoggedUserException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
                     return;
                 }
+
+                System.out.println(ConsoleColors.blue("==> SUCCESS! ") + "Listing followers:\n");
+                printUsers(followers);
                 break;
             }
 
@@ -290,12 +288,16 @@ public class WinsomeClientMain {
                     return;
                 }
 
+                Map<String, List<String>> followed;  
                 System.out.println(ConsoleColors.blue("-> ") + "Listing followed users...");
-                try { api.listFollowing(); }
-                catch(NotImplementedException ex){
-                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                try { followed = api.listFollowing(); }
+                catch(NoLoggedUserException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
                     return;
                 }
+
+                System.out.println(ConsoleColors.blue("==> SUCCESS! ") + "Listing followed users:\n");
+                printUsers(followed);
                 break;
             }
 
@@ -634,5 +636,15 @@ public class WinsomeClientMain {
             }
         }
 
+    }
+
+    private static void printUsers(Map<String, List<String>> users){
+        for(Entry<String, List<String>> userTags : users.entrySet()){
+            System.out.println(ConsoleColors.yellow("--> Username: ") + userTags.getKey());
+            System.out.print(ConsoleColors.yellow("      Tags:"));
+            for(String tag : userTags.getValue())
+                System.out.print(" " + tag);
+            System.out.println();
+        }
     }
 }
