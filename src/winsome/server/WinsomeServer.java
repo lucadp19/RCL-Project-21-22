@@ -5,6 +5,8 @@ import java.util.Map.Entry;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import javax.naming.NoInitialContextException;
+
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
@@ -68,7 +70,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
             WinsomeServer.this.users = users;
             WinsomeServer.this.posts = posts;
-            WinsomeServer.this.followerMap = followers;
+            WinsomeServer.this.following = followers;
             WinsomeServer.this.transactions = transactions;
         }
 
@@ -78,7 +80,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
             users = new ConcurrentHashMap<>();
             posts = new ConcurrentHashMap<>();
-            followerMap = new ConcurrentHashMap<>();
+            following = new ConcurrentHashMap<>();
             transactions = new ConcurrentHashMap<>();
         }
 
@@ -219,7 +221,13 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 return response;
             }
 
-            try { WinsomeServer.this.login(username, password, key); }
+            List<User> following;
+            List<User> followers;
+            try { 
+                WinsomeServer.this.login(username, password, key);
+                following = WinsomeServer.this.getFollowing(username);
+                followers = WinsomeServer.this.getFollowers(username);
+            }
             catch (NoSuchUserException ex){ // if no user with the given username is registered
                 ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
                 return response;
@@ -235,6 +243,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             
             // success!
             ResponseCode.SUCCESS.addResponseToJson(response);
+            response.add("following", userTagsToJson(following));
+            response.add("followers", userTagsToJson(followers));
+            
             return response;
         }
 
@@ -310,8 +321,18 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             }
 
             // adding users to JSON
-            JsonArray usersJson = new JsonArray();
-            for(User user : visibleUsers){
+            JsonArray usersJson = userTagsToJson(visibleUsers);
+            
+            // success!
+            ResponseCode.SUCCESS.addResponseToJson(response);
+            response.add("users", usersJson);
+            return response;
+        }
+
+        private JsonArray userTagsToJson(Collection<User> users){
+            // adding users to JSON
+            JsonArray array = new JsonArray();
+            for(User user : users){
                 JsonObject toAdd = new JsonObject();
                 toAdd.addProperty("username", user.getUsername());
 
@@ -320,13 +341,10 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     tags.add(tag);
                 toAdd.add("tags", tags);
 
-                usersJson.add(toAdd);
+                array.add(toAdd);
             }
-            
-            // success!
-            ResponseCode.SUCCESS.addResponseToJson(response);
-            response.add("users", usersJson);
-            return response;
+
+            return array;
         }
     }
 
@@ -344,7 +362,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
     private ConcurrentMap<String, User> users;
     private ConcurrentMap<Integer, Post> posts;
-    private ConcurrentMap<String, Set<String>> followerMap;
+    private ConcurrentMap<String, Set<String>> following;
     private ConcurrentMap<String, Collection<Transaction>> transactions;
     
     private final ConcurrentMap<String, SelectionKey> userSessions = new ConcurrentHashMap<>();
@@ -464,7 +482,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         synchronized(this){ // TODO: is this the best way to synchronize things?
             if(users.putIfAbsent(username, newUser) != null)
                 throw new UserAlreadyExistsException("\"" + username + "\" is not available as a new username");
-            followerMap.put(username, ConcurrentHashMap.newKeySet());
+            following.put(username, ConcurrentHashMap.newKeySet());
             transactions.put(username, new ConcurrentLinkedQueue<>());
         }
 
@@ -560,6 +578,33 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         }
 
         return visibleUsers;
+    }
+
+    private List<User> getFollowing(String username) throws NoSuchUserException {
+        if(username == null) throw new NullPointerException("null argument");
+
+        Collection<String> tmp;
+        List<User> followedUsers = new ArrayList<>();
+
+        if((tmp = following.get(username)) == null)
+            throw new NoSuchUserException();
+        
+        for(String followedUser : tmp) 
+            followedUsers.add(users.get(followedUser));
+
+        return followedUsers;
+    }
+    
+    private List<User> getFollowers(String username) throws NoSuchUserException {
+        if(username == null) throw new NullPointerException("null argument");
+
+        List<User> ans = new ArrayList<>();
+        for(Entry<String, Set<String>> entry : following.entrySet()){
+            if(entry.getValue().contains(username)) 
+            ans.add(users.get(entry.getKey()));
+        }
+
+        return ans;
     }
 
     /* ************** Send/receive methods ************** */
