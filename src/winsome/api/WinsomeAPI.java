@@ -23,6 +23,7 @@ import winsome.api.exceptions.NotImplementedException;
 import winsome.api.exceptions.UserAlreadyExistsException;
 import winsome.api.exceptions.UserAlreadyLoggedException;
 import winsome.api.exceptions.WrongPasswordException;
+import winsome.server.datastructs.User;
 
 public class WinsomeAPI extends RemoteObject implements RemoteClient {
     private final String serverAddr;
@@ -142,6 +143,7 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         switch (responseCode) {
             case SUCCESS:
                 loggedUser = user;
+                remoteServer.registerForUpdates(user, this);
                 return;
             case USER_NOT_REGISTERED:
                 throw new NoSuchUserException("\"" + user + "\" is not signed up");
