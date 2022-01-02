@@ -18,8 +18,11 @@ import com.google.gson.JsonParser;
 import winsome.api.codes.RequestCode;
 import winsome.api.codes.ResponseCode;
 import winsome.api.exceptions.MalformedJSONException;
+import winsome.api.exceptions.NoSuchUserException;
 import winsome.api.exceptions.NotImplementedException;
 import winsome.api.exceptions.UserAlreadyExistsException;
+import winsome.api.exceptions.UserAlreadyLoggedException;
+import winsome.api.exceptions.WrongPasswordException;
 
 public class WinsomeAPI extends RemoteObject implements RemoteClient {
     private final String serverAddr;
@@ -117,10 +120,15 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         remoteServer.signUp(username, password, tags);
     }
 
-    public void login(String user, String passw) throws IOException, MalformedJSONException {
+    public void login(String user, String passw) 
+            throws IOException, MalformedJSONException, UserAlreadyLoggedException, 
+                NoSuchUserException, WrongPasswordException {
+        if(isLogged()) throw new UserAlreadyLoggedException(
+            "already logged as " + loggedUser + ". Please logout before trying to login with another user.");
+
         JsonObject request = new JsonObject();
 
-        request.addProperty("code", RequestCode.LOGIN.toString());
+        RequestCode.LOGIN.addRequestToJson(request);
         request.addProperty("username", user);
         request.addProperty("password", passw);
 
@@ -128,16 +136,21 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
 
         JsonObject response = null;
         try { response = JsonParser.parseString(receive()).getAsJsonObject(); }
-        catch (JsonParseException | IllegalStateException ex){ throw new IOException("received malformed JSON"); }
+        catch (JsonParseException | IllegalStateException ex){ throw new MalformedJSONException("received malformed JSON"); }
 
-        ResponseCode responseCode = getResponseFromJSON(response);
+        ResponseCode responseCode = ResponseCode.getResponseFromJson(response);
         switch (responseCode) {
             case SUCCESS:
+                loggedUser = user;
                 return;
             case USER_NOT_REGISTERED:
-                throw new IllegalArgumentException("user does not exist"); // TODO: better exception
+                throw new NoSuchUserException("\"" + user + "\" is not signed up");
+            case WRONG_PASSW:
+                throw new WrongPasswordException("password does not match");
+            case ALREADY_LOGGED:
+                throw new UserAlreadyLoggedException("user is already logged in");
             default:
-                throw new IllegalStateException("FATAL"); // TODO: distinguish other errors
+                throw new IllegalStateException("server sent unexpected error message: " + responseCode);
         }
     }
 
@@ -232,11 +245,4 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
     // ------------ Utility functions ------------ //
 
     public boolean isLogged(){ return loggedUser != null; }
-
-    private ResponseCode getResponseFromJSON(JsonObject response) throws MalformedJSONException {
-        try { return ResponseCode.valueOf(response.get("code").getAsString()); }
-        catch (ClassCastException | IllegalStateException | NullPointerException ex){
-            throw new MalformedJSONException("malformed response from server");
-        }
-    }
 }

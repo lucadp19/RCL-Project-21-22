@@ -1,7 +1,6 @@
 package winsome.server;
 
 import java.nio.ByteBuffer;
-import winsome.server.exceptions.UserAlreadyLoggedException;
 
 public class KeyAttachment {
     private String user;

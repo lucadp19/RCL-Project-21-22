@@ -165,20 +165,35 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         }
 
         public void run(){
-            RequestCode code = RequestCode.valueOf(request.get("code").getAsString());
-
             try {
-                JsonObject response = null;
+                RequestCode code;
+                JsonObject response;
+
+                try { code = RequestCode.getRequestFromJson(request); }
+                catch (MalformedJSONException ex){ 
+                    response = new JsonObject();
+                    ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
+                    send(response.toString(), key);
+
+                    return;
+                }
+
                 switch (code) {
                     case LOGIN:
                         response = loginRequest();
+                        break;
                     default:
                         // TODO: implement things
-                        break;
+                        response = new JsonObject();
+                        ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
+                        send(response.toString(), key);
+
+                        return;
                 }
 
                 send(response.toString(), key);
-            } catch(IOException ex){
+            }
+            catch(IOException ex){
                 // TODO: remove user
             }
         }     
@@ -189,7 +204,6 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          */
         private JsonObject loginRequest(){
             JsonObject response = new JsonObject();
-            KeyAttachment attachment = (KeyAttachment) key.attachment();
 
             String username = null; 
             String password = null; 
@@ -199,32 +213,26 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 username = request.get("username").getAsString();
                 password = request.get("password").getAsString();
             } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username/password => malformed Json
-                response.addProperty("code", ResponseCode.MALFORMED_JSON_REQUEST.toString());
+                ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
                 return response;
             }
 
-            User user = null;
-
-            // if no user with the given username is registered
-            if((user = users.get(username)) == null) { 
-                response.addProperty("code", ResponseCode.USER_NOT_REGISTERED.toString());
+            try { WinsomeServer.this.login(username, password, key); }
+            catch (NoSuchUserException ex){ // if no user with the given username is registered
+                ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
                 return response;
             }
-            // if the password does not match
-            if(user.getPassword() != password){ 
-                response.addProperty("code", ResponseCode.WRONG_PASSW.toString());
+            catch (WrongPasswordException ex){ // if the password does not match
+                ResponseCode.WRONG_PASSW.addResponseToJson(response);
                 return response;
             }
-            // if the user or the key is already logged in
-            if(!attachment.isLoggedIn() || WinsomeServer.this.userSessions.putIfAbsent(username, key) != null){
-                response.addProperty("code", ResponseCode.ALREADY_LOGGED.toString());
+            catch (UserAlreadyLoggedException ex){ // if the user or the key is already logged in
+                ResponseCode.ALREADY_LOGGED.addResponseToJson(response);
                 return response;
-            } 
+            }
             
             // success!
-            response.addProperty("code", ResponseCode.SUCCESS.toString());
-            attachment.login(username);
-
+            ResponseCode.SUCCESS.addResponseToJson(response);
             return response;
         }
     }
@@ -384,19 +392,22 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
     /* ************** Login/logout ************** */
 
     public void login(String username, String password, SelectionKey client) 
-            throws NullPointerException, NoSuchUserException, WrongPasswordException, InvalidSelectionKeyException, UserAlreadyLoggedException {
+            throws NullPointerException, NoSuchUserException, WrongPasswordException, UserAlreadyLoggedException {
         if(username == null || password == null || client == null) throw new NullPointerException("null parameters in login");
-        if(!users.containsKey(username)) throw new NoSuchUserException();
 
-        User user = users.get(username);
-        if(user.getPassword() != password) throw new WrongPasswordException();
+        KeyAttachment attachment = (KeyAttachment) client.attachment();
+        User user;
 
-        if(!client.isValid()) throw new InvalidSelectionKeyException();
+        // if no user with the given username is registered
+        if((user = users.get(username)) == null) { throw new NoSuchUserException("user is not signed up"); }
+        // if the password does not match
+        if(!user.getPassword().equals(password)){ throw new WrongPasswordException("password does not match"); }
+        // if the user or the key is already logged in
+        if(!attachment.isLoggedIn() || WinsomeServer.this.userSessions.putIfAbsent(username, client) != null){
+            throw new UserAlreadyLoggedException("user or client is already logged in");
+        } 
 
-        synchronized(userSessions){
-            if(userSessions.containsKey(username)) throw new UserAlreadyLoggedException();
-            userSessions.put(username, client);
-        }
+        attachment.login(username);
     }
 
     public void logout(String username, SelectionKey client) throws NullPointerException {
@@ -452,6 +463,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
     }
 
     private void send(String msg, SelectionKey key) throws IOException {
+        System.out.println("Message is:\n" + msg);
+
         SocketChannel client = (SocketChannel) key.channel();
         ByteBuffer buf = (key.attachment() != null) ? 
             ((KeyAttachment) key.attachment()).getBuffer() :

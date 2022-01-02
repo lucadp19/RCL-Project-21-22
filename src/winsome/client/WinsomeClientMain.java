@@ -6,8 +6,11 @@ import java.util.*;
 
 import winsome.api.WinsomeAPI;
 import winsome.api.exceptions.MalformedJSONException;
+import winsome.api.exceptions.NoSuchUserException;
 import winsome.api.exceptions.NotImplementedException;
 import winsome.api.exceptions.UserAlreadyExistsException;
+import winsome.api.exceptions.UserAlreadyLoggedException;
+import winsome.api.exceptions.WrongPasswordException;
 import winsome.client.ClientConfig;
 import winsome.client.exceptions.UnknownCommandException;
 import winsome.utils.ConsoleColors;
@@ -149,12 +152,30 @@ public class WinsomeClientMain {
                 System.out.println(ConsoleColors.blue("-> ") + "Logging in as user \"" + ConsoleColors.blue(args[0]) + "\"...");
 
                 try { api.login(args[0], args[1]); }
-                catch(IOException ex){
+                catch (IOException ex){
                     System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
-                } catch(MalformedJSONException | RuntimeException ex){
-                    System.out.println(ConsoleColors.red("==> Error!"));
-                    ex.printStackTrace();
+                    return;
+                } 
+                catch (MalformedJSONException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "Server sent malformed response message.");
+                    return;
                 }
+                catch (UserAlreadyLoggedException ex){
+                    System.out.println(ConsoleColors.red("==> Error! User is already logged: ") + ex.getMessage());
+                    return;
+                }
+                catch (NoSuchUserException ex){
+                    System.out.println(ConsoleColors.red("==> Error! No such user exists: ") + ex.getMessage());
+                    return;
+                }
+                catch (WrongPasswordException ex){
+                    System.out.println(ConsoleColors.red("==> Error! Wrong password: ") + ex.getMessage());
+                    return;
+                }
+
+                System.out.println(
+                    ConsoleColors.blue("==> SUCCESS: ") + "you are now logged in as \"" + 
+                    ConsoleColors.blue(args[0]) + "\"!");
                 break;
             }
 
