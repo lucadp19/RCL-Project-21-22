@@ -5,8 +5,6 @@ import java.util.Map.Entry;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import javax.naming.NoInitialContextException;
-
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
@@ -30,7 +28,9 @@ import winsome.api.exceptions.*;
 import winsome.server.datastructs.*;
 import winsome.server.exceptions.*;
 
+/** A Server instance for the Winsome Social Network. */
 public class WinsomeServer extends RemoteObject implements RemoteServer {
+    /** A class for loading the Server status from data and persist the current state. */
     private class ServerPersistence {
         private String dirpath;
 
@@ -157,6 +157,11 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         }
     }
 
+    /** A Worker in the Winsome Server.
+     * <p>
+     * It executes a given request from a client
+     * and sends back the result.
+     */
     private class Worker implements Runnable {
         JsonObject request;
         SelectionKey key;
@@ -348,36 +353,68 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         }
     }
 
+    /** Boolean flag representing whether the Server data has been loaded yet or not. */
     private static AtomicBoolean isDataInit = new AtomicBoolean(false);
 
+    /** The Server config. */
     private ServerConfig config;
+    /** A Runnable object that loads and writes the Server state from/to disk. */
     private ServerPersistence persistenceWorker;
 
+    /** The thread pool for the Worker Threads. */
     private Executor pool;
 
+    /** The channel selector */
     private Selector selector;
+    /** The server socket channel */
     private ServerSocketChannel socketChannel;
 
     private DatagramSocket multicastSocket;
 
+    /** Users of the Social Network, represented as a map from usernames to User objects. */
     private ConcurrentMap<String, User> users;
+    /** Posts of the Social Network, represented as a map from post IDs to Post objects. */
     private ConcurrentMap<Integer, Post> posts;
+    /** The 'followers' structure of the Social Network, 
+     * represented as a map from usernames to a set of followed users.
+     */
     private ConcurrentMap<String, Set<String>> following;
+    /** The Social Network's transactions, 
+     * represented as a map from usernames to collections of transactions 
+     */
     private ConcurrentMap<String, Collection<Transaction>> transactions;
     
+    /** The currently logged in users, represented as a map 
+     * from usernames to the SelectionKey linked to the given user 
+     */
     private final ConcurrentMap<String, SelectionKey> userSessions = new ConcurrentHashMap<>();
+    /** The currently registered to callbacks users, represented as a map
+     * from usernames to the RemoteClient that exposes the relevant callback methods.
+     */
     private final ConcurrentMap<String, RemoteClient> registeredToCallbacks = new ConcurrentHashMap<>();
 
+    /** Winsome Server Constructor */
     public WinsomeServer(){
         super();
     }
 
+    /**
+     * Initializes a new instance of WinsomeServer.
+     * <p>
+     * This method reads the config from the given path, then
+     * loads the persisted data and finally starts the Worker
+     * Thread Pool.
+     * @param configPath the path to the config file
+     * @throws NullPointerException if the given config path is null
+     * @throws FileNotFoundException if the given config path does not lead to a regular file
+     * @throws NumberFormatException // TODO: should probably remove this
+     * @throws IOException if there are errors in reading config files/persisted data
+     */
     public void initServer(String configPath) 
         throws NullPointerException, FileNotFoundException, 
                 NumberFormatException, IOException {
         config = new ServerConfig(configPath);
 
-        // TODO: read persisted data
         persistenceWorker = new ServerPersistence(config.getPersistenceDir());
         persistenceWorker.getPersistedData();
 
@@ -389,6 +426,10 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
     /* **************** Connection methods **************** */
 
+    /**
+     * Initializes the server socket and registry.
+     * @throws IOException if any of the socket related operations fail
+     */
     public void startServer() throws IOException {
         // initializing socket and selector
         InetSocketAddress sockAddress = new InetSocketAddress(config.getTCPPort());
@@ -411,11 +452,27 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
     /* **************** Main Loop **************** */
     
+    /**
+     * Executes the main server loop.
+     * <p>
+     * The loop is as follows:
+     * <ul>
+     * <li> the server waits on the select call </li>
+     * <li> as soon as a client request comes, the server wakes up </li>
+     * <li> if the request is a connection request, the server accepts it </li>
+     * <li> if it is a request from an already connected client, 
+     *      the server tries to satisfy it and then returns the result to the client. </li>
+     * </ul>
+     * Each request is served by one of the threads in the thread pool.
+     * @throws IOException
+     */
     public void runServer() throws IOException {
         while(true){
+            // wait for client to wake up the server
             try { selector.select(); }
             catch(IOException ex){ throw new IOException("IO Error in select", ex); }
 
+            // get the selected keys
             Set<SelectionKey> keys = selector.selectedKeys();
             Iterator<SelectionKey> iter = keys.iterator();
             while(iter.hasNext()){
@@ -423,34 +480,34 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 iter.remove();
 
                 try {
-                    if(key.isAcceptable()){ 
+                    if(key.isAcceptable()){ // new connection
                         SocketChannel client = socketChannel.accept();
                         client.configureBlocking(false);
                         client.register(selector, SelectionKey.OP_READ, new KeyAttachment()); 
 
                         System.out.println("accepted client!");
                     } 
-                    if(key.isReadable() && key.isValid()){
-                        // TODO
+                    if(key.isReadable() && key.isValid()){ // request from already connected client
                         System.out.println("Key is readable!");
                         
+                        // reading new request from client and parsing as a Json Object
                         JsonObject request = null;
                         try { request = getJsonRequest(key); }
-                        catch (JsonParseException | IllegalStateException ex){
+                        catch (MalformedJSONException ex){ // parsing failed
                             JsonObject response = new JsonObject();
                             response.addProperty("code", ResponseCode.MALFORMED_JSON_REQUEST.toString());
                             send(response.toString(), key);
+                            continue;
                         }
-                        catch (EOFException ex){
+                        catch (EOFException ex){ // user closed its endpoint
                             endUserSession(key);
                             continue;
                         }
                         
+                        // execute request
                         pool.execute(new Worker(request, key));
-                        // TODO: create a worker and insert it into a thread pool
                     }
-                    
-                } catch(IOException ex){
+                } catch(IOException ex){ // fatal IO Exception
                     System.err.println("Connection closed as a result of an IO Exception.");
                     endUserSession(key);
                 }
@@ -458,6 +515,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         }
     }
 
+    /** Test function to echo a message */ // TODO: delete it
     public void echo(SelectionKey key) throws IOException {
         String msg = receive(key);
         System.out.println("String is: " + msg);
@@ -470,13 +528,12 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
     /* **************** Remote Methods **************** */
 
+    @Override
     public void signUp(String username, String password, Collection<String> tags) throws RemoteException, UserAlreadyExistsException {
         if(username == null || password == null || tags == null) throw new NullPointerException("null parameters in signUp method");
         for(String tag : tags) 
             if(tag == null) throw new NullPointerException("null parameters in signUp method");
         
-        System.out.println("New user: \n\tUsername: " + username + "\n\tPassword: " + password + "\n\tTags: " + tags);
-
         User newUser = new User(username, password, tags);
 
         synchronized(this){ // TODO: is this the best way to synchronize things?
@@ -489,6 +546,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         System.out.println("New user: \n\tUsername: " + username + "\n\tPassword: " + password + "\n\tTags: " + tags);
     }
 
+    @Override
     public void registerForUpdates(String username, RemoteClient client) throws RemoteException, NoSuchUserException {
         if(username == null) throw new NullPointerException("null parameters while registering user in callback system");
         if(!users.containsKey(username)) throw new NoSuchUserException();
@@ -496,6 +554,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         registeredToCallbacks.putIfAbsent(username, client);
     }
 
+    @Override
     public boolean unregisterForUpdates(String username) throws RemoteException {
         if(username == null) throw new NullPointerException("null parameters while unregistering user from callback system");
         if(!users.containsKey(username)) return false;
@@ -506,7 +565,17 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
     /* ************** Login/logout ************** */
 
-    public void login(String username, String password, SelectionKey client) 
+    /**
+     * Adds a user to the list of logged users.
+     * @param username username of the user
+     * @param password password of the user
+     * @param client selection key relative to the client's connection
+     * @throws NullPointerException if any of username, password or client are null
+     * @throws NoSuchUserException if no user with the given username exists
+     * @throws WrongPasswordException if the password does not match the saved password
+     * @throws UserAlreadyLoggedException if the client is already logged in, or the user is logged on another client
+     */
+    private void login(String username, String password, SelectionKey client) 
             throws NullPointerException, NoSuchUserException, WrongPasswordException, UserAlreadyLoggedException {
         if(username == null || password == null || client == null) throw new NullPointerException("null parameters in login");
 
@@ -525,8 +594,17 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         attachment.login(username);
     }
 
+    /**
+     * Removes a user from the list of logged users.
+     * @param username username of the given user
+     * @param client selection key relative to the client's connection
+     * @throws NullPointerException if any of username, client are null
+     * @throws NoSuchUserException if no user with the given username exists
+     * @throws NoLoggedUserException if the given user is not logged in
+     * @throws WrongUserException if the client is logged in with another user
+     */
     public void logout(String username, SelectionKey client) throws NullPointerException, NoSuchUserException, NoLoggedUserException, WrongUserException {
-        checkIfLogged(username, client);
+        checkIfLogged(username, client); // asserting that the client is actually logged in
 
         KeyAttachment attachment = (KeyAttachment) client.attachment();
         
@@ -534,23 +612,40 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         attachment.logout();
     }
 
+    /**
+     * Asserts that a given client is logged in on a given user; otherwise it throws some exception.
+     * @param username username of the given user
+     * @param client selection key relative to the client's connection
+     * @throws NullPointerException if any of username, client are null
+     * @throws NoSuchUserException if no user with the given username exists
+     * @throws NoLoggedUserException if the given user is not logged in
+     * @throws WrongUserException if the client is logged in with another user
+     */
     private void checkIfLogged(String username, SelectionKey client) throws NullPointerException, NoSuchUserException, NoLoggedUserException, WrongUserException {
+        // checking for nulls
         if(username == null || client == null) throw new NullPointerException("null parameters in logout");
 
+        // checking that the user exists
         if(!users.containsKey(username)) throw new NoSuchUserException("user is not registered");
 
-        KeyAttachment attachment = (KeyAttachment) client.attachment();
 
-        if(!attachment.isLoggedIn())
+        KeyAttachment attachment = (KeyAttachment) client.attachment();
+        if(!attachment.isLoggedIn()) // the client is not logged in
             throw new NoLoggedUserException("no user is currently logged in the given client");
-        if(!attachment.loggedUser().equals(username))
+        if(!attachment.loggedUser().equals(username)) // the client is not logged in with the given user
             throw new WrongUserException("user to logout does not correspond to the given client");
     }
 
+    /**
+     * Closes a given client's session.
+     * <p>
+     * If the client is logged in on some user, it is automatically logged out.
+     * @param key the client's selection key
+     */
     private void endUserSession(SelectionKey key) {
         KeyAttachment attachment = (KeyAttachment) key.attachment();
 
-        if(attachment.isLoggedIn()){
+        if(attachment.isLoggedIn()){ // logging out the user
             String username = attachment.loggedUser();
 
             userSessions.remove(username);
@@ -563,6 +658,13 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
     /* ************** Get users/posts ************** */
 
+    /**
+     * Returns the users visible by a given user, 
+     * i.e. the users with at least a common tag with the given user.
+     * @param username the username of the given user
+     * @return a list containing all the users who have a common tag with the given user
+     * @throws NoSuchUserException if the given user does not exist
+     */
     private List<User> getVisibleUsers(String username) throws NoSuchUserException {
         if(username == null) throw new NullPointerException();
         
@@ -580,6 +682,12 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         return visibleUsers;
     }
 
+    /**
+     * Returns the users followed by the given user
+     * @param username the username of the given user
+     * @return a list of users followed by the given user
+     * @throws NoSuchUserException if the given user does not exist
+     */
     private List<User> getFollowing(String username) throws NoSuchUserException {
         if(username == null) throw new NullPointerException("null argument");
 
@@ -595,8 +703,16 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         return followedUsers;
     }
     
+    /**
+     * Returns the users who follow a given user.
+     * @param username the username of the given user
+     * @return the followers of the given user
+     * @throws NoSuchUserException if the given user does not exist
+     */
     private List<User> getFollowers(String username) throws NoSuchUserException {
         if(username == null) throw new NullPointerException("null argument");
+
+        if(!users.containsKey(username)) throw new NoSuchUserException();
 
         List<User> ans = new ArrayList<>();
         for(Entry<String, Set<String>> entry : following.entrySet()){
@@ -608,6 +724,12 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
     }
 
     /* ************** Send/receive methods ************** */
+    /**
+     * Receives a string from a given client.
+     * @param key the given client
+     * @return the string message sent by the client, or null if the client closed its endpoint
+     * @throws IOException if there is an IO error while communicating
+     */
     private String receive(SelectionKey key) throws IOException {
         SocketChannel client = (SocketChannel) key.channel();
         ByteBuffer buf = (key.attachment() != null) ? 
@@ -653,6 +775,11 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         return new String(tmp, StandardCharsets.UTF_8);
     }
 
+    /**
+     * Sends a string to a given client.
+     * @param key the given client
+     * @throws IOException if there is an IO error while communicating
+     */
     private void send(String msg, SelectionKey key) throws IOException {
         SocketChannel client = (SocketChannel) key.channel();
         ByteBuffer buf = (key.attachment() != null) ? 
@@ -692,12 +819,22 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         buf.clear();
     }
 
-    private JsonObject getJsonRequest(SelectionKey key) throws IOException, JsonParseException, IllegalStateException {
+    /**
+     * Reads a string from a client and parses it as a JsonObject.
+     * @param key the client
+     * @return the parsed json
+     * @throws IOException if there is an error while communicating
+     * @throws MalformedJSONException if the received string does not parse to a JsonObject
+     */
+    private JsonObject getJsonRequest(SelectionKey key) throws IOException, MalformedJSONException {
         String requestStr = receive(key);
 
         if(requestStr == null) // EOF
             throw new EOFException("EOF reached");
         
-        return JsonParser.parseString(requestStr).getAsJsonObject();
+        try { return JsonParser.parseString(requestStr).getAsJsonObject(); }
+        catch (JsonParseException | IllegalStateException ex) {
+            throw new MalformedJSONException("could not parse the given message to a JsonObject");
+        }
     }
 }
