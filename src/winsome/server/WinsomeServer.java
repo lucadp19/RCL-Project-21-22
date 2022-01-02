@@ -5,10 +5,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParseException;
-import com.google.gson.JsonParser;
+import com.google.gson.*;
 import com.google.gson.stream.JsonReader;
 
 import java.io.*;
@@ -32,29 +29,39 @@ import winsome.server.exceptions.*;
 public class WinsomeServer extends RemoteObject implements RemoteServer {
     /** A class for loading the Server status from data and persist the current state. */
     private class ServerPersistence {
-        private String dirpath;
+        /** Path to the persisted data. */
+        private final String dirpath;
+
+        /** Name of the file containing the persisted users */
+        private final static String USERS_FILE = "users.json";
+        /** Name of the file containing the persisted posts */
+        private final static String POSTS_FILE = "posts.json";
+        /** Name of the file containing the persisted "following" relations */
+        private final static String FOLLOWS_FILE = "follows.json";
+        /** Name of the file containing the persisted transactions */
+        private final static String TRANSACTIONS_FILE = "transactions.json";
 
         public ServerPersistence(String dirpath){ 
             if(dirpath == null) throw new NullPointerException("directory path is null");
             this.dirpath = dirpath; 
         }
 
+        /** 
+         * Reads the persisted data from the given directory.
+         * <p> 
+         * On any failure, initializes the server with empty data.  
+         */
         public void getPersistedData(){
             if(isDataInit.get()) throw new IllegalStateException("data has already been initialized");
 
             File dir = new File(dirpath);
             if(!dir.exists() || !dir.isDirectory()) { setEmptyData(); return; }
 
-            // TODO: read the files and get the persisted data
-            File usersFile = new File(dir, "users.json");
-            File postsFile = new File(dir, "posts.json");
-            File followersFile = new File(dir, "followers.json");
-            File transactionFile = new File(dir, "transactions.json");
-
-            // if(!postsFile.exists() || !postsFile.isFile()
-            //     || !followersFile.exists() || !followersFile.isFile()
-            //     || !transactionFile.exists() || !transactionFile.isFile()
-            // ){ setEmptyData(); return; }
+            // files
+            File usersFile = new File(dir, USERS_FILE);
+            File postsFile = new File(dir, POSTS_FILE);
+            File followersFile = new File(dir, FOLLOWS_FILE);
+            File transactionFile = new File(dir, TRANSACTIONS_FILE);
             
             ConcurrentHashMap<String, User> users;
             ConcurrentHashMap<Integer, Post> posts;
@@ -68,12 +75,14 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 transactions = parseTransactions(transactionFile);
             } catch(IOException | InvalidJSONFileException ex) { ex.printStackTrace(); setEmptyData(); return; }
 
+            // initializing the WinsomeServer structures
             WinsomeServer.this.users = users;
             WinsomeServer.this.posts = posts;
             WinsomeServer.this.following = followers;
             WinsomeServer.this.transactions = transactions;
         }
 
+        /** Initializes all the structures with empty collections. */
         private void setEmptyData(){
             if(!isDataInit.compareAndSet(false, true))
                 throw new IllegalStateException("data has already been initialized");
@@ -84,6 +93,13 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             transactions = new ConcurrentHashMap<>();
         }
 
+        /**
+         * Tries to parse the file containing serialized users and returns a populated map.
+         * @param usersFile the file containing the serialized users
+         * @return the populated users map
+         * @throws InvalidJSONFileException if the given file is not a valid JSON file
+         * @throws IOException if there is an IO error while reading the file
+         */
         private ConcurrentHashMap<String, User> parseUsers(File usersFile) throws InvalidJSONFileException, IOException {
             ConcurrentHashMap<String, User> users = new ConcurrentHashMap<>();
             
@@ -92,7 +108,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             ){
                 reader.beginArray();
                 while(reader.hasNext()){
-                    User nextUser = User.fromJson(reader);
+                    User nextUser = User.fromJson(reader); // reading a user
                     String nextUsername = nextUser.getUsername();
 
                     users.put(nextUsername, nextUser);
@@ -101,7 +117,14 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             }
             return users;
         }
-
+    
+        /**
+         * Tries to parse the file containing serialized "follows" relations and returns a populated map.
+         * @param usersFile the file containing the serialized "follows"
+         * @return the populated map
+         * @throws InvalidJSONFileException if the given file is not a valid JSON file
+         * @throws IOException if there is an IO error while reading the file
+         */
         private ConcurrentHashMap<String, Set<String>> parseFollowers(File followersFile) throws InvalidJSONFileException, IOException {
             ConcurrentHashMap<String, Set<String>> followers = new ConcurrentHashMap<>();
             
@@ -129,6 +152,13 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             return followers;
         }
 
+        /**
+         * Tries to parse the file containing serialized transactions and returns a populated map.
+         * @param transactionsFile the file containing the serialized transactions
+         * @return the populated transactions map
+         * @throws InvalidJSONFileException if the given file is not a valid JSON file
+         * @throws IOException if there is an IO error while reading the file
+         */
         private ConcurrentHashMap<String, Collection<Transaction>> parseTransactions(File transactionsFile) throws InvalidJSONFileException, IOException {
             ConcurrentHashMap<String, Collection<Transaction>> transactionMap = new ConcurrentHashMap<>();
             
@@ -166,17 +196,23 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         JsonObject request;
         SelectionKey key;
 
+        /** Creates a new Worker object. */
         public Worker(JsonObject request, SelectionKey key){
             this.request = request; this.key = key; 
         }
 
+        /**
+         * Executes the request and sends the result back to the client.
+         */
+        @Override
         public void run(){
             try {
                 RequestCode code;
                 JsonObject response;
 
+                // read request code
                 try { code = RequestCode.getRequestFromJson(request); }
-                catch (MalformedJSONException ex){ 
+                catch (MalformedJSONException ex){ // failure in parsing json
                     response = new JsonObject();
                     ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
                     send(response.toString(), key);
@@ -184,6 +220,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     return;
                 }
 
+                // switch between request types
                 switch (code) {
                     case LOGIN:
                         response = loginRequest();
@@ -226,8 +263,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 return response;
             }
 
-            List<User> following;
-            List<User> followers;
+            List<User> following, followers;
             try { 
                 WinsomeServer.this.login(username, password, key);
                 following = WinsomeServer.this.getFollowing(username);
@@ -248,6 +284,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             
             // success!
             ResponseCode.SUCCESS.addResponseToJson(response);
+            // sending current followed/followers list to user
             response.add("following", userTagsToJson(following));
             response.add("followers", userTagsToJson(followers));
             
@@ -309,7 +346,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
             List<User> visibleUsers;
             try { 
-                WinsomeServer.this.checkIfLogged(username, key);
+                WinsomeServer.this.checkIfLogged(username, key); // assert that the user is logged in
                 visibleUsers = WinsomeServer.this.getVisibleUsers(username); 
             }
             catch (NoSuchUserException ex){// if no user with the given username is registered
@@ -334,6 +371,16 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             return response;
         }
 
+        /**
+         * Transforms a collection of users into a JsonArray.
+         * <p>
+         * The resulting JsonArray contains objects with username
+         * and tags of the users in the given collection.
+         * <p>
+         * This method does not serialize the user's password!
+         * @param users a collection of users
+         * @return the resulting json serialization
+         */
         private JsonArray userTagsToJson(Collection<User> users){
             // adding users to JSON
             JsonArray array = new JsonArray();
@@ -341,6 +388,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 JsonObject toAdd = new JsonObject();
                 toAdd.addProperty("username", user.getUsername());
 
+                // creating list of tags
                 JsonArray tags = new JsonArray();
                 for(String tag : user.getTags())
                     tags.add(tag);
