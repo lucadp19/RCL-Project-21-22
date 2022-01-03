@@ -231,6 +231,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     case GET_USERS:
                         response = getUsersRequest();
                         break;
+                    case GET_FOLLOWING:
+                        response = getFollowingRequest();
+                        break;
                     case FOLLOW:
                         response = followRequest();
                         break;
@@ -374,6 +377,49 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             // success!
             ResponseCode.SUCCESS.addResponseToJson(response);
             response.add("users", usersJson);
+            return response;
+        }
+
+        /**
+         * Fulfills a client's GET_FOLLOWING request.
+         * @return the response, formatted as a JsonObject
+         */
+        private JsonObject getFollowingRequest(){
+            JsonObject response = new JsonObject();
+
+            String username = null; 
+            
+            // reading username and password from the request
+            try {
+                username = request.get("username").getAsString();
+            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username/password => malformed Json
+                ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
+                return response;
+            }
+
+            List<User> following;
+            try { 
+                WinsomeServer.this.checkIfLogged(username, key);
+                following = WinsomeServer.this.getFollowing(username);
+            }
+            catch (NoSuchUserException ex){// if no user with the given username is registered
+                ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
+                return response;
+            }
+            catch (NoLoggedUserException ex){ // if this client is not logged in
+                ResponseCode.NO_LOGGED_USER.addResponseToJson(response);
+                return response;
+            }
+            catch (WrongUserException ex){ // if this client is not logged in with the given user
+                ResponseCode.WRONG_USER.addResponseToJson(response);
+                return response;
+            }
+            
+            // success!
+            ResponseCode.SUCCESS.addResponseToJson(response);
+            // sending current followed/followers list to user
+            response.add("following", userTagsToJson(following));
+
             return response;
         }
 

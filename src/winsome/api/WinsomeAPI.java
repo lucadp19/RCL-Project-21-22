@@ -38,8 +38,6 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
     private String loggedUser = null;
     /** The followers of the currently logged user */
     private Map<String, List<String>> followers = null;
-    /** The users followed by the currently logged user */
-    private Map<String, List<String>> following = null;
 
     /**
      * Creates a new instance of a Winsome API.
@@ -259,7 +257,7 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         ResponseCode responseCode = ResponseCode.getResponseFromJson(response);
         switch (responseCode) {
             case SUCCESS: {
-                return getUsersAndTags(response);
+                return getUsersAndTags(response, "users");
             }
             // there should not be any errors on list_users
             default: {
@@ -289,14 +287,35 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         return ans;
     }
 
-    public Map<String, List<String>> listFollowing() throws NoLoggedUserException {
+    public Map<String, List<String>> listFollowing() throws IOException, NoLoggedUserException, MalformedJSONException {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
 
-        Map<String, List<String>> ans = new HashMap<>();
-        for(Entry<String, List<String>> entry : following.entrySet())
-            ans.put(entry.getKey(), new ArrayList<>(entry.getValue()));
+        JsonObject request = new JsonObject();
+        RequestCode.GET_FOLLOWING.addRequestToJson(request);
+        request.addProperty("username", loggedUser);
         
-        return ans;
+        send(request.toString());
+
+        JsonObject response = getJsonResponse();
+        ResponseCode responseCode = ResponseCode.getResponseFromJson(response);
+        switch (responseCode) {
+            case SUCCESS:
+                return getUsersAndTags(response, "following");
+            default: {  //
+                String msg;
+                switch (responseCode) {
+                    case USER_NOT_REGISTERED:
+                        msg = ("the user \"" + loggedUser + "\" is not signed up in the Social Network");
+                    case NO_LOGGED_USER:
+                        msg = ("no user is currently logged; please log in first");
+                    case WRONG_USER:
+                        msg = ("the user currently logged does not correspond to the user to log out");
+                    default:
+                        msg = responseCode.toString();
+                }
+                throw new IllegalStateException(msg);
+            }
+        }
     }
 
     public void followUser(String toFollow) throws IOException, MalformedJSONException, NoLoggedUserException, FollowException {
@@ -440,11 +459,11 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         catch (JsonParseException | IllegalStateException ex){ throw new MalformedJSONException("received malformed JSON"); }
     }
 
-    private Map<String, List<String>> getUsersAndTags(JsonObject request) throws MalformedJSONException {
+    private Map<String, List<String>> getUsersAndTags(JsonObject request, String fieldName) throws MalformedJSONException {
         JsonArray usersJson;
         Map<String, List<String>> users = new HashMap<>();
         try { 
-            usersJson = request.get("users").getAsJsonArray();
+            usersJson = request.get(fieldName).getAsJsonArray();
 
             addUsersAndTags(usersJson, users);
         } catch (NullPointerException | IllegalStateException ex) {

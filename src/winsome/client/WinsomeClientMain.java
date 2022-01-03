@@ -303,10 +303,23 @@ public class WinsomeClientMain {
                 Map<String, List<String>> followed;  
                 System.out.println(ConsoleColors.blue("-> ") + "Listing followed users...");
                 try { followed = api.listFollowing(); }
+                catch (IOException ex){
+                    System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
+                    return;
+                }
                 catch(NoLoggedUserException ex){
                     System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
                     return;
                 }
+                catch (MalformedJSONException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "Server sent malformed response message.");
+                    return;
+                }
+                catch (IllegalStateException ex){
+                    System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
+                    return;
+                }
+
 
                 System.out.println(
                     ConsoleColors.blue("==> SUCCESS! ") + 
