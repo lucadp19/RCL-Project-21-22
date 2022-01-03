@@ -6,6 +6,7 @@ import java.util.*;
 import java.util.Map.*;
 
 import winsome.api.WinsomeAPI;
+import winsome.api.exceptions.FollowException;
 import winsome.api.exceptions.MalformedJSONException;
 import winsome.api.exceptions.NoLoggedUserException;
 import winsome.api.exceptions.NoSuchUserException;
@@ -316,10 +317,28 @@ public class WinsomeClientMain {
 
                 System.out.println(ConsoleColors.blue("-> ") + "Following user \"" + ConsoleColors.blue(args[0]) + "\"...");
                 try { api.followUser(args[0]); }
-                catch(NotImplementedException ex){
-                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                catch (IOException ex){
+                    System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
                     return;
                 }
+                catch (MalformedJSONException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "Server sent malformed response message.");
+                    return;
+                }
+                catch (NoLoggedUserException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
+                    return;
+                }
+                catch (FollowException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "You were already following " + ConsoleColors.red(args[0]) + ".");
+                    return;
+                }
+                catch (IllegalStateException ex){
+                    System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
+                    return;
+                }
+
+                System.out.println(ConsoleColors.blue("==> SUCCESS! ") + "You are now following " + ConsoleColors.blue(args[0]) + "!");
                 break;
             }
 
