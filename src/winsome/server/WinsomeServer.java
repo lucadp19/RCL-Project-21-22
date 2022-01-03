@@ -240,6 +240,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     case UNFOLLOW:
                         response = unfollowRequest();
                         break;
+                    case POST:
+                        response = postRequest();
+                        break;
                     default:
                         // TODO: implement things
                         response = new JsonObject();
@@ -507,6 +510,48 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             return response;
         }
 
+        private JsonObject postRequest(){
+            JsonObject response = new JsonObject();
+
+            String username = null;
+            String title = null;
+            String content = null;
+
+            // reading username and password from the request
+             try {
+                username = request.get("username").getAsString();
+                title = request.get("title").getAsString();
+                content = request.get("content").getAsString();
+            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username/password => malformed Json
+                ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
+                return response;
+            }
+
+            try { 
+                WinsomeServer.this.checkIfLogged(username, key);
+
+                Post post = new OriginalPost(username, title, content);
+                posts.put(post.getID(), post);
+                response.addProperty("id", post.getID());
+            }
+            catch (NoSuchUserException ex){ // if no user with the given username is registered
+                ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
+                return response;
+            }
+            catch (NoLoggedUserException ex){ // if this client is not logged in
+                ResponseCode.NO_LOGGED_USER.addResponseToJson(response);
+                return response;
+            }
+            catch (WrongUserException ex){ // if this client is not logged in with the given user
+                ResponseCode.WRONG_USER.addResponseToJson(response);
+                return response;
+            }
+
+            // success!
+            ResponseCode.SUCCESS.addResponseToJson(response);
+            return response;
+        }
+
 
         /**
          * Transforms a collection of users into a JsonArray.
@@ -633,6 +678,14 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
         persistenceWorker = new ServerPersistence(config.getPersistenceDir());
         persistenceWorker.getPersistedData();
+
+        int maxPostID = -1;
+        for(Post post : posts.values()) {
+            if(post.getID() > maxPostID) 
+                maxPostID = post.getID();
+        }
+        
+        Post.initIDGenerator(maxPostID + 1);
 
         pool = new ThreadPoolExecutor(
             config.getMinThreads(), config.getMaxThreads(), 
