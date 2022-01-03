@@ -944,6 +944,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             unfollowedClient.removeFollower(username);
     }
 
+    // --------------- VISIBILITY METHODS --------------- //
+
     /**
      * Checks whether a user is visible from another user, i.e. if they have common tags.
      * @param povName the username of the user who wants to interact with other
@@ -985,7 +987,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
      * @return true if and only if pov can see other
      * @throws NoSuchUserException if povName is not the username of a registered user
      */
-    private boolean isVisible(String povName, User other) throws NoSuchUserException{
+    private boolean isVisible(String povName, User other) throws NoSuchUserException {
         if(povName == null || other == null) throw new NullPointerException("null arguments");
 
         User povUser;
@@ -1004,6 +1006,75 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
     private boolean isVisible(User pov, User other){
         if(pov == null || other == null) throw new NullPointerException("null arguments");
         return pov.hasCommonTags(other);
+    }
+    
+    /**
+     * Checks if the given user can see the given post.
+     * @param povName the username of the given user
+     * @param idPost the ID of the post
+     * @return true if and only if pov can see the post
+     * @throws NoSuchUserException if povName is not the username of a registered user
+     * @throws NoSuchPostException if idPost is not the ID of any post
+     */
+    private boolean isPostVisible(String povName, int idPost) throws NoSuchUserException, NoSuchPostException {
+        if(povName == null) throw new NullPointerException("null arguments");
+
+        User pov;
+        if((pov = users.get(povName)) == null)
+            throw new NoSuchUserException();
+        
+        return isPostVisible(pov, idPost);
+    }
+    
+    /**
+     * Checks if the given user can see the given post.
+     * @param povName the username of the given user
+     * @param post the post
+     * @return true if and only if pov can see the post
+     * @throws NoSuchUserException if povName is not the username of a registered user
+     */
+    private boolean isPostVisible(String povName, Post post) throws NoSuchUserException {
+        if(povName == null || post == null) throw new NullPointerException("null arguments");
+
+        User pov;
+        if((pov = users.get(povName)) == null)
+            throw new NoSuchUserException();
+        
+        return isPostVisible(pov, post);
+    }
+
+    /**
+     * Checks if the given user can see the given post.
+     * @param pov the given user
+     * @param idPost the ID of the post
+     * @return true if and only if pov can see the post
+     * @throws NoSuchPostException if idPost is not the ID of any post
+     */
+    private boolean isPostVisible(User pov, int idPost) throws NoSuchPostException {
+        if(pov == null) throw new NullPointerException("null arguments");
+
+        Post post;
+        if((post = posts.get(idPost)) == null)
+            throw new NoSuchPostException();
+
+        return isPostVisible(pov, post);
+    }
+
+    /**
+     * Checks if the given user can see the given post.
+     * @param pov the given user
+     * @param post the given post
+     * @return true if and only if pov can see the post
+     */
+    private boolean isPostVisible(User pov, Post post){
+        if(pov == null || post == null) throw new NullPointerException("null arguments");
+
+        try {
+            // if the post is a rewin, check that pov can see the rewinner
+            if(post.isRewin()) return isVisible(pov, post.getRewinner());
+            // otherwise check that pov can see the original author
+            else return isVisible(pov, post.getAuthor());
+        } catch (NoSuchUserException ex) { throw new IllegalStateException("post author does not exist"); }
     }
 
     /* ************** Send/receive methods ************** */
