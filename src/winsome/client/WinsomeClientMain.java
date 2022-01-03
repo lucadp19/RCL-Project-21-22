@@ -10,15 +10,7 @@ import java.util.regex.Pattern;
 import winsome.api.PostInfo;
 import winsome.api.WinsomeAPI;
 import winsome.api.PostInfo.Comment;
-import winsome.api.exceptions.FollowException;
-import winsome.api.exceptions.MalformedJSONException;
-import winsome.api.exceptions.NoLoggedUserException;
-import winsome.api.exceptions.NoSuchPostException;
-import winsome.api.exceptions.NoSuchUserException;
-import winsome.api.exceptions.NotImplementedException;
-import winsome.api.exceptions.UserAlreadyExistsException;
-import winsome.api.exceptions.UserAlreadyLoggedException;
-import winsome.api.exceptions.WrongPasswordException;
+import winsome.api.exceptions.*;
 import winsome.client.ClientConfig;
 import winsome.client.exceptions.UnknownCommandException;
 import winsome.utils.ConsoleColors;
@@ -615,10 +607,31 @@ public class WinsomeClientMain {
 
                 System.out.println(ConsoleColors.blue("-> ") + "Deleting post with ID \"" + ConsoleColors.blue(args[0]) + "\"...");
                 try { api.deletePost(id); }
-                catch(NotImplementedException ex){
-                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                catch (IOException ex){
+                    System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
                     return;
-                } 
+                }
+                catch (MalformedJSONException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "Server sent malformed response message.");
+                    return;
+                }
+                catch (NoLoggedUserException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
+                    return;
+                }
+                catch (NoSuchPostException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "There is no post with the given ID.");
+                    return;
+                }
+                catch (NotPostOwnerException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "You are not the owner of the given post.");
+                    return;
+                }
+                catch (IllegalStateException ex){
+                    System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
+                    return;
+                }
+                System.out.println(ConsoleColors.blue("==> SUCCESS!"));
                 break;
             }
 

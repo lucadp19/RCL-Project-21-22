@@ -26,6 +26,8 @@ public enum ResponseCode {
     NOT_FOLLOWING,
     /** Post does not exist */
     NO_POST,
+    /** User is not the owner of the post */
+    NOT_POST_OWNER,
     /** Fatal communication error */
     FATAL_ERR;
 

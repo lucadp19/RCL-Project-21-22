@@ -252,6 +252,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     case SHOW_POST:
                         response = showPostRequest();
                         break;
+                    case DELETE_POST:
+                        response = deleteRequest();
+                        break;
                     default:
                         // TODO: implement things
                         response = new JsonObject();
@@ -694,6 +697,52 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
             return response;
         }
+
+        private JsonObject deleteRequest(){
+            JsonObject response = new JsonObject();
+
+            String username = null;
+            int id = -1;
+
+            // reading username and password from the request
+             try {
+                username = request.get("username").getAsString();
+                id = request.get("id").getAsInt();
+            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username/password => malformed Json
+                ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
+                return response;
+            }
+
+            try { 
+                WinsomeServer.this.checkIfLogged(username, key);
+                WinsomeServer.this.deletePost(username, id);
+            }
+            catch (NoSuchUserException ex){ // if no user with the given username is registered
+                ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
+                return response;
+            }
+            catch (NoSuchPostException ex){ // if no post with the given id exists
+                ResponseCode.NO_POST.addResponseToJson(response);
+                return response;
+            }
+            catch (NotPostOwnerException ex){ // if the user is now the creator of the post
+                ResponseCode.NOT_POST_OWNER.addResponseToJson(response);
+                return response;
+            }
+            catch (NoLoggedUserException ex){ // if this client is not logged in
+                ResponseCode.NO_LOGGED_USER.addResponseToJson(response);
+                return response;
+            }
+            catch (WrongUserException ex){ // if this client is not logged in with the given user
+                ResponseCode.WRONG_USER.addResponseToJson(response);
+                return response;
+            }
+
+            // success!
+            ResponseCode.SUCCESS.addResponseToJson(response);
+            return response;
+        }
+
         /**
          * Transforms a collection of users into a JsonArray.
          * <p>
@@ -1169,6 +1218,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             unfollowedClient.removeFollower(username);
     }
 
+    // -------------- Post methods --------------- //
+
     private List<Post> getPostByAuthor(String username) throws NoSuchUserException {
         if(username == null) throw new NullPointerException("null arguments");
         if(!users.containsKey(username)) throw new NoSuchUserException("user does not exist");
@@ -1193,6 +1244,29 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 ans.add(post); 
         }
         return ans;
+    }
+
+    private void deletePost(String username, int id) throws NoSuchUserException, NoSuchPostException, NotPostOwnerException {
+        if(username == null) throw new NullPointerException();
+
+        User user; Post post;
+
+        if((user = users.get(username)) == null) throw new NoSuchUserException(); 
+        if((post = posts.get(id)) == null) throw new NoSuchPostException();
+
+        if(post.isRewin()){
+            if(!post.getRewinner().equals(username)) throw new NotPostOwnerException();
+
+            posts.remove(id);
+        } else {
+            if(!post.getAuthor().equals(username)) throw new NotPostOwnerException();
+
+            posts.remove(id);
+            for(Entry<Integer, Post> entry : posts.entrySet()){
+                if(entry.getValue().getOriginalID() == id)
+                    posts.remove(entry.getKey());
+            }
+        }
     }
 
     // --------------- VISIBILITY METHODS --------------- //

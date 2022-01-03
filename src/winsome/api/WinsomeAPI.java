@@ -527,6 +527,8 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
                 catch (NullPointerException | ClassCastException | IllegalStateException ex) {
                     throw new MalformedJSONException("server sent malformed json");
                 }
+            case NO_POST:
+                throw new NoSuchPostException("the given post does not exist");
             default: {  //
                 String msg;
                 switch (responseCode) {
@@ -544,8 +546,42 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         }
     }
 
-    public void deletePost(int idPost) throws NotImplementedException {
-        throw new NotImplementedException("method not yet implemented");
+    public void deletePost(int idPost) 
+            throws IOException, NoLoggedUserException, MalformedJSONException, 
+                NoSuchPostException, NotPostOwnerException {
+        if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
+
+        JsonObject request = new JsonObject();
+        RequestCode.DELETE_POST.addRequestToJson(request);
+        request.addProperty("username", loggedUser);
+        request.addProperty("id", idPost);
+        
+        send(request.toString());
+
+        JsonObject response = getJsonResponse();
+        ResponseCode responseCode = ResponseCode.getResponseFromJson(response);
+        switch (responseCode) {
+            case SUCCESS:
+                return;
+            case NO_POST:
+                throw new NoSuchPostException("there is no post with the given id");
+            case NOT_POST_OWNER:
+                throw new NotPostOwnerException("this user is not the owner of the given post");
+            default: {  //
+                String msg;
+                switch (responseCode) {
+                    case USER_NOT_REGISTERED:
+                        msg = ("the user \"" + loggedUser + "\" is not signed up in the Social Network");
+                    case NO_LOGGED_USER:
+                        msg = ("no user is currently logged; please log in first");
+                    case WRONG_USER:
+                        msg = ("the user currently logged does not correspond to the user to log out");
+                    default:
+                        msg = responseCode.toString();
+                }
+                throw new IllegalStateException(msg);
+            }
+        }
     }
 
     public void rewinPost(int idPost) throws NotImplementedException {
