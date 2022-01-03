@@ -531,8 +531,6 @@ public class WinsomeClientMain {
                     ConsoleColors.blue(Integer.toString(posts.size())) + " posts in your feed!\n"
                 );
                 for(PostInfo post : posts) printPost(post, false);
-                System.out.println();
-
                 break;
             }
 
@@ -776,19 +774,20 @@ public class WinsomeClientMain {
         return result;
     }
 
-    private static void printPost(PostInfo post, boolean includeComments){
+    private static void printPost(PostInfo post, boolean includeInfo){
         String str = 
             ConsoleColors.blue("- ID: ") + post.id + "\n"
             + ConsoleColors.blue("  Author: ") + post.author + "\n"
-            + ConsoleColors.blue("  Title: ") + post.title + "\n"
-            + ConsoleColors.blue("  Contents: ") + post.contents + "\n"
-            + ConsoleColors.blue("  Votes: ") + 
-                post.upvotes + " upvotes, " + post.downvotes + " downvotes\n";
+            + ConsoleColors.blue("  Title: ") + post.title + "\n";
 
         if(post.isRewin())
             str += ConsoleColors.blue("  Rewinner: ") + post.rewinner + "\n";
-        
-        if(includeComments){
+            
+        if(includeInfo){
+            str += ConsoleColors.blue("  Contents: ") + post.contents + "\n"
+                +  ConsoleColors.blue("  Votes: ") + 
+                    post.upvotes + " upvotes, " + post.downvotes + " downvotes\n";
+
             str += ConsoleColors.blue("  Comments: ") + "there ";
             List<Comment> comments = post.getComments();
 

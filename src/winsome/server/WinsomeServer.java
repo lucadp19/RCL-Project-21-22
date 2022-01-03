@@ -676,22 +676,22 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             return array;
         }
 
-        private JsonObject postToJson(Post post, boolean includeComments){
+        private JsonObject postToJson(Post post, boolean includeInfo){
             JsonObject json = new JsonObject();
             json.addProperty("id", post.getID());
             json.addProperty("author", post.getAuthor());
             json.addProperty("title", post.getTitle());
-            json.addProperty("contents", post.getContents());
-
+            
             if(post.isRewin()) {
                 json.addProperty("rewinner", post.getRewinner());
                 json.addProperty("original-id", post.getOriginalID());
             }
+            
+            if(includeInfo){
+                json.addProperty("contents", post.getContents());
+                json.addProperty("upvotes", post.getUpvoters().size());
+                json.addProperty("downvotes", post.getDownvoters().size());
 
-            json.addProperty("upvotes", post.getUpvoters().size());
-            json.addProperty("downvotes", post.getDownvoters().size());
-
-            if(includeComments){
                 JsonArray commentsArray = new JsonArray();
                 for(Comment comment : post.getComments()){
                     JsonObject obj = new JsonObject();
