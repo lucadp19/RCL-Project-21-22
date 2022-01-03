@@ -101,7 +101,7 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
     /* *************** Callback methods *************** */
 
     @Override
-    public void addFollower(String user, List<String> tags) throws RemoteException {
+    public void addFollower(String user, Collection<String> tags) throws RemoteException {
         if(loggedUser == null) throw new IllegalStateException(); // TODO: make new exception
         if(user == null || tags == null) throw new NullPointerException("null parameters while adding new follower");
         for(String tag : tags) 
@@ -109,7 +109,7 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         
         if(followers.containsKey(user)) throw new IllegalArgumentException(); // TODO: make new exception
 
-        followers.put(user, tags);
+        followers.put(user, new ArrayList<>(tags));
     }
 
     @Override
@@ -140,7 +140,8 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
      * @throws RemoteException
      */
     public void register(String username, String password, Set<String> tags) 
-            throws NullPointerException, IllegalStateException, UserAlreadyExistsException, RemoteException {
+            throws NullPointerException, IllegalStateException, UserAlreadyExistsException, 
+                UserAlreadyLoggedException, RemoteException {
         if(username == null || password == null || tags == null) throw new NullPointerException("null arguments to register");
         for(String tag : tags)
             if(tag == null) throw new NullPointerException("null tag in register");
@@ -298,8 +299,38 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         return ans;
     }
 
-    public void followUser(String user) throws NotImplementedException {
-        throw new NotImplementedException("method not yet implemented");
+    public void followUser(String toFollow) throws IOException, MalformedJSONException, NoLoggedUserException, FollowException {
+        if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
+
+        JsonObject request = new JsonObject();
+        RequestCode.FOLLOW.addRequestToJson(request);
+        request.addProperty("username", loggedUser);
+        request.addProperty("to-follow", toFollow);
+        
+        send(request.toString());
+
+        JsonObject response = getJsonResponse();
+        ResponseCode responseCode = ResponseCode.getResponseFromJson(response);
+        switch (responseCode) {
+            case SUCCESS:
+                return;
+            case ALREADY_FOLLOWED:
+                throw new FollowException("user already followed");
+            default: {  //
+                String msg;
+                switch (responseCode) {
+                    case USER_NOT_REGISTERED:
+                        msg = ("the user \"" + loggedUser + "\" is not signed up in the Social Network");
+                    case NO_LOGGED_USER:
+                        msg = ("no user is currently logged; please log in first");
+                    case WRONG_USER:
+                        msg = ("the user currently logged does not correspond to the user to log out");
+                    default:
+                        msg = responseCode.toString();
+                }
+                throw new IllegalStateException(msg);
+            }
+        }
     }
 
     public void unfollowUser(String user) throws NotImplementedException {
