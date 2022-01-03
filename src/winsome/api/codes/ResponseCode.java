@@ -20,6 +20,10 @@ public enum ResponseCode {
     NO_LOGGED_USER,
     /** Client is logged on another user */
     WRONG_USER,
+    /** User already followed the other user */
+    ALREADY_FOLLOWED,
+    /** User did not follow the other user */
+    NOT_FOLLOWING,
     /** Fatal communication error */
     FATAL_ERR;
 
