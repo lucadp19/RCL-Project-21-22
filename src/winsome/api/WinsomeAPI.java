@@ -15,6 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import com.google.gson.*;
 
+import winsome.api.PostInfo.Comment;
 import winsome.api.codes.*;
 import winsome.api.exceptions.*;
 
@@ -492,4 +493,43 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         }
     }
 
+    private PostInfo getPostFromJson(JsonObject json, boolean includeComments) throws MalformedJSONException {
+        if(json == null) throw new NullPointerException("null json");
+        PostInfo post;
+
+        try {
+            int id = json.get("id").getAsInt();
+            String author = json.get("author").getAsString();
+            String title = json.get("title").getAsString();
+            String contents = json.get("contents").getAsString();
+            
+            Optional<String> rewinner;
+            Optional<Integer> rewinID;
+            
+            try { 
+                rewinner = Optional.of(json.get("rewinner").getAsString());
+                rewinID = Optional.of(json.get("rewin-id").getAsInt());
+            } catch (NullPointerException ex){ rewinner = Optional.empty(); rewinID = Optional.empty(); }
+
+            int upvotes = json.get("upvotes").getAsInt();
+            int downvotes = json.get("downvotes").getAsInt();
+
+            List<Comment> comments = new ArrayList<>();
+            if(includeComments) {
+                Iterator<JsonElement> iter = json.get("comments").getAsJsonArray().iterator();
+                while(iter.hasNext()){
+                    JsonObject obj = iter.next().getAsJsonObject();
+                    comments.add(
+                        new Comment(
+                            obj.get("author").getAsString(), 
+                            obj.get("contents").getAsString()
+                    ));
+                }
+            }
+
+            return new PostInfo(id, author, title, contents, rewinner, rewinID, upvotes, downvotes, comments);
+        } catch (NullPointerException | ClassCastException | IllegalStateException ex) {
+            throw new MalformedJSONException("given json does not represent a valid post");
+        }
+    }
 }

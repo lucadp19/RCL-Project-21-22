@@ -5,7 +5,7 @@ import java.util.*;
 import winsome.utils.ConsoleColors;
 
 public class PostInfo {
-    public class Comment {
+    public static class Comment {
         public final String author;
         public final String contents;
 
