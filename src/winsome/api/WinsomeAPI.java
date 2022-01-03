@@ -385,8 +385,47 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         }
     }
 
-    public void viewBlog() throws NotImplementedException {
-        throw new NotImplementedException("method not yet implemented");
+    public List<PostInfo> viewBlog() throws IOException, NoLoggedUserException, MalformedJSONException  {
+        if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
+
+        JsonObject request = new JsonObject();
+        RequestCode.BLOG.addRequestToJson(request);
+        request.addProperty("username", loggedUser);
+        
+        send(request.toString());
+
+        JsonObject response = getJsonResponse();
+        ResponseCode responseCode = ResponseCode.getResponseFromJson(response);
+        switch (responseCode) {
+            case SUCCESS:
+                try { 
+                    Iterator<JsonElement> iter = response.get("posts").getAsJsonArray().iterator();
+                    List<PostInfo> posts = new ArrayList<>();
+                    while(iter.hasNext()){
+                        posts.add(
+                            getPostFromJson(iter.next().getAsJsonObject(), false)
+                        );
+                    }
+                    return posts;
+                }
+                catch (NullPointerException | ClassCastException | IllegalStateException ex) {
+                    throw new MalformedJSONException("server sent malformed json");
+                }
+            default: {  //
+                String msg;
+                switch (responseCode) {
+                    case USER_NOT_REGISTERED:
+                        msg = ("the user \"" + loggedUser + "\" is not signed up in the Social Network");
+                    case NO_LOGGED_USER:
+                        msg = ("no user is currently logged; please log in first");
+                    case WRONG_USER:
+                        msg = ("the user currently logged does not correspond to the user to log out");
+                    default:
+                        msg = responseCode.toString();
+                }
+                throw new IllegalStateException(msg);
+            }
+        }
     }
 
     public int createPost(String title, String content) throws IOException, MalformedJSONException, NoLoggedUserException {

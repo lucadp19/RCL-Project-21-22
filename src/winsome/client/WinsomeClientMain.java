@@ -7,7 +7,9 @@ import java.util.Map.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import winsome.api.PostInfo;
 import winsome.api.WinsomeAPI;
+import winsome.api.PostInfo.Comment;
 import winsome.api.exceptions.FollowException;
 import winsome.api.exceptions.MalformedJSONException;
 import winsome.api.exceptions.NoLoggedUserException;
@@ -424,11 +426,32 @@ public class WinsomeClientMain {
                 }
 
                 System.out.println(ConsoleColors.blue("-> ") + "Listing your blog...");
-                try { api.viewBlog(); }
-                catch(NotImplementedException ex){
-                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                List<PostInfo> posts;
+                try { posts = api.viewBlog(); }
+                catch (IOException ex){
+                    System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
                     return;
                 }
+                catch (MalformedJSONException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "Server sent malformed response message.");
+                    return;
+                }
+                catch (NoLoggedUserException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
+                    return;
+                }
+                catch (IllegalStateException ex){
+                    System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
+                    return;
+                }
+
+                System.out.println(
+                    ConsoleColors.blue("==> SUCCESS! ") + "You have published " + 
+                    ConsoleColors.blue(Integer.toString(posts.size())) + " posts!\n"
+                );
+                for(PostInfo post : posts) printPost(post, false);
+                System.out.println();
+
                 break;
             }
 
@@ -730,6 +753,31 @@ public class WinsomeClientMain {
         while(matcher.find()) result.add(matcher.group(1).replace("\"", "").trim());
 
         return result;
+    }
+
+    private static void printPost(PostInfo post, boolean includeComments){
+        String str = 
+            ConsoleColors.blue("- ID: ") + post.id + "\n"
+            + ConsoleColors.blue("  Title: ") + post.title + "\n"
+            + ConsoleColors.blue("  Contents: ") + post.contents + "\n"
+            + ConsoleColors.blue("  Votes: ") + 
+                post.upvotes + " upvotes, " + post.downvotes + " downvotes\n";
+
+        if(post.isRewin())
+            str += ConsoleColors.blue("  Rewinner: ") + post.rewinner + "\n";
+        
+        if(includeComments){
+            str += ConsoleColors.blue("  Comments: ") + "there ";
+            List<Comment> comments = post.getComments();
+
+            if(comments.size() == 0) str += "are no comments.\n";
+            else if(comments.size() == 1) str += "is one comment.\n";
+            else str += "are " + comments.size() + " comments.\n";
+
+            for(Comment comment : comments)
+                str += "    " + ConsoleColors.blue(comment.author) + ": \"" + comment.contents + "\"\n"; 
+        }
+        System.out.print(str);
     }
 
     private static void printUsers(Map<String, List<String>> users){

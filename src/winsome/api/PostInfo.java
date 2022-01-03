@@ -59,6 +59,7 @@ public class PostInfo {
     }
 
     public boolean isRewin(){ return rewinner.isPresent(); }
+    public List<Comment> getComments(){ return new ArrayList<>(comments); }
 
     public synchronized String prettify(){
         String str = 
