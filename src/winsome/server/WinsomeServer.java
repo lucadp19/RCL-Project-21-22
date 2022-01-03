@@ -231,6 +231,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     case GET_USERS:
                         response = getUsersRequest();
                         break;
+                    case FOLLOW:
+                        response = followRequest();
+                        break;
                     default:
                         // TODO: implement things
                         response = new JsonObject();
@@ -368,6 +371,48 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             // success!
             ResponseCode.SUCCESS.addResponseToJson(response);
             response.add("users", usersJson);
+            return response;
+        }
+
+        private JsonObject followRequest(){
+            JsonObject response = new JsonObject();
+
+            String username = null;
+            String toFollow = null;
+
+            // reading username and password from the request
+             try {
+                username = request.get("username").getAsString();
+                toFollow = request.get("to-follow").getAsString();
+            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username/password => malformed Json
+                ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
+                return response;
+            }
+
+            try { 
+                WinsomeServer.this.checkIfLogged(username, key);
+                WinsomeServer.this.addFollower(username, toFollow); 
+            }
+            catch (RemoteException ex) { } // client does not care about RemoteException on followed
+            catch (NoSuchUserException ex){ // if no user with the given username is registered
+                ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
+                return response;
+            }
+            catch (NoLoggedUserException ex){ // if this client is not logged in
+                ResponseCode.NO_LOGGED_USER.addResponseToJson(response);
+                return response;
+            }
+            catch (WrongUserException ex){ // if this client is not logged in with the given user
+                ResponseCode.WRONG_USER.addResponseToJson(response);
+                return response;
+            }
+            catch (FollowException ex){ // if 'username' already follows 'toFollow'
+                ResponseCode.ALREADY_FOLLOWED.addResponseToJson(response);
+                return response;
+            }
+
+            // success!
+            ResponseCode.SUCCESS.addResponseToJson(response);
             return response;
         }
 
@@ -769,6 +814,86 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         }
 
         return ans;
+    }
+
+    private void addFollower(String username, String toFollow) throws NullPointerException, NoSuchUserException, FollowException, RemoteException {
+        if(username == null || toFollow == null) throw new NullPointerException("null arguments");
+
+        Set<String> followedSet;
+        User user;
+        if((followedSet = following.get(username)) == null  // gets users followed by 'username'
+                || (user = users.get(username)) == null     // gets user with 'username' as name
+                || !isVisible(user, toFollow))              // checks that 'toFollow' exists and that 'username' can see them
+            throw new NoSuchUserException("user does not exist");
+        
+        if(!followedSet.add(toFollow))
+            throw new FollowException("user already followed");
+        
+        RemoteClient followedClient;
+        if((followedClient = registeredToCallbacks.get(toFollow)) != null)
+            followedClient.addFollower(username, user.getTags());
+    }
+
+    /**
+     * Checks whether a user is visible from another user, i.e. if they have common tags.
+     * @param povName the username of the user who wants to interact with other
+     * @param otherName the other user's username
+     * @return true if and only if pov can see other
+     * @throws NoSuchUserException if either povName or otherName is not the username of a registered user
+     */
+    private boolean isVisible(String povName, String otherName) throws NoSuchUserException{
+        if(povName == null || otherName == null) throw new NullPointerException("null arguments");
+
+        User povUser, otherUser;
+        if((povUser = users.get(povName)) == null || (otherUser = users.get(otherName)) == null)
+            throw new NoSuchUserException();
+     
+        return isVisible(povUser, otherUser);
+    }
+    
+    /**
+     * Checks whether a user is visible from another user, i.e. if they have common tags.
+     * @param pov the user who wants to interact with other
+     * @param otherName the other user's username
+     * @return true if and only if pov can see other
+     * @throws NoSuchUserException if otherName is not the username of a registered user
+     */
+    private boolean isVisible(User pov, String otherName) throws NoSuchUserException{
+        if(pov == null || otherName == null) throw new NullPointerException("null arguments");
+
+        User otherUser;
+        if((otherUser = users.get(otherName)) == null)
+            throw new NoSuchUserException();
+     
+        return isVisible(pov, otherUser);
+    }
+    
+    /**
+     * Checks whether a user is visible from another user, i.e. if they have common tags.
+     * @param povName the username of the user who wants to interact with other
+     * @param other the other user
+     * @return true if and only if pov can see other
+     * @throws NoSuchUserException if povName is not the username of a registered user
+     */
+    private boolean isVisible(String povName, User other) throws NoSuchUserException{
+        if(povName == null || other == null) throw new NullPointerException("null arguments");
+
+        User povUser;
+        if((povUser = users.get(povName)) == null)
+            throw new NoSuchUserException();
+     
+        return isVisible(povUser, other);
+    }
+
+    /**
+     * Checks whether a user is visible from another user, i.e. if they have common tags.
+     * @param pov the user who wants to interact with other
+     * @param other the other user
+     * @return true if and only if pov can see other
+     */
+    private boolean isVisible(User pov, User other){
+        if(pov == null || other == null) throw new NullPointerException("null arguments");
+        return pov.hasCommonTags(other);
     }
 
     /* ************** Send/receive methods ************** */
