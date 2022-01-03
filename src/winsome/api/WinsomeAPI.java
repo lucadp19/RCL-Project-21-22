@@ -389,9 +389,41 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         throw new NotImplementedException("method not yet implemented");
     }
 
-    public void createPost(String title, String content) throws NotImplementedException {
-        throw new NotImplementedException("method not yet implemented");
-    }
+    public int createPost(String title, String content) throws IOException, MalformedJSONException, NoLoggedUserException {
+        if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
+
+        JsonObject request = new JsonObject();
+        RequestCode.POST.addRequestToJson(request);
+        request.addProperty("username", loggedUser);
+        request.addProperty("title", title);
+        request.addProperty("content", content);
+        
+        send(request.toString());
+
+        JsonObject response = getJsonResponse();
+        ResponseCode responseCode = ResponseCode.getResponseFromJson(response);
+        switch (responseCode) {
+            case SUCCESS:
+                try { return response.get("id").getAsInt(); }
+                catch (NullPointerException | ClassCastException | IllegalStateException ex) {
+                    throw new MalformedJSONException("server sent malformed json");
+                }
+            default: {  //
+                String msg;
+                switch (responseCode) {
+                    case USER_NOT_REGISTERED:
+                        msg = ("the user \"" + loggedUser + "\" is not signed up in the Social Network");
+                    case NO_LOGGED_USER:
+                        msg = ("no user is currently logged; please log in first");
+                    case WRONG_USER:
+                        msg = ("the user currently logged does not correspond to the user to log out");
+                    default:
+                        msg = responseCode.toString();
+                }
+                throw new IllegalStateException(msg);
+            }
+        }
+}
 
     public void showFeed() throws NotImplementedException {
         throw new NotImplementedException("method not yet implemented");

@@ -4,6 +4,8 @@ import java.io.*;
 import java.rmi.RemoteException;
 import java.util.*;
 import java.util.Map.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import winsome.api.WinsomeAPI;
 import winsome.api.exceptions.FollowException;
@@ -431,10 +433,10 @@ public class WinsomeClientMain {
             }
 
             case POST: {
-                String[] args = argStr.split("\\s+", 2); // splitting on first space
+                List<String> args = splitQuotes(argStr); // splitting on first space
 
                 // checking argument number
-                if(args.length != 2){
+                if(args.size() != 2){
                     System.out.println(
                         ConsoleColors.red("==> ERROR! ") + 
                         "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
@@ -444,11 +446,29 @@ public class WinsomeClientMain {
                 }
 
                 System.out.println(ConsoleColors.blue("-> ") + "Creating new post...");
-                try { api.createPost(args[0], args[1]); }
-                catch(NotImplementedException ex){
-                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                int id;
+                try { id = api.createPost(args.get(0), args.get(1)); }
+                catch (IOException ex){
+                    System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
                     return;
                 }
+                catch (MalformedJSONException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "Server sent malformed response message.");
+                    return;
+                }
+                catch (NoLoggedUserException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
+                    return;
+                }
+                catch (IllegalStateException ex){
+                    System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
+                    return;
+                }
+
+                System.out.println(
+                    ConsoleColors.blue("==> SUCCESS! ") + "Post created! (id: " + 
+                    ConsoleColors.blue(Integer.toString(id)) + ")"
+                );
                 break;
             }
 
@@ -701,6 +721,15 @@ public class WinsomeClientMain {
             }
         }
 
+    }
+
+    private static List<String> splitQuotes(String str){
+        List<String> result = new ArrayList<>();
+
+        Matcher matcher = Pattern.compile("([^\"]\\S*|\".+?\")\\s*").matcher(str);
+        while(matcher.find()) result.add(matcher.group(1).replace("\"", "").trim());
+
+        return result;
     }
 
     private static void printUsers(Map<String, List<String>> users){
