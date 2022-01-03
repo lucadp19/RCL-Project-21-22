@@ -13,7 +13,7 @@ public interface RemoteClient extends Remote {
      * @param tags the new follower's tags
      * @throws RemoteException
      */
-    void addFollower(String follower, List<String> tags) throws RemoteException;
+    void addFollower(String follower, Collection<String> tags) throws RemoteException;
     
     /**
      * Callback method to remove a follower from the list.
