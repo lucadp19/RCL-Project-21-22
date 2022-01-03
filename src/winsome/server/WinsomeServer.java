@@ -240,6 +240,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     case UNFOLLOW:
                         response = unfollowRequest();
                         break;
+                    case BLOG:
+                        response = blogRequest();
+                        break;
                     case POST:
                         response = postRequest();
                         break;
@@ -507,6 +510,50 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
             // success!
             ResponseCode.SUCCESS.addResponseToJson(response);
+            return response;
+        }
+
+        private JsonObject blogRequest(){
+            JsonObject response = new JsonObject();
+
+            String username = null;
+
+            // reading username from the request
+             try {
+                username = request.get("username").getAsString();
+            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username => malformed Json
+                ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
+                return response;
+            }
+            
+            List<Post> posts;
+            try { 
+                WinsomeServer.this.checkIfLogged(username, key);
+
+                posts = getPostByAuthor(username);
+            }
+            catch (NoSuchUserException ex){ // if no user with the given username is registered
+                ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
+                return response;
+            }
+            catch (NoLoggedUserException ex){ // if this client is not logged in
+                ResponseCode.NO_LOGGED_USER.addResponseToJson(response);
+                return response;
+            }
+            catch (WrongUserException ex){ // if this client is not logged in with the given user
+                ResponseCode.WRONG_USER.addResponseToJson(response);
+                return response;
+            }
+
+            // success!
+            ResponseCode.SUCCESS.addResponseToJson(response);
+
+            JsonArray postArray = new JsonArray();
+            for(Post post : posts){
+                postArray.add(postToJson(post, false));
+            }
+            response.add("posts", postArray);
+
             return response;
         }
 
@@ -1026,6 +1073,18 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         RemoteClient unfollowedClient;
         if((unfollowedClient = registeredToCallbacks.get(toUnfollow)) != null)
             unfollowedClient.removeFollower(username);
+    }
+
+    private List<Post> getPostByAuthor(String username) throws NoSuchUserException {
+        if(username == null) throw new NullPointerException("null arguments");
+        if(!users.containsKey(username)) throw new NoSuchUserException("user does not exist");
+
+        List<Post> ans = new ArrayList<>();
+        for(Post post : posts.values()){
+            if(!post.isRewin() && post.getAuthor().equals(username)) 
+                ans.add(post); 
+        }
+        return ans;
     }
 
     // --------------- VISIBILITY METHODS --------------- //
