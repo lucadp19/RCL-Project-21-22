@@ -333,8 +333,38 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         }
     }
 
-    public void unfollowUser(String user) throws NotImplementedException {
-        throw new NotImplementedException("method not yet implemented");
+    public void unfollowUser(String toUnfollow) throws IOException, MalformedJSONException, NoLoggedUserException, FollowException {
+        if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
+
+        JsonObject request = new JsonObject();
+        RequestCode.UNFOLLOW.addRequestToJson(request);
+        request.addProperty("username", loggedUser);
+        request.addProperty("to-unfollow", toUnfollow);
+        
+        send(request.toString());
+
+        JsonObject response = getJsonResponse();
+        ResponseCode responseCode = ResponseCode.getResponseFromJson(response);
+        switch (responseCode) {
+            case SUCCESS:
+                return;
+            case NOT_FOLLOWING:
+                throw new FollowException("user not followed");
+            default: {  //
+                String msg;
+                switch (responseCode) {
+                    case USER_NOT_REGISTERED:
+                        msg = ("the user \"" + loggedUser + "\" is not signed up in the Social Network");
+                    case NO_LOGGED_USER:
+                        msg = ("no user is currently logged; please log in first");
+                    case WRONG_USER:
+                        msg = ("the user currently logged does not correspond to the user to log out");
+                    default:
+                        msg = responseCode.toString();
+                }
+                throw new IllegalStateException(msg);
+            }
+        }
     }
 
     public void viewBlog() throws NotImplementedException {

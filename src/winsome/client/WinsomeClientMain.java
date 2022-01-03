@@ -249,13 +249,15 @@ public class WinsomeClientMain {
                     return;
                 }
 
-                System.out.println(
-                    ConsoleColors.blue("==> SUCCESS! ") + 
-                    "Currently the following " + users.size() + " user" +
+                String msg;
+                if(users.size() == 0)
+                    msg = "Currently no user shares interests with you.";
+                else msg = "Currently the following " + users.size() + " user" +
                     (users.size() == 1 ? " " : "s ") +
-                    "share interests with you:\n"
-                );
-                printUsers(users);
+                    "share interests with you:\n";
+
+                System.out.println(ConsoleColors.blue("==> SUCCESS! ") + msg);
+                if(users.size() > 0) printUsers(users);
                 break;
             }
 
@@ -354,7 +356,7 @@ public class WinsomeClientMain {
                 System.out.println(ConsoleColors.blue("==> SUCCESS! ") + "You are now following " + ConsoleColors.blue(args[0]) + "!");
                 break;
             }
-
+            
             case UNFOLLOW: {
                 String[] args = argStr.split("\\s+"); // splitting on space
 
@@ -368,12 +370,30 @@ public class WinsomeClientMain {
                     return;
                 }
 
-                System.out.println(ConsoleColors.blue("-> ") + "Unfollowing user \"" + ConsoleColors.blue(args[0]) + "\"...");
+                System.out.println(ConsoleColors.blue("-> ") + "Unfollowing " + ConsoleColors.blue(args[0]) + "...");
                 try { api.unfollowUser(args[0]); }
-                catch(NotImplementedException ex){
-                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                catch (IOException ex){
+                    System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
                     return;
                 }
+                catch (MalformedJSONException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "Server sent malformed response message.");
+                    return;
+                }
+                catch (NoLoggedUserException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
+                    return;
+                }
+                catch (FollowException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "You were not following " + ConsoleColors.red(args[0]) + ".");
+                    return;
+                }
+                catch (IllegalStateException ex){
+                    System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
+                    return;
+                }
+
+                System.out.println(ConsoleColors.blue("==> SUCCESS! ") + "You have stopped following " + ConsoleColors.blue(args[0]) + "!");
                 break;
             }
 
