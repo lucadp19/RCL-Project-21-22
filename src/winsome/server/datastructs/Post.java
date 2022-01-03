@@ -15,13 +15,13 @@ public abstract class Post {
      * Checks whether the ID Generator has been initialized (through {@link #initIDGenerator}).
      * @return true if and only if the ID Generator has been initialized
      */
-    public final boolean isIDGeneratorInit(){ return (idGenerator != null); }
+    public static final boolean isIDGeneratorInit(){ return (idGenerator != null); }
 
     /**
      * Initializes the ID Generator, with an initial value of 0.
      * @throws IllegalStateException if the ID Generator had already been initialized
      */ 
-    public final void initIDGenerator() throws IllegalStateException { 
+    public static final void initIDGenerator() throws IllegalStateException { 
         initIDGenerator(0);
     }
     /**
@@ -29,12 +29,12 @@ public abstract class Post {
      * @param init the initial value of the ID Generator
      * @throws IllegalStateException if the ID Generator had already been initialized
      */
-    public final void initIDGenerator(int init) throws IllegalStateException {
+    public static final void initIDGenerator(int init) throws IllegalStateException {
         if(isIDGeneratorInit()) throw new IllegalStateException("ID Generator has already been initialized");
         idGenerator = new AtomicInteger(init);
     }
 
-    protected final int getNextID() throws IllegalStateException {
+    protected static final int getNextID() throws IllegalStateException {
         if(!isIDGeneratorInit()) throw new IllegalStateException("ID Generator has not been initialized yet");
         return idGenerator.getAndIncrement();
     }
