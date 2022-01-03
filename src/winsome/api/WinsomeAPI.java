@@ -182,13 +182,11 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
             case SUCCESS: // successful login
                 loggedUser = user;
                 followers = new ConcurrentHashMap<>();
-                following = new ConcurrentHashMap<>();
                 remoteServer.registerForUpdates(user, this);
 
                 // initialize followers and following maps
                 try {
                     addUsersAndTags(response.get("followers").getAsJsonArray(), followers);
-                    addUsersAndTags(response.get("following").getAsJsonArray(), following);
                 } catch (NullPointerException | IllegalStateException ex) { } // leave everything empty
 
                 return;
