@@ -112,7 +112,7 @@ public class WinsomeClientMain {
                     return;
                 }
 
-                System.out.println(ConsoleColors.blue("-> ") + "Signing up user \"" + ConsoleColors.blue(args[0]) + "\"...");
+                System.out.println(ConsoleColors.blue("-> ") + "Signing up " + ConsoleColors.blue(args[0]) + "...");
                 Set<String> tags = new HashSet<>(args.length - 2);
                 for(int i = 0; i < args.length - 2; i++) tags.add(args[i+2]);
 
@@ -135,8 +135,8 @@ public class WinsomeClientMain {
                 }
 
                 System.out.println(
-                    ConsoleColors.blue("==> SUCCESS: ") + "user \"" + 
-                    ConsoleColors.blue(args[0]) + "\" has been registered in the Social Network!");
+                    ConsoleColors.blue("==> SUCCESS: ") +
+                    ConsoleColors.blue(args[0]) + " has been registered in the Social Network!");
                 break;
             }
             case LOGIN: {
@@ -152,7 +152,7 @@ public class WinsomeClientMain {
                     return;
                 }
 
-                System.out.println(ConsoleColors.blue("-> ") + "Logging in as user \"" + ConsoleColors.blue(args[0]) + "\"...");
+                System.out.println(ConsoleColors.blue("-> ") + "Logging in as " + ConsoleColors.blue(args[0]) + "...");
 
                 try { api.login(args[0], args[1]); }
                 catch (IOException ex){
@@ -180,8 +180,8 @@ public class WinsomeClientMain {
                 }
 
                 System.out.println(
-                    ConsoleColors.blue("==> SUCCESS: ") + "you are now logged in as \"" + 
-                    ConsoleColors.blue(args[0]) + "\"!");
+                    ConsoleColors.blue("==> SUCCESS: ") + "you are now logged in as " + 
+                    ConsoleColors.blue(args[0]) + "!");
                 break;
             }
 
@@ -241,7 +241,7 @@ public class WinsomeClientMain {
                     return;
                 }
                 catch(NoLoggedUserException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
+                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in first.");
                     return;
                 }
                 catch(IllegalStateException ex){
@@ -249,7 +249,12 @@ public class WinsomeClientMain {
                     return;
                 }
 
-                System.out.println(ConsoleColors.blue("==> SUCCESS! ") + "Listing users:\n");
+                System.out.println(
+                    ConsoleColors.blue("==> SUCCESS! ") + 
+                    "Currently the following " + users.size() + " user" +
+                    (users.size() == 1 ? " " : "s ") +
+                    "share interests with you:\n"
+                );
                 printUsers(users);
                 break;
             }
@@ -273,7 +278,11 @@ public class WinsomeClientMain {
                     return;
                 }
 
-                System.out.println(ConsoleColors.blue("==> SUCCESS! ") + "Listing followers:\n");
+                System.out.println(
+                    ConsoleColors.blue("==> SUCCESS! ") + 
+                    "You are currently being followed by " + followers.size() + " user"
+                    + (followers.size() == 1 ? ".\n" : "s.\n")
+                );
                 printUsers(followers);
                 break;
             }
@@ -297,7 +306,11 @@ public class WinsomeClientMain {
                     return;
                 }
 
-                System.out.println(ConsoleColors.blue("==> SUCCESS! ") + "Listing followed users:\n");
+                System.out.println(
+                    ConsoleColors.blue("==> SUCCESS! ") + 
+                    "You are following " + followed.size() + " user" 
+                    + (followed.size() == 1 ? ".\n" : "s.\n") 
+                );
                 printUsers(followed);
                 break;
             }
@@ -315,7 +328,7 @@ public class WinsomeClientMain {
                     return;
                 }
 
-                System.out.println(ConsoleColors.blue("-> ") + "Following user \"" + ConsoleColors.blue(args[0]) + "\"...");
+                System.out.println(ConsoleColors.blue("-> ") + "Following " + ConsoleColors.blue(args[0]) + "...");
                 try { api.followUser(args[0]); }
                 catch (IOException ex){
                     System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
