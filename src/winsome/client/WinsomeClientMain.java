@@ -507,11 +507,32 @@ public class WinsomeClientMain {
                 }
 
                 System.out.println(ConsoleColors.blue("-> ") + "Getting your feed...");
-                try { api.showFeed(); }
-                catch(NotImplementedException ex){
-                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                List<PostInfo> posts;
+                try { posts = api.showFeed(); }
+                catch (IOException ex){
+                    System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
                     return;
                 }
+                catch (MalformedJSONException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "Server sent malformed response message.");
+                    return;
+                }
+                catch (NoLoggedUserException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
+                    return;
+                }
+                catch (IllegalStateException ex){
+                    System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
+                    return;
+                }
+
+                System.out.println(
+                    ConsoleColors.blue("==> SUCCESS! ") + "You have " + 
+                    ConsoleColors.blue(Integer.toString(posts.size())) + " posts in your feed!\n"
+                );
+                for(PostInfo post : posts) printPost(post, false);
+                System.out.println();
+
                 break;
             }
 
@@ -758,6 +779,7 @@ public class WinsomeClientMain {
     private static void printPost(PostInfo post, boolean includeComments){
         String str = 
             ConsoleColors.blue("- ID: ") + post.id + "\n"
+            + ConsoleColors.blue("  Author: ") + post.author + "\n"
             + ConsoleColors.blue("  Title: ") + post.title + "\n"
             + ConsoleColors.blue("  Contents: ") + post.contents + "\n"
             + ConsoleColors.blue("  Votes: ") + 
