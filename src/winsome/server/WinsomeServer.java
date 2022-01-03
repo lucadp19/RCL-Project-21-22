@@ -536,6 +536,37 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
             return array;
         }
+
+        private JsonObject postToJson(Post post, boolean includeComments){
+            JsonObject json = new JsonObject();
+            json.addProperty("id", post.getID());
+            json.addProperty("author", post.getAuthor());
+            json.addProperty("title", post.getTitle());
+            json.addProperty("contents", post.getContents());
+
+            if(post.isRewin()) {
+                json.addProperty("rewinner", post.getRewinner());
+                json.addProperty("original-id", post.getOriginalID());
+            }
+
+            json.addProperty("upvotes", post.getUpvoters().size());
+            json.addProperty("downvotes", post.getDownvoters().size());
+
+            if(includeComments){
+                JsonArray commentsArray = new JsonArray();
+                for(Comment comment : post.getComments()){
+                    JsonObject obj = new JsonObject();
+
+                    obj.addProperty("author", comment.author);
+                    obj.addProperty("contents", comment.contents);
+
+                    commentsArray.add(obj);
+                }
+                json.add("comments", commentsArray);
+            }
+
+            return json;
+        }
     }
 
     /** Boolean flag representing whether the Server data has been loaded yet or not. */
