@@ -234,6 +234,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     case FOLLOW:
                         response = followRequest();
                         break;
+                    case UNFOLLOW:
+                        response = unfollowRequest();
+                        break;
                     default:
                         // TODO: implement things
                         response = new JsonObject();
@@ -415,6 +418,49 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             ResponseCode.SUCCESS.addResponseToJson(response);
             return response;
         }
+        
+        private JsonObject unfollowRequest(){
+            JsonObject response = new JsonObject();
+
+            String username = null;
+            String toUnfollow = null;
+
+            // reading username and password from the request
+             try {
+                username = request.get("username").getAsString();
+                toUnfollow = request.get("to-unfollow").getAsString();
+            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username/password => malformed Json
+                ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
+                return response;
+            }
+
+            try { 
+                WinsomeServer.this.checkIfLogged(username, key);
+                WinsomeServer.this.removeFollower(username, toUnfollow); 
+            }
+            catch (RemoteException ex) { } // client does not care about RemoteException on followed
+            catch (NoSuchUserException ex){ // if no user with the given username is registered
+                ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
+                return response;
+            }
+            catch (NoLoggedUserException ex){ // if this client is not logged in
+                ResponseCode.NO_LOGGED_USER.addResponseToJson(response);
+                return response;
+            }
+            catch (WrongUserException ex){ // if this client is not logged in with the given user
+                ResponseCode.WRONG_USER.addResponseToJson(response);
+                return response;
+            }
+            catch (FollowException ex){ // if 'username' does not follow 'toUnfollow'
+                ResponseCode.ALREADY_FOLLOWED.addResponseToJson(response);
+                return response;
+            }
+
+            // success!
+            ResponseCode.SUCCESS.addResponseToJson(response);
+            return response;
+        }
+
 
         /**
          * Transforms a collection of users into a JsonArray.
@@ -832,6 +878,24 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         RemoteClient followedClient;
         if((followedClient = registeredToCallbacks.get(toFollow)) != null)
             followedClient.addFollower(username, user.getTags());
+    }
+    
+    private void removeFollower(String username, String toUnfollow) throws NullPointerException, NoSuchUserException, FollowException, RemoteException {
+        if(username == null || toUnfollow == null) throw new NullPointerException("null arguments");
+
+        Set<String> followedSet;
+        User user;
+        if((followedSet = following.get(username)) == null  // gets users followed by 'username'
+                || (user = users.get(username)) == null     // gets user with 'username' as name
+                || !isVisible(user, toUnfollow))            // checks that 'toUnfollow' exists and that 'username' can see them
+            throw new NoSuchUserException("user does not exist");
+        
+        if(!followedSet.remove(toUnfollow))
+            throw new FollowException("user already unfollowed");
+        
+        RemoteClient unfollowedClient;
+        if((unfollowedClient = registeredToCallbacks.get(toUnfollow)) != null)
+            unfollowedClient.removeFollower(username);
     }
 
     /**
