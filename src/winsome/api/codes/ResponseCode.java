@@ -24,6 +24,8 @@ public enum ResponseCode {
     ALREADY_FOLLOWED,
     /** User did not follow the other user */
     NOT_FOLLOWING,
+    /** Post does not exist */
+    NO_POST,
     /** Fatal communication error */
     FATAL_ERR;
 

@@ -13,6 +13,7 @@ import winsome.api.PostInfo.Comment;
 import winsome.api.exceptions.FollowException;
 import winsome.api.exceptions.MalformedJSONException;
 import winsome.api.exceptions.NoLoggedUserException;
+import winsome.api.exceptions.NoSuchPostException;
 import winsome.api.exceptions.NoSuchUserException;
 import winsome.api.exceptions.NotImplementedException;
 import winsome.api.exceptions.UserAlreadyExistsException;
@@ -558,12 +559,32 @@ public class WinsomeClientMain {
                     return;
                 }
 
-                System.out.println(ConsoleColors.blue("-> ") + "Showing post with ID \"" + ConsoleColors.blue(args[0]) + "\"...");
-                try { api.showPost(id); }
-                catch(NotImplementedException ex){
-                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                System.out.println(ConsoleColors.blue("-> ") + "Showing post with ID " + ConsoleColors.blue(args[0]) + "...");
+                PostInfo post;
+                try { post = api.showPost(id); }
+                catch (IOException ex){
+                    System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
                     return;
-                } 
+                }
+                catch (MalformedJSONException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "Server sent malformed response message.");
+                    return;
+                }
+                catch (NoLoggedUserException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
+                    return;
+                }
+                catch (NoSuchPostException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "There is no post with the given ID.");
+                    return;
+                }
+                catch (IllegalStateException ex){
+                    System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
+                    return;
+                }
+
+                System.out.println(ConsoleColors.blue("==> SUCCESS!\n"));
+                printPost(post, true);
                 break;
             }
 

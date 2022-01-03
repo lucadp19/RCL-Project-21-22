@@ -507,8 +507,41 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         }
     }
 
-    public void showPost(int idPost) throws NotImplementedException {
-        throw new NotImplementedException("method not yet implemented");
+    public PostInfo showPost(int idPost) throws IOException, MalformedJSONException, NoLoggedUserException, NoSuchPostException {
+        if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
+
+        JsonObject request = new JsonObject();
+        RequestCode.SHOW_POST.addRequestToJson(request);
+        request.addProperty("username", loggedUser);
+        request.addProperty("id", idPost);
+        
+        send(request.toString());
+
+        JsonObject response = getJsonResponse();
+        ResponseCode responseCode = ResponseCode.getResponseFromJson(response);
+        switch (responseCode) {
+            case SUCCESS:
+                try { 
+                    return getPostFromJson(response.get("post").getAsJsonObject(), true);
+                }
+                catch (NullPointerException | ClassCastException | IllegalStateException ex) {
+                    throw new MalformedJSONException("server sent malformed json");
+                }
+            default: {  //
+                String msg;
+                switch (responseCode) {
+                    case USER_NOT_REGISTERED:
+                        msg = ("the user \"" + loggedUser + "\" is not signed up in the Social Network");
+                    case NO_LOGGED_USER:
+                        msg = ("no user is currently logged; please log in first");
+                    case WRONG_USER:
+                        msg = ("the user currently logged does not correspond to the user to log out");
+                    default:
+                        msg = responseCode.toString();
+                }
+                throw new IllegalStateException(msg);
+            }
+        }
     }
 
     public void deletePost(int idPost) throws NotImplementedException {
@@ -603,7 +636,7 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         }
     }
 
-    private PostInfo getPostFromJson(JsonObject json, boolean includeComments) throws MalformedJSONException {
+    private PostInfo getPostFromJson(JsonObject json, boolean includeInfo) throws MalformedJSONException {
         if(json == null) throw new NullPointerException("null json");
         PostInfo post;
 
@@ -611,21 +644,24 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
             int id = json.get("id").getAsInt();
             String author = json.get("author").getAsString();
             String title = json.get("title").getAsString();
-            String contents = json.get("contents").getAsString();
+            String contents = "";
             
             Optional<String> rewinner;
             Optional<Integer> rewinID;
             
             try { 
                 rewinner = Optional.of(json.get("rewinner").getAsString());
-                rewinID = Optional.of(json.get("rewin-id").getAsInt());
+                rewinID = Optional.of(json.get("original-id").getAsInt());
             } catch (NullPointerException ex){ rewinner = Optional.empty(); rewinID = Optional.empty(); }
 
-            int upvotes = json.get("upvotes").getAsInt();
-            int downvotes = json.get("downvotes").getAsInt();
-
+            int upvotes = 0;
+            int downvotes = 0;
             List<Comment> comments = new ArrayList<>();
-            if(includeComments) {
+
+            if(includeInfo) {
+                contents = json.get("contents").getAsString();
+                upvotes = json.get("upvotes").getAsInt();
+                downvotes = json.get("downvotes").getAsInt();
                 Iterator<JsonElement> iter = json.get("comments").getAsJsonArray().iterator();
                 while(iter.hasNext()){
                     JsonObject obj = iter.next().getAsJsonObject();

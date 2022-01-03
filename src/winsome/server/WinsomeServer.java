@@ -249,6 +249,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     case FEED:
                         response = feedRequest();
                         break;
+                    case SHOW_POST:
+                        response = showPostRequest();
+                        break;
                     default:
                         // TODO: implement things
                         response = new JsonObject();
@@ -646,7 +649,51 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             return response;
         }
 
+        private JsonObject showPostRequest(){
+            JsonObject response = new JsonObject();
 
+            String username = null;
+            int id;
+
+            // reading username from the request
+             try {
+                username = request.get("username").getAsString();
+                id = request.get("id").getAsInt();
+            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username => malformed Json
+                ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
+                return response;
+            }
+            
+            Post post;
+            try { 
+                WinsomeServer.this.checkIfLogged(username, key);
+
+                if((post = posts.get(id)) == null || !isPostVisible(username, post))
+                    throw new NoSuchPostException();
+            }
+            catch (NoSuchUserException ex){ // if no user with the given username is registered
+                ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
+                return response;
+            }
+            catch (NoLoggedUserException ex){ // if this client is not logged in
+                ResponseCode.NO_LOGGED_USER.addResponseToJson(response);
+                return response;
+            }
+            catch (WrongUserException ex){ // if this client is not logged in with the given user
+                ResponseCode.WRONG_USER.addResponseToJson(response);
+                return response;
+            }
+            catch (NoSuchPostException ex){ // the given post does not exist or it isn't visible
+                ResponseCode.NO_POST.addResponseToJson(response);
+                return response;
+            }
+
+            // success!
+            ResponseCode.SUCCESS.addResponseToJson(response);
+            response.add("post", postToJson(post, true));
+
+            return response;
+        }
         /**
          * Transforms a collection of users into a JsonArray.
          * <p>
