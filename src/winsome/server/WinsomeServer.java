@@ -34,8 +34,10 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
         /** Name of the file containing the persisted users */
         private final static String USERS_FILE = "users.json";
-        /** Name of the file containing the persisted posts */
-        private final static String POSTS_FILE = "posts.json";
+        /** Name of the file containing the persisted original posts */
+        private final static String ORIG_POSTS_FILE = "originals.json";
+        /** Name of the file containing the persisted rewins */
+        private final static String REWIN_FILE = "rewins.json";
         /** Name of the file containing the persisted "following" relations */
         private final static String FOLLOWS_FILE = "follows.json";
         /** Name of the file containing the persisted transactions */
@@ -59,26 +61,27 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
             // files
             File usersFile = new File(dir, USERS_FILE);
-            File postsFile = new File(dir, POSTS_FILE);
-            File followersFile = new File(dir, FOLLOWS_FILE);
+            File originalPostsFile = new File(dir, ORIG_POSTS_FILE);
+            File rewinFile = new File(dir, REWIN_FILE);
+            File followsFile = new File(dir, FOLLOWS_FILE);
             File transactionFile = new File(dir, TRANSACTIONS_FILE);
             
             ConcurrentHashMap<String, User> users;
             ConcurrentHashMap<Integer, Post> posts;
-            ConcurrentHashMap<String, Set<String>> followers;
+            ConcurrentHashMap<String, Set<String>> follows;
             ConcurrentHashMap<String, Collection<Transaction>> transactions;
 
             try {
                 users = parseUsers(usersFile);
-                posts = new ConcurrentHashMap<>(); // TODO: parse post files
-                followers = parseFollowers(followersFile);
+                posts = parsePosts(originalPostsFile, rewinFile);
+                follows = parseFollowers(followsFile);
                 transactions = parseTransactions(transactionFile);
             } catch(IOException | InvalidJSONFileException ex) { ex.printStackTrace(); setEmptyData(); return; }
 
             // initializing the WinsomeServer structures
             WinsomeServer.this.users = users;
             WinsomeServer.this.posts = posts;
-            WinsomeServer.this.following = followers;
+            WinsomeServer.this.following = follows;
             WinsomeServer.this.transactions = transactions;
         }
 
@@ -117,39 +120,75 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             }
             return users;
         }
+
+        private ConcurrentHashMap<Integer, Post> parsePosts(File originalPostsFile, File rewinFile) 
+                throws InvalidJSONFileException, IOException {
+            ConcurrentHashMap<Integer, Post> posts = new ConcurrentHashMap<>();
+
+            try (
+                JsonReader reader = new JsonReader(new BufferedReader(new FileReader(originalPostsFile)));
+            ) {
+                reader.beginArray();
+                while(reader.hasNext()){
+                    Post post = OriginalPost.fromJson(reader);
+                    posts.put(post.getID(), post);
+                }
+                reader.endArray();
+            }
+
+            try (
+                JsonReader reader = new JsonReader(new BufferedReader(new FileReader(rewinFile)))
+            ) {
+                reader.beginArray();
+                while(reader.hasNext()){
+                    JsonObject rewinJson = Rewin.getDataFromJsonReader(reader);
+
+                    int idOriginal = Rewin.getOriginalIDFromJson(rewinJson);
+
+                    Post orig;
+                    if((orig = posts.get(idOriginal)) == null) continue; // TODO: should I do something?!
+
+                    Post rewin = Rewin.getRewinFromJson(orig, rewinJson);
+                    posts.put(rewin.getID(), rewin);
+                }
+                reader.endArray();
+            }
+
+            return posts;
+        }
     
         /**
          * Tries to parse the file containing serialized "follows" relations and returns a populated map.
-         * @param usersFile the file containing the serialized "follows"
+         * @param followsFile the file containing the serialized "follows"
          * @return the populated map
          * @throws InvalidJSONFileException if the given file is not a valid JSON file
          * @throws IOException if there is an IO error while reading the file
          */
-        private ConcurrentHashMap<String, Set<String>> parseFollowers(File followersFile) throws InvalidJSONFileException, IOException {
-            ConcurrentHashMap<String, Set<String>> followers = new ConcurrentHashMap<>();
+        private ConcurrentHashMap<String, Set<String>> parseFollowers(File followsFile) throws InvalidJSONFileException, IOException {
+            ConcurrentHashMap<String, Set<String>> follows = new ConcurrentHashMap<>();
             
             try (
-                JsonReader reader = new JsonReader(new BufferedReader(new FileReader(followersFile)));
+                JsonReader reader = new JsonReader(new BufferedReader(new FileReader(followsFile)));
             ){
                 reader.beginArray();
                 while(reader.hasNext()){
                     reader.beginObject();
 
                     String username = reader.nextName();
-                    Set<String> userFollowers = ConcurrentHashMap.newKeySet();
+                    Set<String> userFollows = ConcurrentHashMap.newKeySet();
 
                     reader.beginArray();
                     while(reader.hasNext()){
-                        userFollowers.add(reader.nextString());
+                        userFollows.add(reader.nextString());
                     }
                     reader.endArray();
                     reader.endObject();
 
-                    followers.put(username, userFollowers);
+                    follows.put(username, userFollows);
                 }
                 reader.endArray();
             }
-            return followers;
+            return follows;
         }
 
         /**

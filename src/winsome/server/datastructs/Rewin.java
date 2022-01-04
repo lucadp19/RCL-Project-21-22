@@ -1,11 +1,14 @@
 package winsome.server.datastructs;
 
+import java.io.IOException;
 import java.util.List;
 
 import com.google.gson.JsonObject;
+import com.google.gson.stream.JsonReader;
 
 import winsome.api.exceptions.AlreadyVotedException;
 import winsome.api.exceptions.PostOwnerException;
+import winsome.server.exceptions.InvalidJSONFileException;
 
 public class Rewin extends Post {
     public final int id;
@@ -95,7 +98,7 @@ public class Rewin extends Post {
         JsonObject json = new JsonObject();
 
         json.addProperty("id", id);
-        json.addProperty("originalID", this.getOriginalID());
+        json.addProperty("original-id", this.getOriginalID());
         json.addProperty("rewinner", this.rewinner);
 
         return json;
@@ -108,7 +111,7 @@ public class Rewin extends Post {
      */
     public static boolean isRewinJson(JsonObject json){
         if(json == null) throw new NullPointerException("null parameter");
-        return (json.get("id") != null && json.get("originalID") != null && json.get("rewinner") != null);
+        return (json.get("id") != null && json.get("original-id") != null && json.get("rewinner") != null);
     }
 
     /**
@@ -119,7 +122,7 @@ public class Rewin extends Post {
      */
     public static int getOriginalIDFromJson(JsonObject json){
         if(!isRewinJson(json)) throw new IllegalArgumentException("the given json is not a valid Rewin");
-        return json.get("originalID").getAsInt();
+        return json.get("original-id").getAsInt();
     }
 
     /**
@@ -156,5 +159,43 @@ public class Rewin extends Post {
         if(post.getOriginalID() != getOriginalIDFromJson(json))
             throw new IllegalArgumentException("the given Post and Json have different Post IDs");
         return new Rewin(getIDFromJson(json), post.getOriginalPost(), getRewinnerFromJson(json));
+    }
+
+    /**
+     * Reads the data of a Rewin from a JsonReader.
+     * @param reader the given json reader
+     * @return
+     * @throws IOException
+     * @throws InvalidJSONFileException
+     */
+    public static JsonObject getDataFromJsonReader(JsonReader reader) throws IOException, InvalidJSONFileException {
+        if(reader == null) throw new NullPointerException();
+
+        JsonObject json = new JsonObject();
+        try {
+            reader.beginObject();
+
+            while(reader.hasNext()){
+                String property = reader.nextName();
+
+                switch (property) {
+                    case "original-id":
+                        json.addProperty(property, reader.nextInt());
+                        break;
+                    case "id":
+                        json.addProperty(property, reader.nextInt());
+                        break;
+                    case "rewinner":
+                        json.addProperty(property, reader.nextString());
+                        break;
+                    default:
+                        throw new InvalidJSONFileException();
+                }
+            }
+            reader.endObject();
+            return json;
+        } catch (ClassCastException | IllegalStateException | NullPointerException | NumberFormatException ex){
+            throw new InvalidJSONFileException("json reader does not read a valid Rewin");
+        }
     }
 }
