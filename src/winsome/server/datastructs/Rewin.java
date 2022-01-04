@@ -12,6 +12,7 @@ public class Rewin extends Post {
     public Rewin(Post post, String rewinner) throws IllegalStateException { 
         id = getNextID();
         rewinnedPost = post.getOriginalPost();
+        rewinnedPost.addRewinner(rewinner);
         this.rewinner = rewinner;
     }
 
@@ -54,6 +55,12 @@ public class Rewin extends Post {
      * @return the original post
      */ 
     public Post getOriginalPost() { return rewinnedPost.getOriginalPost(); }
+
+    @Override
+    public boolean addRewinner(String username) { return rewinnedPost.addRewinner(username); }
+
+    @Override
+    public boolean hasRewinned(String username) { return rewinnedPost.hasRewinned(username); }
 
     @Override
     public List<String> getUpvoters() { return rewinnedPost.getUpvoters(); }

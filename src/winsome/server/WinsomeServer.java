@@ -255,6 +255,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     case DELETE_POST:
                         response = deleteRequest();
                         break;
+                    case REWIN_POST:
+                        response = rewinRequest();
+                        break;
                     default:
                         // TODO: implement things
                         response = new JsonObject();
@@ -727,6 +730,51 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             }
             catch (NotPostOwnerException ex){ // if the user is now the creator of the post
                 ResponseCode.NOT_POST_OWNER.addResponseToJson(response);
+                return response;
+            }
+            catch (NoLoggedUserException ex){ // if this client is not logged in
+                ResponseCode.NO_LOGGED_USER.addResponseToJson(response);
+                return response;
+            }
+            catch (WrongUserException ex){ // if this client is not logged in with the given user
+                ResponseCode.WRONG_USER.addResponseToJson(response);
+                return response;
+            }
+
+            // success!
+            ResponseCode.SUCCESS.addResponseToJson(response);
+            return response;
+        }
+
+        private JsonObject rewinRequest(){
+            JsonObject response = new JsonObject();
+
+            String username = null;
+            int id = -1;
+
+            // reading username and password from the request
+             try {
+                username = request.get("username").getAsString();
+                id = request.get("id").getAsInt();
+            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username/password => malformed Json
+                ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
+                return response;
+            }
+
+            try { 
+                WinsomeServer.this.checkIfLogged(username, key);
+                WinsomeServer.this.rewinPost(username, id);
+            }
+            catch (NoSuchUserException ex){ // if no user with the given username is registered
+                ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
+                return response;
+            }
+            catch (NoSuchPostException ex){ // if no post with the given id exists
+                ResponseCode.NO_POST.addResponseToJson(response);
+                return response;
+            }
+            catch (RewinException ex){ // if user cannot rewin the given post
+                ResponseCode.REWIN_ERR.addResponseToJson(response);
                 return response;
             }
             catch (NoLoggedUserException ex){ // if this client is not logged in
@@ -1273,15 +1321,36 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         if(post.isRewin()){
             if(!post.getRewinner().equals(username)) throw new NotPostOwnerException();
 
-            posts.remove(id);
+            // synchronized with rewins
+            synchronized(posts) { posts.remove(id); }
         } else {
             if(!post.getAuthor().equals(username)) throw new NotPostOwnerException();
 
-            posts.remove(id);
+            // synchronized with rewins
+            synchronized(posts) { posts.remove(id); }
             for(Entry<Integer, Post> entry : posts.entrySet()){
                 if(entry.getValue().getOriginalID() == id)
                     posts.remove(entry.getKey());
             }
+        }
+    }
+
+    private void rewinPost(String username, int idPost) throws NoSuchUserException, NoSuchPostException, RewinException {
+        if(username == null) throw new NullPointerException();
+
+        User user; Post post;
+        if((user = users.get(username)) == null) throw new NoSuchUserException();
+        if((post = posts.get(idPost)) == null) throw new NoSuchPostException();
+
+        // synchronizing access with other rewins and with 'delete' operations
+        synchronized(posts){
+            if(post.getAuthor().equals(username) || post.hasRewinned(username))
+                throw new RewinException("user cannot rewin post");
+            
+            Post rewin = new Rewin(post, username);
+
+            if(posts.containsKey(idPost)) posts.put(rewin.getID(), rewin);
+            else throw new NoSuchPostException();
         }
     }
 

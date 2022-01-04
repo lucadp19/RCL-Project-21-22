@@ -85,6 +85,20 @@ public abstract class Post {
     public abstract int getOriginalID() throws NoSuchElementException;
     
     /**
+     * Adds a rewinner to the list of rewinners of this post (or of its original version, if it is a rewin).
+     * @param username the given user
+     * @return true if and only if the operation was successful
+     */
+    public abstract boolean addRewinner(String username);
+    
+    /**
+     * Checks if some user has rewinned this post (or the original post, if this is a rewin).
+     * @param username the given user
+     * @return true if and only if the given user has rewinned this post (or its original version)
+     */
+    public abstract boolean hasRewinned(String username);
+    
+    /**
      * Returns the original post this post is based on.
      * <p>
      * If this post is already original, it returns this;

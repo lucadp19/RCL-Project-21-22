@@ -1,15 +1,9 @@
 package winsome.server.datastructs;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map.Entry;
-import java.util.NoSuchElementException;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ConcurrentMap;
+import java.util.*;
+import java.util.Map.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.gson.JsonArray;
@@ -45,6 +39,8 @@ public class OriginalPost extends Post {
     private final ConcurrentMap<String, Vote> votes;
     /** The comments under this post */
     private final Collection<Comment> comments;
+    /** Users who have rewinned this post */
+    private final Set<String> rewinnerSet;
     
     /** Number of upvotes at the last iteration of the Rewards Algorithm */
     private int oldUpvoteNumber = 0;
@@ -68,6 +64,7 @@ public class OriginalPost extends Post {
         this.contents = contents;
         this.votes = new ConcurrentHashMap<>();
         this.comments = new ConcurrentLinkedQueue<>();
+        this.rewinnerSet = ConcurrentHashMap.newKeySet();
         this.rewardsCounter = new AtomicInteger(1);
     }
 
@@ -104,6 +101,7 @@ public class OriginalPost extends Post {
         this.votes = votes;
         this.comments = comments;
         this.oldUpvoteNumber = oldUpvoteNumber;
+        this.rewinnerSet = ConcurrentHashMap.newKeySet();
         this.rewardsCounter = new AtomicInteger(noIterations);
     }
 
@@ -155,6 +153,18 @@ public class OriginalPost extends Post {
      */
     @Override
     public Post getOriginalPost() { return this; }    
+
+    @Override
+    public boolean addRewinner(String username){
+        if(username == null) throw new NullPointerException("null username");
+        return rewinnerSet.add(username);
+    }
+
+    @Override
+    public boolean hasRewinned(String username){
+        if(username == null) throw new NullPointerException("null username");
+        return rewinnerSet.contains(username);
+    }
 
     @Override
     public List<String> getUpvoters(){ 

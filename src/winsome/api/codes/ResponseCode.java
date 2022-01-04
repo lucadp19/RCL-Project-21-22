@@ -28,6 +28,8 @@ public enum ResponseCode {
     NO_POST,
     /** User is not the owner of the post */
     NOT_POST_OWNER,
+    /** Rewin error: user is author of the post or has already rewinned it */
+    REWIN_ERR,
     /** Fatal communication error */
     FATAL_ERR;
 
