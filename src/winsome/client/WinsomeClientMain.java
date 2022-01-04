@@ -408,19 +408,28 @@ public class WinsomeClientMain {
             }
 
             case BLOG: {
+                String[] args;
+
                 // checking argument number
-                if(!argStr.isEmpty()){
-                    System.out.println(
-                        ConsoleColors.red("==> ERROR! ") + 
-                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
-                    );
-                    System.out.println(cmd.getHelpString());
-                    return;
+                if(argStr.isEmpty()) args = new String[0];
+                else {
+                    args = argStr.split("\\s+");
+                    if(args.length != 1) {
+                        System.out.println(
+                            ConsoleColors.red("==> ERROR! ") + 
+                            "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
+                        );
+                        System.out.println(cmd.getHelpString());
+                        return;
+                    }  
                 }
 
-                System.out.println(ConsoleColors.blue("-> ") + "Listing your blog...");
+                System.out.println(ConsoleColors.blue("-> ") + "Listing " + (args.length == 0 ? "your" : (ConsoleColors.blue(args[0]) + "'s")) + " blog...");
                 List<PostInfo> posts;
-                try { posts = api.viewBlog(); }
+                try { 
+                    if(args.length == 0) posts = api.viewBlog(); 
+                    else posts = api.viewBlog(args[0]);
+                }
                 catch (IOException ex){
                     System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
                     return;
@@ -439,12 +448,10 @@ public class WinsomeClientMain {
                 }
 
                 System.out.println(
-                    ConsoleColors.blue("==> SUCCESS! ") + "You have published " + 
-                    ConsoleColors.blue(Integer.toString(posts.size())) + " posts!\n"
+                    ConsoleColors.blue("==> SUCCESS! ") + (args.length == 0 ? "You have" : ConsoleColors.blue(args[0]) + " has") 
+                    + " published " + ConsoleColors.blue(Integer.toString(posts.size())) + " posts!\n"
                 );
                 for(PostInfo post : posts) printPost(post, false);
-                System.out.println();
-
                 break;
             }
 

@@ -529,10 +529,12 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             JsonObject response = new JsonObject();
 
             String username = null;
+            String toView = null;
 
             // reading username from the request
              try {
                 username = request.get("username").getAsString();
+                toView = request.get("to-view").getAsString();
             } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username => malformed Json
                 ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
                 return response;
@@ -542,7 +544,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             try { 
                 WinsomeServer.this.checkIfLogged(username, key);
 
-                posts = getPostByAuthor(username);
+                // check that the user can see the other user
+                if(!isVisible(username, toView)) throw new NoSuchUserException();
+                posts = getPostByAuthor(toView);
             }
             catch (NoSuchUserException ex){ // if no user with the given username is registered
                 ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
@@ -1274,8 +1278,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
         List<Post> ans = new ArrayList<>();
         for(Post post : posts.values()){
-            if(!post.isRewin() && post.getAuthor().equals(username)) 
-                ans.add(post); 
+            if((!post.isRewin() && post.getAuthor().equals(username)) || (post.isRewin() && post.getRewinner().equals(username))) 
+                ans.add(post);
+            
         }
         return ans;
     }

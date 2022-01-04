@@ -14,7 +14,7 @@ public enum Command {
     LIST_FOLLOWING  ("list following", "Lists the users followed by the currently logged user"),
     FOLLOW          ("follow", "Follow a user"),
     UNFOLLOW        ("unfollow", "Unfollow a user"),
-    BLOG            ("blog", "Lists the current user's posts"),
+    BLOG            ("blog", "Lists the posts of a user"),
     POST            ("post", "Creates a new post"),
     SHOW_FEED       ("show feed", "Shows the feed of the current user"),
     SHOW_POST       ("show post", "Shows the post with the given ID"),
@@ -73,8 +73,10 @@ public enum Command {
                     + ConsoleColors.yellow("Arguments\n" + "----------\n")
                     + "<username>     user to unfollow";
             case BLOG:
-                return ConsoleColors.yellow("usage: ") + ConsoleColors.green(cmd.name) + "\n"
-                    + "\t" + cmd.descr;
+                return ConsoleColors.yellow("usage: ") + ConsoleColors.green(cmd.name) + " [<username>]\n"
+                    + "\t" + cmd.descr + "\n\n"
+                    + ConsoleColors.yellow("Arguments\n" + "----------\n")
+                    + "<username>     optional: user whose blog will be shown (default: current user)";
             case POST:
                 return ConsoleColors.yellow("usage: ") + ConsoleColors.green(cmd.name) + " <title> <contents>\n"
                     + "\t" + cmd.descr + "\n\n"

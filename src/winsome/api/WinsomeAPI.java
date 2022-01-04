@@ -388,9 +388,16 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
     public List<PostInfo> viewBlog() throws IOException, NoLoggedUserException, MalformedJSONException  {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
 
+        return viewBlog(loggedUser);
+    }
+
+    public List<PostInfo> viewBlog(String otherUser) throws IOException, NoLoggedUserException, MalformedJSONException  {
+        if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
+
         JsonObject request = new JsonObject();
         RequestCode.BLOG.addRequestToJson(request);
         request.addProperty("username", loggedUser);
+        request.addProperty("to-view", otherUser);
         
         send(request.toString());
 
