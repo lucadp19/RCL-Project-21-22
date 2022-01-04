@@ -625,7 +625,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             try { 
                 WinsomeServer.this.checkIfLogged(username, key);
 
-                posts = getVisiblePosts(username);
+                posts = getFeed(username);
             }
             catch (NoSuchUserException ex){ // if no user with the given username is registered
                 ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
@@ -1242,6 +1242,22 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         for(Post post : posts.values()){
             if(isPostVisible(user, post))
                 ans.add(post); 
+        }
+        return ans;
+    }
+    
+    private List<Post> getFeed(String username) throws NoSuchUserException {
+        if(username == null) throw new NullPointerException("null arguments");
+
+        Set<String> followed;
+        if((followed = following.get(username)) == null) throw new NoSuchUserException("user does not exist");
+
+        List<Post> ans = new ArrayList<>();
+        for(Post post : posts.values()){
+            if(
+                (post.isRewin() && followed.contains(post.getRewinner())) || // post is a visible rewin
+                (!post.isRewin() && followed.contains(post.getAuthor()))     // post is a visible original post
+            ) { ans.add(post); }
         }
         return ans;
     }
