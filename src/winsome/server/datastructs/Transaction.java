@@ -6,6 +6,7 @@ import java.time.Instant;
 
 import com.google.gson.JsonObject;
 import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonWriter;
 
 import winsome.server.exceptions.InvalidJSONFileException;
 
@@ -78,6 +79,16 @@ public class Transaction {
         } catch (ClassCastException | IllegalStateException | NullPointerException ex){
             throw new IllegalArgumentException("parameter does not represent a valid OriginalPost", ex);
         }
+    }
+    
+    public void toJson(JsonWriter writer) throws IOException {
+        if(writer == null) throw new NullPointerException("null parameter");
+
+        writer.beginObject();
+        writer.name("user").value(this.user);
+        writer.name("increment").value(this.increment);
+        writer.name("instant").value(this.timestamp.toString());
+        writer.endObject();
     }
 
     /**

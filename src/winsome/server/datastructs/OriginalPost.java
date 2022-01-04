@@ -10,6 +10,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonWriter;
 
 import winsome.api.exceptions.AlreadyVotedException;
 import winsome.api.exceptions.PostOwnerException;
@@ -246,6 +247,37 @@ public class OriginalPost extends Post {
         json.addProperty("rewardsCounter", rewardsCounter);
 
         return json;
+    }
+
+    @Override
+    public void toJson(JsonWriter writer) throws IOException {
+        if(writer == null) throw new NullPointerException();
+
+        writer.beginObject();
+
+        writer.name("id").value(this.id);
+        writer.name("author").value(this.author);
+        writer.name("title").value(this.title);
+        writer.name("contents").value(this.contents);
+
+        writer.name("votes").beginArray();
+        for(Entry<String, Vote> vote : votes.entrySet()){
+            writer.beginObject()
+                  .name("voter").value(vote.getKey())
+                  .name("vote").value(vote.getValue().toString())
+                  .endObject();
+        }
+        writer.endArray();
+
+        writer.name("comments").beginArray();
+        for(Comment comment : comments)
+            comment.toJson(writer);
+        writer.endArray();
+
+        writer.name("oldUpvoteNumber").value(oldUpvoteNumber);
+        writer.name("rewardsCounter").value(rewardsCounter);
+
+        writer.endObject();
     }
 
     public static OriginalPost fromJson(JsonObject json) throws IllegalArgumentException {

@@ -1,10 +1,12 @@
 package winsome.server.datastructs;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.gson.JsonObject;
+import com.google.gson.stream.JsonWriter;
 
 import winsome.api.exceptions.AlreadyVotedException;
 import winsome.api.exceptions.PostOwnerException;
@@ -164,4 +166,6 @@ public abstract class Post {
      * @return a JsonObject containing a serialized version of this post
      */
     public abstract JsonObject toJson();
+
+    public abstract void toJson(JsonWriter writer) throws IOException;
 }

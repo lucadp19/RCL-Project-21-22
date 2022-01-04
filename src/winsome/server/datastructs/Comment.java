@@ -2,6 +2,7 @@ package winsome.server.datastructs;
 
 import com.google.gson.JsonObject;
 import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonWriter;
 
 import winsome.server.exceptions.InvalidJSONFileException;
 
@@ -65,6 +66,16 @@ public class Comment {
         json.addProperty("read", read);
 
         return json;
+    }
+
+    public void toJson(JsonWriter writer) throws IOException {
+        if(writer == null) throw new NullPointerException("null arguments");
+
+        writer.beginObject();
+        writer.name("author").value(author);
+        writer.name("contents").value(contents);
+        writer.name("read").value(read);
+        writer.endObject();
     }
 
     /**

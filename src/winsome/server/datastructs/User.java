@@ -7,6 +7,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonWriter;
 
 import winsome.server.exceptions.InvalidJSONFileException;
 
@@ -98,6 +99,21 @@ public class User {
         json.add("tags", jsonTags);
 
         return json;
+    }
+
+    public void toJson(JsonWriter writer) throws IOException {
+        if(writer == null) throw new NullPointerException("null arguments");
+
+        writer.beginObject();
+        writer.name("username").value(this.username);
+        writer.name("password").value(this.password);
+
+        writer.name("tags");
+        writer.beginArray();
+        for(String tag : tags) writer.value(tag);
+        writer.endArray();
+
+        writer.endObject();
     }
 
     /**

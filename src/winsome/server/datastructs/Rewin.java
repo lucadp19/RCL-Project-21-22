@@ -5,6 +5,7 @@ import java.util.List;
 
 import com.google.gson.JsonObject;
 import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonWriter;
 
 import winsome.api.exceptions.AlreadyVotedException;
 import winsome.api.exceptions.PostOwnerException;
@@ -102,6 +103,16 @@ public class Rewin extends Post {
         json.addProperty("rewinner", this.rewinner);
 
         return json;
+    }
+
+    public void toJson(JsonWriter writer) throws IOException {
+        if(writer == null) throw new NullPointerException("null arguments");
+
+        writer.beginObject();
+        writer.name("id").value(this.id);
+        writer.name("original-id").value(this.getOriginalID());
+        writer.name("rewinner").value(this.rewinner);
+        writer.endObject();
     }
     
     /**
