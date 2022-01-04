@@ -258,6 +258,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     case REWIN_POST:
                         response = rewinRequest();
                         break;
+                    case RATE_POST:
+                        response = rateRequest();
+                        break;
                     default:
                         // TODO: implement things
                         response = new JsonObject();
@@ -787,6 +790,63 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             }
             catch (WrongUserException ex){ // if this client is not logged in with the given user
                 ResponseCode.WRONG_USER.addResponseToJson(response);
+                return response;
+            }
+
+            // success!
+            ResponseCode.SUCCESS.addResponseToJson(response);
+            return response;
+        }
+
+        private JsonObject rateRequest(){
+            JsonObject response = new JsonObject();
+
+            String username = null;
+            int id, vote;
+
+            // reading username from the request
+             try {
+                username = request.get("username").getAsString();
+                id = request.get("id").getAsInt();
+                vote = request.get("vote").getAsInt();
+            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username => malformed Json
+                ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
+                return response;
+            }
+            
+            
+            try { 
+                WinsomeServer.this.checkIfLogged(username, key);
+                
+                Post post;
+                if((post = posts.get(id)) == null || !isPostVisible(username, post))
+                    throw new NoSuchPostException();
+                if(vote == 1) post.upvote(username);
+                else if(vote == -1) post.downvote(username);
+                else throw new WrongVoteFormatException("vote must be +1/-1"); 
+            }
+            catch (NoSuchUserException ex){ // if no user with the given username is registered
+                ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
+                return response;
+            }
+            catch (NoLoggedUserException ex){ // if this client is not logged in
+                ResponseCode.NO_LOGGED_USER.addResponseToJson(response);
+                return response;
+            }
+            catch (WrongUserException ex){ // if this client is not logged in with the given user
+                ResponseCode.WRONG_USER.addResponseToJson(response);
+                return response;
+            }
+            catch (NoSuchPostException ex){ // the given post does not exist or it isn't visible
+                ResponseCode.NO_POST.addResponseToJson(response);
+                return response;
+            }
+            catch (AlreadyVotedException ex){ // if no user with the given username is registered
+                ResponseCode.ALREADY_VOTED.addResponseToJson(response);
+                return response;
+            }
+            catch (WrongVoteFormatException ex){ // if no user with the given username is registered
+                ResponseCode.WRONG_VOTE_FORMAT.addResponseToJson(response);
                 return response;
             }
 

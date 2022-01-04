@@ -4,6 +4,8 @@ import java.util.List;
 
 import com.google.gson.JsonObject;
 
+import winsome.api.exceptions.AlreadyVotedException;
+
 public class Rewin extends Post {
     public final int id;
     private Post rewinnedPost;
@@ -72,10 +74,10 @@ public class Rewin extends Post {
     public List<Comment> getComments() { return rewinnedPost.getComments(); }
     
     @Override
-    public void upvote(String voter) throws IllegalArgumentException { rewinnedPost.upvote(voter); }
+    public void upvote(String voter) throws AlreadyVotedException { rewinnedPost.upvote(voter); }
    
     @Override
-    public void downvote(String voter) throws IllegalArgumentException { rewinnedPost.downvote(voter); }
+    public void downvote(String voter) throws AlreadyVotedException { rewinnedPost.downvote(voter); }
 
     @Override
     public void addComment(String author, String contents) throws IllegalArgumentException {

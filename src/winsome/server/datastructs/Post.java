@@ -6,6 +6,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.gson.JsonObject;
 
+import winsome.api.exceptions.AlreadyVotedException;
+
 /** A Post in the Winsome Social Network. */
 public abstract class Post {
     /** The generator for new IDs */
@@ -131,9 +133,9 @@ public abstract class Post {
      * If this post is a rewin, the user upvotes the original post.
      * @param voter the user who wants to upvote this post
      * @throws NullPointerException if voter is null
-     * @throws IllegalArgumentException if voter had already rated this post
+     * @throws AlreadyVotedException if voter had already rated this post
      */
-    public abstract void upvote(String voter) throws IllegalArgumentException;
+    public abstract void upvote(String voter) throws AlreadyVotedException;
    
     /**
      * Adds a downvote this post.
@@ -141,9 +143,9 @@ public abstract class Post {
      * If this post is a rewin, the user downvotes the original post.
      * @param voter the user who wants to downvote this post
      * @throws NullPointerException if voter is null
-     * @throws IllegalArgumentException if voter had already rated this post
+     * @throws AlreadyVotedException if voter had already rated this post
      */
-    public abstract void downvote(String voter) throws IllegalArgumentException;
+    public abstract void downvote(String voter) throws AlreadyVotedException;
 
     /**
      * Adds a new comment to this post.

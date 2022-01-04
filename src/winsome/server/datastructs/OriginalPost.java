@@ -11,6 +11,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.stream.JsonReader;
 
+import winsome.api.exceptions.AlreadyVotedException;
 import winsome.server.exceptions.InvalidJSONFileException;
 
 /**
@@ -189,19 +190,19 @@ public class OriginalPost extends Post {
     
    
     @Override
-    public void upvote(String voter) throws NullPointerException, IllegalArgumentException {
+    public void upvote(String voter) throws NullPointerException, AlreadyVotedException {
         if(voter == null) throw new NullPointerException("null parameter in upvoting post");
 
         if(votes.putIfAbsent(voter, Vote.UP) != null)
-            throw new IllegalArgumentException("post had already been voted");
+            throw new AlreadyVotedException("post had already been voted");
     }
     
     @Override
-    public void downvote(String voter) throws NullPointerException, IllegalArgumentException {
+    public void downvote(String voter) throws NullPointerException, AlreadyVotedException {
         if(voter == null) throw new NullPointerException("null parameter in downvoting post");
 
         if(votes.putIfAbsent(voter, Vote.DOWN) != null)
-            throw new IllegalArgumentException("post had already been voted");
+            throw new AlreadyVotedException("post had already been voted");
     }
 
     @Override

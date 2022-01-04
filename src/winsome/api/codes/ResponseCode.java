@@ -30,6 +30,10 @@ public enum ResponseCode {
     NOT_POST_OWNER,
     /** Rewin error: user is author of the post or has already rewinned it */
     REWIN_ERR,
+    /** The user had already voted the post */
+    ALREADY_VOTED,
+    /** The vote was in a wrong format */
+    WRONG_VOTE_FORMAT,
     /** Fatal communication error */
     FATAL_ERR;
 
