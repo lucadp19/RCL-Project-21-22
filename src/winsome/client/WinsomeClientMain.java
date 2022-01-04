@@ -773,10 +773,10 @@ public class WinsomeClientMain {
             }
 
             case COMMENT: {
-                String[] args = argStr.split("\\s+", 2); // splitting on first space
+                List<String> args = splitQuotes(argStr); // splitting on first space
 
                 // checking argument number
-                if(args.length != 2){
+                if(args.size() != 2){
                     System.out.println(
                         ConsoleColors.red("==> ERROR! ") + 
                         "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
@@ -786,7 +786,7 @@ public class WinsomeClientMain {
                 }
 
                 int id = -1;
-                try { id = Integer.parseInt(args[0]); }
+                try { id = Integer.parseInt(args.get(0)); }
                 catch(NumberFormatException ex){
                     System.out.println(
                         ConsoleColors.red("==> ERROR! ") + 
@@ -796,10 +796,31 @@ public class WinsomeClientMain {
                     return;
                 }
 
-                System.out.println(ConsoleColors.blue("-> ") + "Adding comment on post \"" + ConsoleColors.blue(args[0]) + "\"...");
-                try { api.addComment(id, args[1]); }
-                catch(NotImplementedException ex){
-                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                System.out.println(ConsoleColors.blue("-> ") + "Adding comment on post with ID " 
+                    + ConsoleColors.blue(args.get(0)) + "...");
+                try { api.addComment(id, args.get(1)); }
+                catch (IOException ex){
+                    System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
+                    return;
+                }
+                catch (MalformedJSONException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "Server sent malformed response message.");
+                    return;
+                }
+                catch (NoLoggedUserException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
+                    return;
+                }
+                catch (NoSuchPostException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "There is no post with the given ID.");
+                    return;
+                }
+                catch (PostOwnerException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "You cannot add a comment to your own post.");
+                    return;
+                }
+                catch (IllegalStateException ex){
+                    System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
                     return;
                 }
                 break;
