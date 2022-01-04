@@ -43,9 +43,24 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         /** Name of the file containing the persisted transactions */
         private final static String TRANSACTIONS_FILE = "transactions.json";
 
+        private final File dir;
+        private final File usersFile;
+        private final File origsFile;
+        private final File rewinsFile;
+        private final File followsFile;
+        private final File transFile;
+
         public ServerPersistence(String dirpath){ 
             if(dirpath == null) throw new NullPointerException("directory path is null");
             this.dirpath = dirpath; 
+
+            dir = new File(dirpath);
+
+            usersFile   = new File(dir, USERS_FILE);
+            origsFile   = new File(dir, ORIG_POSTS_FILE);
+            rewinsFile  = new File(dir, REWIN_FILE);
+            followsFile = new File(dir, FOLLOWS_FILE);
+            transFile   = new File(dir, TRANSACTIONS_FILE);
         }
 
         /** 
@@ -56,26 +71,25 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         public void getPersistedData(){
             if(isDataInit.get()) throw new IllegalStateException("data has already been initialized");
 
-            File dir = new File(dirpath);
             if(!dir.exists() || !dir.isDirectory()) { setEmptyData(); return; }
-
-            // files
-            File usersFile = new File(dir, USERS_FILE);
-            File originalPostsFile = new File(dir, ORIG_POSTS_FILE);
-            File rewinFile = new File(dir, REWIN_FILE);
-            File followsFile = new File(dir, FOLLOWS_FILE);
-            File transactionFile = new File(dir, TRANSACTIONS_FILE);
             
             ConcurrentHashMap<String, User> users;
             ConcurrentHashMap<Integer, Post> posts;
-            ConcurrentHashMap<String, Set<String>> follows;
-            ConcurrentHashMap<String, Collection<Transaction>> transactions;
+            ConcurrentHashMap<String, Set<String>> follows = new ConcurrentHashMap<>();
+            ConcurrentHashMap<String, Collection<Transaction>> transactions = new ConcurrentHashMap<>();
 
             try {
                 users = parseUsers(usersFile);
-                posts = parsePosts(originalPostsFile, rewinFile);
-                follows = parseFollowers(followsFile);
-                transactions = parseTransactions(transactionFile);
+
+                // initializing usernames
+                for(String username : users.keySet()){
+                    follows.put(username, ConcurrentHashMap.newKeySet());
+                    transactions.put(username, new ConcurrentLinkedQueue<>());
+                }
+
+                posts = parsePosts(origsFile, rewinsFile);
+                follows = parseFollowers(followsFile, follows);
+                transactions = parseTransactions(transFile, transactions);
             } catch(IOException | InvalidJSONFileException ex) { ex.printStackTrace(); setEmptyData(); return; }
 
             // initializing the WinsomeServer structures
@@ -164,9 +178,10 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          * @throws InvalidJSONFileException if the given file is not a valid JSON file
          * @throws IOException if there is an IO error while reading the file
          */
-        private ConcurrentHashMap<String, Set<String>> parseFollowers(File followsFile) throws InvalidJSONFileException, IOException {
-            ConcurrentHashMap<String, Set<String>> follows = new ConcurrentHashMap<>();
-            
+        private ConcurrentHashMap<String, Set<String>> parseFollowers(
+                File followsFile, ConcurrentHashMap<String, Set<String>> follows
+            ) throws InvalidJSONFileException, IOException 
+        {            
             try (
                 JsonReader reader = new JsonReader(new BufferedReader(new FileReader(followsFile)));
             ){
@@ -175,7 +190,12 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     reader.beginObject();
 
                     String username = reader.nextName();
-                    Set<String> userFollows = ConcurrentHashMap.newKeySet();
+                    Set<String> userFollows; 
+                    boolean skip = false;
+                    if((userFollows = follows.get(username)) == null){
+                        userFollows = ConcurrentHashMap.newKeySet();
+                        skip = true;
+                    }
 
                     reader.beginArray();
                     while(reader.hasNext()){
@@ -184,7 +204,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     reader.endArray();
                     reader.endObject();
 
-                    follows.put(username, userFollows);
+                    if(!skip) follows.put(username, userFollows);
                 }
                 reader.endArray();
             }
@@ -198,9 +218,10 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          * @throws InvalidJSONFileException if the given file is not a valid JSON file
          * @throws IOException if there is an IO error while reading the file
          */
-        private ConcurrentHashMap<String, Collection<Transaction>> parseTransactions(File transactionsFile) throws InvalidJSONFileException, IOException {
-            ConcurrentHashMap<String, Collection<Transaction>> transactionMap = new ConcurrentHashMap<>();
-            
+        private ConcurrentHashMap<String, Collection<Transaction>> parseTransactions(
+                File transactionsFile, ConcurrentHashMap<String, Collection<Transaction>> transactions
+            ) throws InvalidJSONFileException, IOException 
+        {
             try (
                 JsonReader reader = new JsonReader(new BufferedReader(new FileReader(transactionsFile)));
             ){
@@ -209,7 +230,12 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     reader.beginObject();
 
                     String username = reader.nextName();
-                    ConcurrentLinkedQueue<Transaction> userTrans = new ConcurrentLinkedQueue<>();
+                    Collection<Transaction> userTrans;
+                    boolean skip = false;
+                    if((userTrans = transactions.get(username)) == null) {
+                        userTrans = new ConcurrentLinkedQueue<>();
+                        skip = true;
+                    }
 
                     reader.beginArray();
                     while(reader.hasNext()){
@@ -218,11 +244,11 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     reader.endArray();
                     reader.endObject();
 
-                    transactionMap.put(username, userTrans);
+                    if(!skip) transactions.put(username, userTrans);
                 }
                 reader.endArray();
             }
-            return transactionMap;
+            return transactions;
         }
     }
 
