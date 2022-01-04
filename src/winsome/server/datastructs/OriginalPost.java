@@ -12,6 +12,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.stream.JsonReader;
 
 import winsome.api.exceptions.AlreadyVotedException;
+import winsome.api.exceptions.PostOwnerException;
 import winsome.server.exceptions.InvalidJSONFileException;
 
 /**
@@ -206,9 +207,9 @@ public class OriginalPost extends Post {
     }
 
     @Override
-    public void addComment(String author, String contents) throws NullPointerException, IllegalArgumentException {
+    public void addComment(String author, String contents) throws NullPointerException, PostOwnerException {
         if(author == null || contents == null) throw new NullPointerException("null parameter in comment creation");
-        if(author == this.author) throw new IllegalArgumentException("author cannot add a comment to their own post");
+        if(author.equals(this.author)) throw new PostOwnerException("author cannot add a comment to their own post");
         comments.add(new Comment(author, contents));
     }
 

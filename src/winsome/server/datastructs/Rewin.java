@@ -5,6 +5,7 @@ import java.util.List;
 import com.google.gson.JsonObject;
 
 import winsome.api.exceptions.AlreadyVotedException;
+import winsome.api.exceptions.PostOwnerException;
 
 public class Rewin extends Post {
     public final int id;
@@ -80,7 +81,7 @@ public class Rewin extends Post {
     public void downvote(String voter) throws AlreadyVotedException { rewinnedPost.downvote(voter); }
 
     @Override
-    public void addComment(String author, String contents) throws IllegalArgumentException {
+    public void addComment(String author, String contents) throws PostOwnerException {
         rewinnedPost.addComment(author, contents);
     }
 

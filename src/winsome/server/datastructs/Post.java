@@ -7,6 +7,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import com.google.gson.JsonObject;
 
 import winsome.api.exceptions.AlreadyVotedException;
+import winsome.api.exceptions.PostOwnerException;
 
 /** A Post in the Winsome Social Network. */
 public abstract class Post {
@@ -154,9 +155,9 @@ public abstract class Post {
      * @param author author of the comment
      * @param contents contents of the comment
      * @throws NullPointerException if author or contents are null
-     * @throws IllegalArgumentException if author is the author of this post
+     * @throws PostOwnerException if author is the author of this post
      */
-    public abstract void addComment(String author, String contents) throws IllegalArgumentException;
+    public abstract void addComment(String author, String contents) throws PostOwnerException;
 
     /**
      * Returns a JsonObject containing a serialized version of this post.

@@ -28,6 +28,8 @@ public enum ResponseCode {
     NO_POST,
     /** User is not the owner of the post */
     NOT_POST_OWNER,
+    /** User is the owner of the post */
+    POST_OWNER,
     /** Rewin error: user is author of the post or has already rewinned it */
     REWIN_ERR,
     /** The user had already voted the post */
