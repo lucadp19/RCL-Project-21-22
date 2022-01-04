@@ -7,6 +7,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.gson.*;
 import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonWriter;
 
 import java.io.*;
 import java.nio.ByteBuffer;
@@ -28,7 +29,7 @@ import winsome.server.exceptions.*;
 /** A Server instance for the Winsome Social Network. */
 public class WinsomeServer extends RemoteObject implements RemoteServer {
     /** A class for loading the Server status from data and persist the current state. */
-    private class ServerPersistence {
+    private class ServerPersistence implements Runnable {
         /** Path to the persisted data. */
         private final String dirpath;
 
@@ -50,11 +51,13 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         private final File followsFile;
         private final File transFile;
 
-        public ServerPersistence(String dirpath){ 
+        public ServerPersistence(String dirpath) throws FileNotFoundException { 
             if(dirpath == null) throw new NullPointerException("directory path is null");
             this.dirpath = dirpath; 
 
             dir = new File(dirpath);
+
+            if(!dir.exists() || !dir.isDirectory()) throw new FileNotFoundException("the given directory does not exist");
 
             usersFile   = new File(dir, USERS_FILE);
             origsFile   = new File(dir, ORIG_POSTS_FILE);
@@ -249,6 +252,95 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 reader.endArray();
             }
             return transactions;
+        }
+
+        public void run() {
+            try {
+                while(true){
+                    try { persistData(); }
+                    catch (IOException ex){ } // TODO: what to do?!
+
+                    TimeUnit.SECONDS.sleep(60);
+                } 
+            } catch (InterruptedException ex) { } // TODO: deal with ex
+        }
+
+        private void persistData() throws IOException {
+            persistTransactions(transFile);
+            persistPosts(origsFile, rewinsFile);
+            persistFollows(followsFile);
+            persistUsers(usersFile);
+        }
+
+        private void persistTransactions(File transFile) throws IOException {
+            try (
+                JsonWriter writer = new JsonWriter(new BufferedWriter(new FileWriter(transFile)));
+            ) {
+                writer.setIndent("    ");
+
+                writer.beginArray();
+                for(Entry<String, Collection<Transaction>> entry : WinsomeServer.this.transactions.entrySet()){
+                    writer.beginObject()
+                        .name(entry.getKey())
+                        .beginArray();
+
+                    for(Transaction trans : entry.getValue())
+                        trans.toJson(writer);
+
+                    writer.endArray().endObject();
+                }
+                writer.endArray();
+            }
+        }
+
+        private void persistFollows(File followsFile) throws IOException {
+            try (
+                JsonWriter writer = new JsonWriter(new BufferedWriter(new FileWriter(followsFile)));
+            ) {
+                writer.setIndent("    ");
+
+                writer.beginArray();
+                for(Entry<String, Set<String>> entry : WinsomeServer.this.following.entrySet()){
+                    writer.beginObject();
+                    writer.name(entry.getKey());
+
+                    writer.beginArray();
+                    for(String followed : entry.getValue())
+                        writer.value(followed);
+                    writer.endArray()
+                          .endObject();
+                }
+                writer.endArray();
+            }
+        }
+
+        private void persistPosts(File origsFile, File rewinsFile) throws IOException {
+            try (
+                JsonWriter origsWriter = new JsonWriter(new BufferedWriter(new FileWriter(origsFile)));
+                JsonWriter rewinsWriter = new JsonWriter(new BufferedWriter(new FileWriter(rewinsFile)));
+            ) {
+                origsWriter.setIndent("    ");
+                rewinsWriter.setIndent("    ");
+
+                origsWriter.beginArray(); rewinsWriter.beginArray();
+                for(Post post : WinsomeServer.this.posts.values()){
+                    if(post.isRewin()) post.toJson(rewinsWriter);
+                    else post.toJson(origsWriter);
+                }
+                origsWriter.endArray(); rewinsWriter.endArray();
+            }
+        }
+
+        private void persistUsers(File userFile) throws IOException {
+            try (
+                JsonWriter writer = new JsonWriter(new BufferedWriter(new FileWriter(usersFile)));
+            ) {
+                writer.setIndent("    "); 
+                writer.beginArray();
+                for(User user : users.values())
+                    user.toJson(writer);
+                writer.endArray();
+            }
         }
     }
 
@@ -1042,6 +1134,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
     private ServerConfig config;
     /** A Runnable object that loads and writes the Server state from/to disk. */
     private ServerPersistence persistenceWorker;
+    private Thread persistenceThread;
 
     /** The thread pool for the Worker Threads. */
     private Executor pool;
@@ -1099,6 +1192,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
         persistenceWorker = new ServerPersistence(config.getPersistenceDir());
         persistenceWorker.getPersistedData();
+
+        persistenceThread = new Thread(persistenceWorker);
+        persistenceThread.start();
 
         int maxPostID = -1;
         for(Post post : posts.values()) {
