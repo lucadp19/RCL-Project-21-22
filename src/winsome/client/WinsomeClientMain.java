@@ -661,10 +661,31 @@ public class WinsomeClientMain {
 
                 System.out.println(ConsoleColors.blue("-> ") + "Rewinning post with ID \"" + ConsoleColors.blue(args[0]) + "\"...");
                 try { api.rewinPost(id); }
-                catch(NotImplementedException ex){
-                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                catch (IOException ex){
+                    System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
                     return;
-                } 
+                }
+                catch (MalformedJSONException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "Server sent malformed response message.");
+                    return;
+                }
+                catch (NoLoggedUserException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
+                    return;
+                }
+                catch (NoSuchPostException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "There is no post with the given ID.");
+                    return;
+                }
+                catch (RewinException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "You are either the owner of the given post, or you have already rewinned it.");
+                    return;
+                }
+                catch (IllegalStateException ex){
+                    System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
+                    return;
+                }
+                System.out.println(ConsoleColors.blue("==> SUCCESS!"));
                 break;
             }
 
@@ -815,7 +836,7 @@ public class WinsomeClientMain {
             + ConsoleColors.blue("  Title: ") + post.title + "\n";
 
         if(post.isRewin())
-            str += ConsoleColors.blue("  Rewinner: ") + post.rewinner + "\n";
+            str += ConsoleColors.blue("  Rewinner: ") + post.rewinner.get() + "\n";
             
         if(includeInfo){
             str += ConsoleColors.blue("  Contents: ") + post.contents + "\n"

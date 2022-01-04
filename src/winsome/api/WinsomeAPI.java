@@ -584,8 +584,42 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         }
     }
 
-    public void rewinPost(int idPost) throws NotImplementedException {
-        throw new NotImplementedException("method not yet implemented");
+    public void rewinPost(int idPost) 
+            throws IOException, NoLoggedUserException, MalformedJSONException, 
+                NoSuchPostException, RewinException {
+        if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
+
+        JsonObject request = new JsonObject();
+        RequestCode.REWIN_POST.addRequestToJson(request);
+        request.addProperty("username", loggedUser);
+        request.addProperty("id", idPost);
+        
+        send(request.toString());
+
+        JsonObject response = getJsonResponse();
+        ResponseCode responseCode = ResponseCode.getResponseFromJson(response);
+        switch (responseCode) {
+            case SUCCESS:
+                return;
+            case NO_POST:
+                throw new NoSuchPostException("there is no post with the given id");
+            case REWIN_ERR:
+                throw new RewinException("this user is either the owner of the given post or has already rewinned it");
+            default: {  //
+                String msg;
+                switch (responseCode) {
+                    case USER_NOT_REGISTERED:
+                        msg = ("the user \"" + loggedUser + "\" is not signed up in the Social Network");
+                    case NO_LOGGED_USER:
+                        msg = ("no user is currently logged; please log in first");
+                    case WRONG_USER:
+                        msg = ("the user currently logged does not correspond to the user to log out");
+                    default:
+                        msg = responseCode.toString();
+                }
+                throw new IllegalStateException(msg);
+            }
+        }
     }
 
     public void ratePost(int idPost, int vote) throws NotImplementedException {
