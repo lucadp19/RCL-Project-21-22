@@ -739,11 +739,37 @@ public class WinsomeClientMain {
                     + " post with ID \"" + ConsoleColors.blue(args[0]) + "\"..."
                 );
                 try { api.ratePost(id, vote); }
-                catch(NotImplementedException ex){
-                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                catch (IOException ex){
+                    System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
                     return;
-                } 
+                }
+                catch (MalformedJSONException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "Server sent malformed response message.");
+                    return;
+                }
+                catch (NoLoggedUserException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
+                    return;
+                }
+                catch (NoSuchPostException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "There is no post with the given ID.");
+                    return;
+                }
+                catch (AlreadyVotedException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "You have already voted this post.");
+                    return;
+                }
+                catch (WrongVoteFormatException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "The given vote is neither +1 nor -1.");
+                    return;
+                }
+                catch (IllegalStateException ex){
+                    System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
+                    return;
+                }
+                System.out.println(ConsoleColors.blue("==> SUCCESS!"));
                 break;
+
             }
 
             case COMMENT: {

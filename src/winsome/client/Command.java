@@ -106,7 +106,7 @@ public enum Command {
                     + "\t" + cmd.descr + "\n\n"
                     + ConsoleColors.yellow("Arguments\n" + "----------\n")
                     + "<idPost>       ID of the post to vote\n"
-                    + "<vote>         vote given (may be \"+1\" or \"-1\"";
+                    + "<vote>         vote given (may be \"+1\" or \"-1\")";
             case COMMENT:
                 return ConsoleColors.yellow("usage: ") + ConsoleColors.green(cmd.name) + " <idPost> <comment>\n"
                     + "\t" + cmd.descr + "\n\n"
