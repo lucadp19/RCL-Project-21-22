@@ -29,7 +29,7 @@ import winsome.server.exceptions.*;
 /** A Server instance for the Winsome Social Network. */
 public class WinsomeServer extends RemoteObject implements RemoteServer {
     /** A class for loading the Server status from data and persist the current state. */
-    private class ServerPersistence implements Runnable {
+    private class ServerPersistence implements Callable<Void> {
         /** Path to the persisted data. */
         private final String dirpath;
 
@@ -254,15 +254,19 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             return transactions;
         }
 
-        public void run() {
-            try {
-                while(true){
-                    try { persistData(); }
-                    catch (IOException ex){ } // TODO: what to do?!
+        public Void call() throws IOException {
+            while(true){
+                try { persistData(); }
+                catch(IOException ex){
+                    selector.wakeup();
+                    throw new IOException("IO exception while persisting data", ex);
+                }
 
-                    TimeUnit.SECONDS.sleep(60);
-                } 
-            } catch (InterruptedException ex) { } // TODO: deal with ex
+                try { TimeUnit.SECONDS.sleep(60); }
+                catch (InterruptedException ex) { break; }
+            }
+
+            return null;
         }
 
         private void persistData() throws IOException {
@@ -429,7 +433,6 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                         response = walletBTCRequest();
                         break;
                     default:
-                        // TODO: implement things
                         response = new JsonObject();
                         ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
                 }
@@ -437,7 +440,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 send(response.toString(), key);
             }
             catch(IOException ex){
-                // TODO: remove user
+                // removing the user
+                endUserSession(key);
             }
         }     
 
@@ -1239,7 +1243,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         }
     }
 
-    private class RewardsAlgorithm implements Runnable {
+    private class RewardsAlgorithm implements Callable<Void> {
         private final RewardsPercentage percentage;
         private final long waitTime;
 
@@ -1250,10 +1254,12 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             this.waitTime = waitTime;
         }
 
-        public void run(){
+        public Void call() throws IOException {
             while(true) {
                 try { TimeUnit.SECONDS.sleep(waitTime); }
-                catch (InterruptedException ex) {} // TODO: do something
+                catch (InterruptedException ex) {
+                    break;
+                }
 
                 for(Post post : posts.values()){
                     if(post.isRewin()) continue;
@@ -1277,10 +1283,16 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 try {
                     InetAddress addr = InetAddress.getByName(config.getMulticastAddr());
                     int port = config.getMulticastPort();
+
                     DatagramPacket packet = new DatagramPacket(data, data.length, addr, port);
                     multicastSocket.send(packet);
-                } catch (IOException ex){ } // TODO: do something
+                } catch (IOException ex){
+                    selector.wakeup();
+                    throw new IOException("IO error while sending 'Updated rewards!' message through multicast", ex);
+                }
             }
+
+            return null;
         }
     }
 
@@ -1291,8 +1303,11 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
     private ServerConfig config;
     /** A Runnable object that loads and writes the Server state from/to disk. */
     private ServerPersistence persistenceWorker;
-    private Thread persistenceThread;
-    private Thread rewardsThread;
+
+    private ExecutorService persistenceThread = Executors.newSingleThreadExecutor();
+    private ExecutorService rewardsThread = Executors.newSingleThreadExecutor();
+    private Future<Void> persistenceResult;
+    private Future<Void> rewardsResult;
 
     /** The thread pool for the Worker Threads. */
     private Executor pool;
@@ -1351,11 +1366,10 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         persistenceWorker = new ServerPersistence(config.getPersistenceDir());
         persistenceWorker.getPersistedData();
 
-        persistenceThread = new Thread(persistenceWorker);
-        persistenceThread.start();
-
-        rewardsThread = new Thread(new RewardsAlgorithm(config.getRewardPerc(), config.getRewardInterval()));
-        rewardsThread.start();
+        persistenceResult = persistenceThread.submit(persistenceWorker);
+        rewardsResult = rewardsThread.submit(
+            new RewardsAlgorithm(config.getRewardPerc(), config.getRewardInterval())
+        );
 
         int maxPostID = -1;
         for(Post post : posts.values()) {
@@ -1414,10 +1428,16 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
      * @throws IOException
      */
     public void runServer() throws IOException {
+
+
         while(true){
             // wait for client to wake up the server
             try { selector.select(); }
             catch(IOException ex){ throw new IOException("IO Error in select", ex); }
+
+            if(isInterrupted()){
+                break; 
+            } 
 
             // get the selected keys
             Set<SelectionKey> keys = selector.selectedKeys();
@@ -1460,6 +1480,16 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 }
             }
         }
+    }
+
+    private boolean isInterrupted(){
+        try {
+            rewardsResult.get(1, TimeUnit.MILLISECONDS);
+            persistenceResult.get(1, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException | ExecutionException ex) { return true; }
+        catch (TimeoutException ex) { return false; }
+
+        return false;
     }
 
     /** Test function to echo a message */ // TODO: delete it
