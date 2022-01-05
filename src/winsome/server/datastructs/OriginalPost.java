@@ -88,10 +88,8 @@ public class OriginalPost extends Post {
     /** Users who have rewinned this post */
     private final Set<String> rewinnerSet;
     
-    /** Number of upvotes at the last iteration of the Rewards Algorithm */
-    private int oldUpvoteNumber = 0;
     /** Keeps track of how many times the Rewards Algorithm has been run on this post */
-    private final AtomicInteger rewardsCounter;
+    private final AtomicInteger iterations;
 
     /**
      * Creates a new post.
@@ -111,7 +109,7 @@ public class OriginalPost extends Post {
         this.votes = new ConcurrentHashMap<>();
         this.comments = new ConcurrentLinkedQueue<>();
         this.rewinnerSet = ConcurrentHashMap.newKeySet();
-        this.rewardsCounter = new AtomicInteger(1);
+        this.iterations = new AtomicInteger(0);
     }
 
     /**
@@ -125,16 +123,14 @@ public class OriginalPost extends Post {
      * @param title title of this post
      * @param contents contents of this post
      * @param votes map with users who have voted this post as keys, and votes as values
-     * @param oldUpvoteNumber number of upvotes at the latest iteration of the Reward Algorithm
      * @param comments queue of comments of the post
-     * @param noIterations number of iterations at the latest iteration of the Reward Algorithm
+     * @param iterations number of iterations at the latest iteration of the Reward Algorithm
      * @throws NullPointerException if any argument is null
      */
     private OriginalPost(
         int id, String author, String title, String contents, 
         ConcurrentHashMap<String, Vote> votes,
-        int oldUpvoteNumber, ConcurrentLinkedQueue<Comment> comments,
-        int noIterations
+        ConcurrentLinkedQueue<Comment> comments, int iterations
     ) throws NullPointerException {
         if(author == null || title == null || contents == null
                 || votes == null || comments == null) 
@@ -146,9 +142,8 @@ public class OriginalPost extends Post {
         this.contents = contents;
         this.votes = votes;
         this.comments = comments;
-        this.oldUpvoteNumber = oldUpvoteNumber;
         this.rewinnerSet = ConcurrentHashMap.newKeySet();
-        this.rewardsCounter = new AtomicInteger(noIterations);
+        this.iterations = new AtomicInteger(iterations);
     }
 
     @Override
@@ -287,7 +282,7 @@ public class OriginalPost extends Post {
 
     //     // adding counters
     //     json.addProperty("oldUpvoteNumber", oldUpvoteNumber);
-    //     json.addProperty("rewardsCounter", rewardsCounter);
+    //     json.addProperty("iterations", iterations);
 
     //     return json;
     // }
@@ -318,8 +313,7 @@ public class OriginalPost extends Post {
             comment.toJson(writer);
         writer.endArray();
 
-        writer.name("oldUpvoteNumber").value(oldUpvoteNumber);
-        writer.name("rewardsCounter").value(rewardsCounter);
+        writer.name("iterations").value(iterations.get());
 
         writer.endObject();
     }
@@ -353,7 +347,7 @@ public class OriginalPost extends Post {
     //         }
 
     //         int oldUpvoteNumber = json.get("oldUpvoteNumber").getAsInt();
-    //         int noIterations = json.get("rewardsCounter").getAsInt();
+    //         int noIterations = json.get("iterations").getAsInt();
 
     //         return new OriginalPost(id, author, title, contents, votes, oldUpvoteNumber, comments, noIterations);
     //     } catch (ClassCastException | IllegalStateException | NullPointerException | IllegalArgumentException ex){
@@ -373,8 +367,7 @@ public class OriginalPost extends Post {
             ConcurrentHashMap<String, Vote> votes   = new ConcurrentHashMap<>();
             ConcurrentLinkedQueue<Comment> comments = new ConcurrentLinkedQueue<>();
             
-            Integer oldUpvoteNumber = null;
-            Integer noIterations    = null;
+            Integer iterations = null;
 
             reader.beginObject();
             while(reader.hasNext()){
@@ -436,11 +429,8 @@ public class OriginalPost extends Post {
                         reader.endArray();
                         break;
                     }
-                    case "oldUpvoteNumber":
-                        oldUpvoteNumber = reader.nextInt();
-                        break;
-                    case "rewardsCounter":
-                        noIterations = reader.nextInt();
+                    case "iterations":
+                        iterations = reader.nextInt();
                         break;
                     default:
                         throw new InvalidJSONFileException("json reader does not represent a valid Post");
@@ -448,7 +438,7 @@ public class OriginalPost extends Post {
             }
             reader.endObject();
             
-            return new OriginalPost(id, author, title, contents, votes, oldUpvoteNumber, comments, noIterations);
+            return new OriginalPost(id, author, title, contents, votes, comments, iterations);
         } catch (ClassCastException | IllegalStateException | NullPointerException | NumberFormatException ex){
             throw new InvalidJSONFileException("json reader does not represent a valid Post", ex);
         }
@@ -486,6 +476,7 @@ public class OriginalPost extends Post {
         for(int freq : commentFreq.values())
             commentReward += 2/(1 + Math.exp(-(freq + 1)));
         reward += Math.log(commentReward + 1);
+        reward /= iterations.incrementAndGet();
 
         return new PostRewards(reward, curators);
     }

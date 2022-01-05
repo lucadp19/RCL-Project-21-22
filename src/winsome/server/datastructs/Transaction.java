@@ -87,7 +87,7 @@ public class Transaction {
         writer.beginObject();
         writer.name("user").value(this.user);
         writer.name("increment").value(this.increment);
-        writer.name("instant").value(this.timestamp.toString());
+        writer.name("timestamp").value(this.timestamp.toString());
         writer.endObject();
     }
 

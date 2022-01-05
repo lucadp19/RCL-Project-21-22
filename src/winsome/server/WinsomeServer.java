@@ -1127,6 +1127,43 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         }
     }
 
+    private class RewardsAlgorithm implements Runnable {
+        private final RewardsPercentage percentage;
+        private final long waitTime;
+
+        public RewardsAlgorithm(RewardsPercentage percentage, long waitTime){
+            if(percentage == null) throw new NullPointerException("null parameter");
+
+            this.percentage = percentage;
+            this.waitTime = waitTime;
+        }
+
+        public void run(){
+            while(true) {
+                try { TimeUnit.SECONDS.sleep(waitTime); }
+                catch (InterruptedException ex) {} // TODO: do something
+
+                for(Post post : posts.values()){
+                    if(post.isRewin()) continue;
+
+                    PostRewards rewards = ((OriginalPost) post).reapRewards();
+                    if(rewards.reward == 0) continue;
+                    
+                    String author = post.getAuthor();
+                    transactions.get(author).add(
+                        new Transaction(author, rewards.authorReward(percentage))
+                    );
+
+                    for(String curator : rewards.getCurators()){
+                        transactions.get(curator).add(
+                            new Transaction(curator, rewards.curatorReward(percentage))
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     /** Boolean flag representing whether the Server data has been loaded yet or not. */
     private static AtomicBoolean isDataInit = new AtomicBoolean(false);
 
@@ -1135,6 +1172,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
     /** A Runnable object that loads and writes the Server state from/to disk. */
     private ServerPersistence persistenceWorker;
     private Thread persistenceThread;
+    private Thread rewardsThread;
 
     /** The thread pool for the Worker Threads. */
     private Executor pool;
@@ -1195,6 +1233,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
         persistenceThread = new Thread(persistenceWorker);
         persistenceThread.start();
+
+        rewardsThread = new Thread(new RewardsAlgorithm(config.getRewardPerc(), config.getRewardInterval()));
+        rewardsThread.start();
 
         int maxPostID = -1;
         for(Post post : posts.values()) {
