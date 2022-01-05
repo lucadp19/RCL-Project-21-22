@@ -8,6 +8,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import winsome.api.PostInfo;
+import winsome.api.TransactionInfo;
+import winsome.api.Wallet;
 import winsome.api.WinsomeAPI;
 import winsome.api.PostInfo.Comment;
 import winsome.api.exceptions.*;
@@ -838,11 +840,26 @@ public class WinsomeClientMain {
                 }
 
                 System.out.println(ConsoleColors.blue("-> ") + "Getting your wallet...");
-                try { api.getWallet(); }
-                catch(NotImplementedException ex){
-                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                Wallet wallet;
+                try { wallet = api.getWallet(); }
+                catch (IOException ex){
+                    System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
                     return;
                 }
+                catch (MalformedJSONException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "Server sent malformed response message.");
+                    return;
+                }
+                catch (NoLoggedUserException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
+                    return;
+                }
+                catch (IllegalStateException ex){
+                    System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
+                    return;
+                }
+                System.out.println(ConsoleColors.blue("==> SUCCESS!") + " Printing your wallet...\n");
+                printWallet(wallet);
                 break;
             }
 
@@ -858,7 +875,7 @@ public class WinsomeClientMain {
                 }
 
                 System.out.println(ConsoleColors.blue("-> ") + "Getting your wallet in bitcoin...");
-                try { api.getWallet(); }
+                try { api.getWalletInBitcoin(); }
                 catch(NotImplementedException ex){
                     System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
                     return;
@@ -917,6 +934,15 @@ public class WinsomeClientMain {
             for(String tag : userTags.getValue())
                 System.out.print(" " + tag);
             System.out.println();
+        }
+    }
+
+    private static void printWallet(Wallet wallet){
+        System.out.printf(ConsoleColors.yellow("- Total: ") + "%.4f\n", wallet.total);
+        System.out.println(ConsoleColors.yellow("- Transactions:"));
+        for(TransactionInfo transaction : wallet.getTransactions()){
+            System.out.printf(ConsoleColors.yellow("    - Amount: ") + "%.4f", transaction.amount);
+            System.out.println(ConsoleColors.yellow("      Timestamp: ") + transaction.timestamp);
         }
     }
 }

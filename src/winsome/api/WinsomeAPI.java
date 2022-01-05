@@ -8,7 +8,7 @@ import java.rmi.*;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.rmi.server.*;
-
+import java.time.Instant;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
@@ -712,8 +712,38 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         }
     }
 
-    public void getWallet() throws NotImplementedException {
-        throw new NotImplementedException("method not yet implemented");
+    public Wallet getWallet() throws IOException, NoLoggedUserException, MalformedJSONException {
+        if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
+
+        JsonObject request = new JsonObject();
+        RequestCode.WALLET.addRequestToJson(request);
+        request.addProperty("username", loggedUser);
+        
+        send(request.toString());
+
+        JsonObject response = getJsonResponse();
+        ResponseCode responseCode = ResponseCode.getResponseFromJson(response);
+        switch (responseCode) {
+            case SUCCESS:
+                try { return getWalletFromJson(response); }
+                catch (NullPointerException | ClassCastException | IllegalStateException ex) {
+                    throw new MalformedJSONException("server sent malformed json");
+                }
+            default: {
+                String msg;
+                switch (responseCode) {
+                    case USER_NOT_REGISTERED:
+                        msg = ("the user \"" + loggedUser + "\" is not signed up in the Social Network");
+                    case NO_LOGGED_USER:
+                        msg = ("no user is currently logged; please log in first");
+                    case WRONG_USER:
+                        msg = ("the user currently logged does not correspond to the user to log out");
+                    default:
+                        msg = responseCode.toString();
+                }
+                throw new IllegalStateException(msg);
+            }
+        }
     }
 
     public void getWalletInBitcoin() throws NotImplementedException {
@@ -828,6 +858,30 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
             return new PostInfo(id, author, title, contents, rewinner, rewinID, upvotes, downvotes, comments);
         } catch (NullPointerException | ClassCastException | IllegalStateException ex) {
             throw new MalformedJSONException("given json does not represent a valid post");
+        }
+    }
+
+    private Wallet getWalletFromJson(JsonObject json) throws MalformedJSONException {
+        if(json == null) throw new NullPointerException("null object");
+
+        try {
+            Double total = json.get("total").getAsDouble();
+            List<TransactionInfo> transactions = new ArrayList<>();
+
+            Iterator<JsonElement> iter = json.get("transactions").getAsJsonArray().iterator();
+            while(iter.hasNext()){
+                JsonObject obj = iter.next().getAsJsonObject();
+                transactions.add(
+                    new TransactionInfo(
+                        obj.get("increment").getAsDouble(), 
+                        Instant.parse(obj.get("timestamp").getAsString())
+                    )
+                );
+            }
+
+            return new Wallet(total, transactions);
+        } catch (NullPointerException | ClassCastException | IllegalStateException ex){
+            throw new MalformedJSONException("given json does not represent a valid wallet");
         }
     }
 }

@@ -421,6 +421,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     case COMMENT:
                         response = commentRequest();
                         break;
+                    case WALLET:
+                        response = walletRequest();
+                        break;
                     default:
                         // TODO: implement things
                         response = new JsonObject();
@@ -1066,6 +1069,56 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             ResponseCode.SUCCESS.addResponseToJson(response);
             return response;
         }
+
+        private JsonObject walletRequest(){
+            JsonObject response = new JsonObject();
+
+            String username = null;
+
+            // reading username from the request
+             try {
+                username = request.get("username").getAsString();
+            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username => malformed Json
+                ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
+                return response;
+            }
+            
+            Collection<Transaction> trans;
+            try { 
+                WinsomeServer.this.checkIfLogged(username, key);
+                trans = transactions.get(username); // not null because user exists and is logged
+
+                JsonArray array = new JsonArray();
+                double total = 0;
+                for(Transaction transaction : trans){
+                    JsonObject transJson = new JsonObject();
+                    transJson.addProperty("increment", transaction.increment);
+                    transJson.addProperty("timestamp", transaction.timestamp.toString());
+                    array.add(transJson);
+
+                    total += transaction.increment;
+                }
+                response.addProperty("total", total);
+                response.add("transactions", array);                       
+            }
+            catch (NullPointerException | NoSuchUserException ex){ // if no user with the given username is registered
+                ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
+                return response;
+            }
+            catch (NoLoggedUserException ex){ // if this client is not logged in
+                ResponseCode.NO_LOGGED_USER.addResponseToJson(response);
+                return response;
+            }
+            catch (WrongUserException ex){ // if this client is not logged in with the given user
+                ResponseCode.WRONG_USER.addResponseToJson(response);
+                return response;
+            }
+
+            // success!
+            ResponseCode.SUCCESS.addResponseToJson(response);
+            return response;
+        }
+
         /**
          * Transforms a collection of users into a JsonArray.
          * <p>
@@ -1364,10 +1417,11 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         User newUser = new User(username, password, tags);
 
         synchronized(this){ // TODO: is this the best way to synchronize things?
+            following.computeIfAbsent(username, key -> ConcurrentHashMap.newKeySet());
+            transactions.computeIfAbsent(username, key -> new ConcurrentLinkedQueue<>());
+
             if(users.putIfAbsent(username, newUser) != null)
                 throw new UserAlreadyExistsException("\"" + username + "\" is not available as a new username");
-            following.put(username, ConcurrentHashMap.newKeySet());
-            transactions.put(username, new ConcurrentLinkedQueue<>());
         }
 
         System.out.println("New user: \n\tUsername: " + username + "\n\tPassword: " + password + "\n\tTags: " + tags);
