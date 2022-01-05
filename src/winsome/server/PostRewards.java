@@ -24,21 +24,21 @@ public class PostRewards {
 
     /**
      * Returns the amount of Wincoins going to the author of the post.
-     * @param authorPercentage the percentage of the total reward going to the author
+     * @param percentage the object representing the percentage of the rewards going to the author/curators
      * @return the amount of Wincoins going to the author
      */
-    public double authorReward(double authorPercentage){
-        return reward * authorPercentage;
+    public double authorReward(RewardsPercentage percentage){
+        return reward * percentage.author;
     }
 
     /**
      * Returns the amount of Wincoins going to a single curator of this post.
-     * @param authorPercentage the percentage of the total reward going to the author
+     * @param percentage the object representing the percentage of the rewards going to the author/curators
      * @return the amount of Wincoins going to a single curator
      */
-    public double curatorReward(double authorPercentage){
+    public double curatorReward(RewardsPercentage percentage){
         if(curators.size() == 0) return 0;
-        return (reward * (1 - authorPercentage)) / curators.size();
+        return (reward * percentage.curator) / curators.size();
     }
 
     /**

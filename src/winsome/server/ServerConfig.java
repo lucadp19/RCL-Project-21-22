@@ -56,7 +56,7 @@ public class ServerConfig extends AbstractConfig {
     private long sockTimeout = -1;
 
     private long rewardInterval = -1;
-    private int authorRewardPerc = -1;
+    private RewardsPercentage percentage = null;
 
     private String persistenceDir = null;
 
@@ -126,9 +126,12 @@ public class ServerConfig extends AbstractConfig {
                         catch(NumberFormatException ex){ throw new NumberFormatException("argument of \"" + SCField.REWARD_INT.key + "\" must be an integer"); }
                         break;
                     case REWARD_PERC:
-                        if(authorRewardPerc != -1) throw new DuplicateKeyException(SCField.REWARD_PERC.key);
-                        try { authorRewardPerc = Integer.parseInt(entry.value); }
-                        catch(NumberFormatException ex){ throw new NumberFormatException("argument of \"" + SCField.REWARD_PERC.key + "\" must be an integer"); }
+                        if(percentage != null) throw new DuplicateKeyException(SCField.REWARD_PERC.key);
+                        try { 
+                            double authorReward = Double.parseDouble(entry.value);
+                            percentage = RewardsPercentage.fromAuthor(authorReward / 100);
+                        }
+                        catch(NumberFormatException ex){ throw new NumberFormatException("argument of \"" + SCField.REWARD_PERC.key + "\" must be a double between 0 and 100"); }
                         break;
                     case PERSIST_DIR:
                         if(persistenceDir != null) throw new DuplicateKeyException(SCField.PERSIST_DIR.key);
@@ -160,7 +163,7 @@ public class ServerConfig extends AbstractConfig {
     public int getRegPort(){ return this.regPort; }
     public long getSockTimeout(){ return this.sockTimeout; }
     public long getRewardInterval(){ return this.rewardInterval; }
-    public int getRewardPerc(){ return this.authorRewardPerc; }
+    public RewardsPercentage getRewardPerc(){ return this.percentage; }
     public String getPersistenceDir(){ return this.persistenceDir; }
     public int getMinThreads(){ return this.minThreads; }
     public int getMaxThreads(){ return this.maxThreads; }
@@ -175,7 +178,7 @@ public class ServerConfig extends AbstractConfig {
         if(regPort == -1) throw new KeyNotSetException(SCField.REG_PORT.key);
         if(sockTimeout == -1) throw new KeyNotSetException(SCField.SOCK_TIMEOUT.key);
         if(rewardInterval == -1) throw new KeyNotSetException(SCField.REWARD_INT.key);
-        if(authorRewardPerc == -1) throw new KeyNotSetException(SCField.REWARD_PERC.key);
+        if(percentage == null) throw new KeyNotSetException(SCField.REWARD_PERC.key);
         if(persistenceDir == null) throw new KeyNotSetException(SCField.PERSIST_DIR.key);
     }
 }
