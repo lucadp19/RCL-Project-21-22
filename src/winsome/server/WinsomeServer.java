@@ -379,6 +379,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
                 // switch between request types
                 switch (code) {
+                    case MULTICAST: response = multicastRequest(); break;
                     case LOGIN:
                         response = loginRequest();
                         break;
@@ -439,6 +440,13 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 // TODO: remove user
             }
         }     
+
+        private JsonObject multicastRequest(){
+            JsonObject response = new JsonObject();
+            response.addProperty("multicast-addr", config.getMulticastAddr());
+            response.addProperty("multicast-port", config.getMulticastPort());
+            return response;
+        }
         
         /**
          * Fulfills a client's login request.
@@ -1264,6 +1272,14 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                         );
                     }
                 }
+
+                byte[] data = "Updated rewards!".getBytes();
+                try {
+                    InetAddress addr = InetAddress.getByName(config.getMulticastAddr());
+                    int port = config.getMulticastPort();
+                    DatagramPacket packet = new DatagramPacket(data, data.length, addr, port);
+                    multicastSocket.send(packet);
+                } catch (IOException ex){ } // TODO: do something
             }
         }
     }

@@ -6,6 +6,8 @@ import winsome.api.exceptions.MalformedJSONException;
 
 /** A Request code in the communication Client-Server */
 public enum RequestCode {
+    /** Get multicast address */
+    MULTICAST,
     /** Login request */
     LOGIN,
     /** Logout request */

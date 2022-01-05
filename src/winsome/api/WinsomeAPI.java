@@ -11,7 +11,15 @@ import java.rmi.server.*;
 import java.time.Instant;
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import com.google.gson.*;
 
@@ -21,6 +29,21 @@ import winsome.api.exceptions.*;
 
 /** The API interface to communicate with the Winsome Social Network Server. */
 public class WinsomeAPI extends RemoteObject implements RemoteClient {
+    private class WalletUpdatesWorker implements Callable<String> {
+        private MulticastSocket mcastSocket;
+
+        WalletUpdatesWorker(InetAddress addr, MulticastSocket sock) {
+            mcastAddress = addr; mcastSocket = sock;
+        }
+
+        public String call() throws IOException {
+            byte[] buf = new byte[2048];
+            DatagramPacket packet = new DatagramPacket(buf, buf.length);
+            mcastSocket.receive(packet);
+            return new String(packet.getData(), StandardCharsets.UTF_8);
+        }
+    }
+
     /** The address of the Winsome Server */
     private final String serverAddr;
     /** The port of the Winsome Server */
@@ -32,6 +55,13 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
 
     /** The socket used to communicate with the server */
     private Socket socket = null;
+    /** The socket used to receive wallet updates */
+    private MulticastSocket mcastSocket = null;
+    /** The address of the Multicast Group */
+    private InetAddress mcastAddress = null;
+    private ExecutorService thread = Executors.newSingleThreadExecutor();
+    private Future<String> serverMsg = null;
+    private WalletUpdatesWorker worker = null;
     /** The Remote Server instance */
     private RemoteServer remoteServer = null;
 
@@ -72,13 +102,14 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
     }
 
     /**
-     * Connects the TCP Socket.
+     * Connects the TCP Socket and the Multicast Socket.
      * @throws IOException if an IO error occurs
      */
     private void connectTCP() throws IOException {
         if(socket != null) throw new IllegalStateException("already connected to server");
 
         socket = new Socket(serverAddr, serverPort);
+        getMulticastSocket();
     }
 
     /**
@@ -95,6 +126,26 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
 
         RemoteClient remoteClient = (RemoteClient) UnicastRemoteObject.exportObject(this, 0);
         // System.out.println("Connected to registry!");
+    }
+
+    private void getMulticastSocket() throws IOException {
+        JsonObject request = new JsonObject();
+        RequestCode.MULTICAST.addRequestToJson(request);
+
+        send(request.toString());
+        
+        String addr; int port;
+        try {
+            JsonObject response = getJsonResponse();
+            addr = response.get("multicast-addr").getAsString();
+            port = response.get("multicast-port").getAsInt();
+        } catch (MalformedJSONException | NullPointerException | ClassCastException | IllegalStateException ex) {
+            throw new IOException();
+        }
+
+        mcastAddress = InetAddress.getByName(addr);
+        mcastSocket = new MulticastSocket(port);
+        worker = new WalletUpdatesWorker(mcastAddress, mcastSocket);
     }
 
     /* *************** Callback methods *************** */
@@ -124,6 +175,18 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
     public String echoMsg(String msg) throws IOException {
         send(msg);
         return receive();
+    }
+
+    public Optional<String> getServerMsg() throws IOException  {
+        if(!isLogged() || serverMsg == null) return Optional.empty();
+
+        Optional<String> msg;
+        try { msg = Optional.of(serverMsg.get(200, TimeUnit.MILLISECONDS)); }
+        catch (TimeoutException | InterruptedException ex){ return Optional.empty(); }
+        catch (ExecutionException ex){ throw new IOException(); }
+
+        serverMsg = thread.submit(worker);
+        return msg;
     }
 
     /* *************** Stubs for TCP Methods *************** */
@@ -190,6 +253,8 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
                     addUsersAndTags(response.get("followers").getAsJsonArray(), followers);
                 } catch (NullPointerException | IllegalStateException ex) { } // leave everything empty
 
+                mcastSocket.joinGroup(mcastAddress);
+                serverMsg = thread.submit(worker);
                 return;
             case USER_NOT_REGISTERED:
                 throw new NoSuchUserException("\"" + user + "\" is not signed up");
@@ -225,6 +290,9 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
             case SUCCESS:
                 remoteServer.unregisterForUpdates(loggedUser);
                 loggedUser = null;
+                mcastSocket.leaveGroup(mcastAddress);
+                serverMsg.cancel(true);
+                serverMsg = null;
                 break;
             default: {  // there should not be any errors on logout, hence they are all in default
                 String msg;

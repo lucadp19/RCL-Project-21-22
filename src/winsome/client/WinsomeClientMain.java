@@ -71,6 +71,10 @@ public class WinsomeClientMain {
                     
                 } else
                 executeCommand(api, line);
+
+                Optional<String> serverMsg = api.getServerMsg();
+                if(serverMsg.isPresent())
+                    System.out.println(ConsoleColors.blue("\n--> SERVER MESSAGE: ") + serverMsg.get());
                 
                 System.out.print(ConsoleColors.green("\n-> "));
             }
