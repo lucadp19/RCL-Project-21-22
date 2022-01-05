@@ -424,6 +424,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     case WALLET:
                         response = walletRequest();
                         break;
+                    case WALLET_BTC:
+                        response = walletBTCRequest();
+                        break;
                     default:
                         // TODO: implement things
                         response = new JsonObject();
@@ -1100,6 +1103,54 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 }
                 response.addProperty("total", total);
                 response.add("transactions", array);                       
+            }
+            catch (NullPointerException | NoSuchUserException ex){ // if no user with the given username is registered
+                ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
+                return response;
+            }
+            catch (NoLoggedUserException ex){ // if this client is not logged in
+                ResponseCode.NO_LOGGED_USER.addResponseToJson(response);
+                return response;
+            }
+            catch (WrongUserException ex){ // if this client is not logged in with the given user
+                ResponseCode.WRONG_USER.addResponseToJson(response);
+                return response;
+            }
+
+            // success!
+            ResponseCode.SUCCESS.addResponseToJson(response);
+            return response;
+        }
+
+        private JsonObject walletBTCRequest(){
+            JsonObject response = new JsonObject();
+
+            String username = null;
+
+            // reading username from the request
+             try {
+                username = request.get("username").getAsString();
+            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username => malformed Json
+                ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
+                return response;
+            }
+            
+            Collection<Transaction> trans;
+            try { 
+                WinsomeServer.this.checkIfLogged(username, key);
+                trans = transactions.get(username); // not null because user exists and is logged
+
+                double total = 0; double exchange;
+                for(Transaction transaction : trans)
+                    total += transaction.increment;
+
+                try { exchange = getBTCExchangeRate(); }
+                catch (IOException | NumberFormatException ex) { // error while getting exchange rate
+                    ResponseCode.EXCHANGE_RATE_ERROR.addResponseToJson(response);
+                    return response;
+                }
+                
+                response.addProperty("btc-total", total * exchange);
             }
             catch (NullPointerException | NoSuchUserException ex){ // if no user with the given username is registered
                 ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
@@ -1860,6 +1911,16 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             // otherwise check that pov can see the original author
             else return isVisible(pov, post.getAuthor());
         } catch (NoSuchUserException ex) { throw new IllegalStateException("post author does not exist"); }
+    }
+
+    private double getBTCExchangeRate() throws IOException, NumberFormatException {
+        final String randomGenURL = "https://www.random.org/decimal-fractions/?num=1&dec=10&col=1&format=plain&rnd=new";
+
+        try ( 
+            BufferedReader in = new BufferedReader(new InputStreamReader(new URL(randomGenURL).openStream()));
+        ) {
+            return Double.parseDouble(in.readLine());
+        }
     }
 
     /* ************** Send/receive methods ************** */

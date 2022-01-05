@@ -36,6 +36,8 @@ public enum ResponseCode {
     ALREADY_VOTED,
     /** The vote was in a wrong format */
     WRONG_VOTE_FORMAT,
+    /** Could not compute the exchange rate to BTC */
+    EXCHANGE_RATE_ERROR,
     /** Fatal communication error */
     FATAL_ERR;
 

@@ -874,12 +874,35 @@ public class WinsomeClientMain {
                     return;
                 }
 
+                double total;
                 System.out.println(ConsoleColors.blue("-> ") + "Getting your wallet in bitcoin...");
-                try { api.getWalletInBitcoin(); }
-                catch(NotImplementedException ex){
-                    System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
+                try { total = api.getWalletInBitcoin(); }
+                catch (IOException ex){
+                    System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
                     return;
                 }
+                catch (MalformedJSONException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "Server sent malformed response message.");
+                    return;
+                }
+                catch (NoLoggedUserException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
+                    return;
+                }
+                catch (ExchangeRateException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "Server could not compute the current exchange rate to BTC.");
+                    return;
+                }
+                catch (IllegalStateException ex){
+                    System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
+                    return;
+                }
+
+                System.out.printf(
+                    ConsoleColors.blue("==> SUCCESS!") + " Your wallet currently contains " + 
+                    ConsoleColors.blue("%.6f") + " bitcoins.\n",
+                    total
+                );
                 break;
             }
 

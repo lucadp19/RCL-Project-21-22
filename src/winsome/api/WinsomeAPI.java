@@ -745,9 +745,41 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
             }
         }
     }
+    
+    public double getWalletInBitcoin() throws IOException, NoLoggedUserException, MalformedJSONException, ExchangeRateException {
+        if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
 
-    public void getWalletInBitcoin() throws NotImplementedException {
-        throw new NotImplementedException("method not yet implemented");
+        JsonObject request = new JsonObject();
+        RequestCode.WALLET_BTC.addRequestToJson(request);
+        request.addProperty("username", loggedUser);
+        
+        send(request.toString());
+
+        JsonObject response = getJsonResponse();
+        ResponseCode responseCode = ResponseCode.getResponseFromJson(response);
+        switch (responseCode) {
+            case SUCCESS:
+                try { return response.get("btc-total").getAsDouble(); }
+                catch (NullPointerException | ClassCastException | IllegalStateException ex) {
+                    throw new MalformedJSONException("server sent malformed json");
+                }
+            case EXCHANGE_RATE_ERROR:
+                throw new ExchangeRateException("server could not compute the current exchange rate");
+            default: {
+                String msg;
+                switch (responseCode) {
+                    case USER_NOT_REGISTERED:
+                        msg = ("the user \"" + loggedUser + "\" is not signed up in the Social Network");
+                    case NO_LOGGED_USER:
+                        msg = ("no user is currently logged; please log in first");
+                    case WRONG_USER:
+                        msg = ("the user currently logged does not correspond to the user to log out");
+                    default:
+                        msg = responseCode.toString();
+                }
+                throw new IllegalStateException(msg);
+            }
+        }
     }
 
     /* *************** Send/receive data *************** */
