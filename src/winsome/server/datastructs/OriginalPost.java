@@ -15,6 +15,7 @@ import com.google.gson.stream.JsonWriter;
 
 import winsome.api.exceptions.AlreadyVotedException;
 import winsome.api.exceptions.PostOwnerException;
+import winsome.server.PostRewards;
 import winsome.server.exceptions.InvalidJSONFileException;
 
 /**
@@ -323,42 +324,42 @@ public class OriginalPost extends Post {
         writer.endObject();
     }
 
-    public static OriginalPost fromJson(JsonObject json) throws IllegalArgumentException {
-        if(json == null) throw new NullPointerException("null parameters");
+    // public static OriginalPost fromJson(JsonObject json) throws IllegalArgumentException {
+    //     if(json == null) throw new NullPointerException("null parameters");
 
-        try {
-            int id = json.get("id").getAsInt();
-            String author = json.get("author").getAsString();
-            String title = json.get("title").getAsString();
-            String contents = json.get("contents").getAsString();
+    //     try {
+    //         int id = json.get("id").getAsInt();
+    //         String author = json.get("author").getAsString();
+    //         String title = json.get("title").getAsString();
+    //         String contents = json.get("contents").getAsString();
 
-            JsonArray jsonVotes = json.get("votes").getAsJsonArray();
-            Iterator<JsonElement> iterVotes = jsonVotes.iterator();
-            ConcurrentHashMap<String, Vote> votes = new ConcurrentHashMap<>();
-            while(iterVotes.hasNext()){
-                JsonObject jsonVote = iterVotes.next().getAsJsonObject();
-                votes.put(
-                    jsonVote.get("voter").getAsString(), 
-                    Vote.valueOf(jsonVote.get("vote").getAsString())
-                );
-            }
+    //         JsonArray jsonVotes = json.get("votes").getAsJsonArray();
+    //         Iterator<JsonElement> iterVotes = jsonVotes.iterator();
+    //         ConcurrentHashMap<String, Vote> votes = new ConcurrentHashMap<>();
+    //         while(iterVotes.hasNext()){
+    //             JsonObject jsonVote = iterVotes.next().getAsJsonObject();
+    //             votes.put(
+    //                 jsonVote.get("voter").getAsString(), 
+    //                 Vote.valueOf(jsonVote.get("vote").getAsString())
+    //             );
+    //         }
 
-            JsonArray jsonComments = json.get("comments").getAsJsonArray();
-            Iterator<JsonElement> iterComments = jsonComments.iterator();
-            ConcurrentLinkedQueue<Comment> comments = new ConcurrentLinkedQueue<>();
-            while(iterComments.hasNext()){
-                JsonObject jsonComment = iterComments.next().getAsJsonObject();
-                comments.add(Comment.fromJson(jsonComment));
-            }
+    //         JsonArray jsonComments = json.get("comments").getAsJsonArray();
+    //         Iterator<JsonElement> iterComments = jsonComments.iterator();
+    //         ConcurrentLinkedQueue<Comment> comments = new ConcurrentLinkedQueue<>();
+    //         while(iterComments.hasNext()){
+    //             JsonObject jsonComment = iterComments.next().getAsJsonObject();
+    //             comments.add(Comment.fromJson(jsonComment));
+    //         }
 
-            int oldUpvoteNumber = json.get("oldUpvoteNumber").getAsInt();
-            int noIterations = json.get("rewardsCounter").getAsInt();
+    //         int oldUpvoteNumber = json.get("oldUpvoteNumber").getAsInt();
+    //         int noIterations = json.get("rewardsCounter").getAsInt();
 
-            return new OriginalPost(id, author, title, contents, votes, oldUpvoteNumber, comments, noIterations);
-        } catch (ClassCastException | IllegalStateException | NullPointerException | IllegalArgumentException ex){
-            throw new IllegalArgumentException("parameter does not represent a valid OriginalPost", ex);
-        }
-    }
+    //         return new OriginalPost(id, author, title, contents, votes, oldUpvoteNumber, comments, noIterations);
+    //     } catch (ClassCastException | IllegalStateException | NullPointerException | IllegalArgumentException ex){
+    //         throw new IllegalArgumentException("parameter does not represent a valid OriginalPost", ex);
+    //     }
+    // }
 
     public static OriginalPost fromJson(JsonReader reader) throws InvalidJSONFileException, IOException {
         if(reader == null) throw new NullPointerException("null parameters");
@@ -456,50 +457,36 @@ public class OriginalPost extends Post {
 
     // TODO: change the logic of all this last section
 
-    // /**
-    //  * Returns the number of iterations of the Reward Algorithm (at the next iteration).
-    //  * @return the number of the next iteration of the Reward Algorithm
-    //  */
-    // public int getRewardsCounter(){ return rewardsCounter.get(); }
+    public PostRewards reapRewards(){
+        Set<String> curators = new HashSet<>();
 
+        int newVotes = 0;
+        for(Entry<String, Vote> entry : votes.entrySet()){
+            Vote vote = entry.getValue();
+            if(vote.visit()){
+                newVotes += (vote == Vote.UP) ? 1 : -1;
+                if(vote == Vote.UP) curators.add(entry.getKey());
+            }
+        }
 
-    // /**
-    //  * Returns the number of likes not yet counted by the Reward Algorithm.
-    //  * @return the number of likes not yet counted by the Reward Algorithm
-    //  */
-    // public int getNewLikes(){ return upvotes.size() - oldUpvoteNumber; }
+        Map<String, Integer> commentFreq = new HashMap<>();
+        for(Comment comment : comments){
+            if(comment.visit()){
+                commentFreq.merge(
+                    comment.author, 
+                    1, 
+                    (oldFreq, incr) -> oldFreq + incr
+                );
+                curators.add(comment.author);
+            }
+        }
 
-    // /** 
-    //  * Increments the Reward Iteration Counter.
-    //  */
-    // public void incrementRewardsCounter(){ rewardsCounter.incrementAndGet(); }
+        double reward = Math.log(Math.max(newVotes, 0) + 1);
+        double commentReward = 0;
+        for(int freq : commentFreq.values())
+            commentReward += 2/(1 + Math.exp(-(freq + 1)));
+        reward += Math.log(commentReward + 1);
 
-    // /**
-    //  * Returns a map that has
-    //  * <ul>
-    //  * <li> as keys, authors of comments under this post, </li>
-    //  * <li> as values, the number of comments the user has written. </li>
-    //  * </ul>
-    //  * @return a map with comments frequencies
-    //  */
-    // public Map<String, Integer> getCommentsPerAuthor(){
-    //     Map<String, Integer> map = new HashMap<>();
-
-    //     for(Comment comment : comments){
-    //         String auth = comment.author;
-    //         Integer val;
-
-    //         if((val = map.get(auth)) == null){ 
-    //             map.put(auth, 1);
-    //         } else { map.put(auth, val+1); }
-    //     }
-
-    //     return map;
-    // }
-
-    // /** Sets upvotes and comments as read. */
-    // public synchronized void updateState(){
-    //     oldUpvoteNumber = upvotes.size();
-    //     for(Comment comment : comments) comment.setRead();
-    // }
+        return new PostRewards(reward, curators);
+    }
 }
