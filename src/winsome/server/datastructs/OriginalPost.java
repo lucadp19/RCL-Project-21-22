@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.Map.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.gson.JsonArray;
@@ -23,9 +24,50 @@ public class OriginalPost extends Post {
     public static enum Vote {
         UP, DOWN;
 
+        private AtomicBoolean visited;
+        private Vote(){ visited = new AtomicBoolean(false); }
+        private Vote(boolean visited){ this.visited = new AtomicBoolean(visited); }
+
+        public boolean visit(){ return visited.compareAndSet(false, true); }
+
         public static Vote fromJson(JsonReader reader) throws IOException, InvalidJSONFileException {
-            try { return Vote.valueOf(reader.nextString()); }
+            if(reader == null) throw new NullPointerException("null argument");
+            try { 
+                String vote = null; 
+                Boolean visited = false;
+
+                reader.beginObject();
+                while(reader.hasNext()){
+                    String property = reader.nextName();
+
+                    switch (property) {
+                        case "vote":
+                            vote = reader.nextString();
+                            break;
+                        case "visited":
+                            visited = reader.nextBoolean();
+                            break;
+                        default:
+                            throw new InvalidJSONFileException("error while parsing vote in json file");
+                    }
+                }
+                reader.endObject();
+
+                Vote ans = Vote.valueOf(vote);
+                if(visited) ans.visit();
+
+                return ans;
+            }
             catch(IllegalArgumentException | NullPointerException ex){ throw new InvalidJSONFileException("invalid vote"); }
+        }
+
+        public void toJson(JsonWriter writer) throws IOException {
+            if(writer == null) throw new NullPointerException("null writer");
+
+            writer.beginObject()
+                  .name("vote").value(this.toString())
+                  .name("visited").value(this.visited.get())
+                  .endObject();
         }
     }
     
@@ -264,8 +306,9 @@ public class OriginalPost extends Post {
         for(Entry<String, Vote> vote : votes.entrySet()){
             writer.beginObject()
                   .name("voter").value(vote.getKey())
-                  .name("vote").value(vote.getValue().toString())
-                  .endObject();
+                  .name("vote");
+            vote.getValue().toJson(writer);
+            writer.endObject();
         }
         writer.endArray();
 
