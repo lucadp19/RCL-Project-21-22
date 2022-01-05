@@ -52,14 +52,14 @@ public class Transaction {
      * Serializes this transaction into a JsonObject.
      * @return a JsonObject representing this transaction
      */
-    public JsonObject toJson(){
-        JsonObject json = new JsonObject();
-        json.addProperty("user", user);
-        json.addProperty("increment", increment);
-        json.addProperty("timestamp", timestamp.toString());
+    // public JsonObject toJson(){
+    //     JsonObject json = new JsonObject();
+    //     json.addProperty("user", user);
+    //     json.addProperty("increment", increment);
+    //     json.addProperty("timestamp", timestamp.toString());
 
-        return json;
-    }
+    //     return json;
+    // }
 
     /**
      * Deserializes a JsonObject representing a transaction.
@@ -67,19 +67,19 @@ public class Transaction {
      * @return the transaction obtained from the given json
      * @throws IllegalArgumentException if the given json does not represent a valid Transaction
      */
-    public static Transaction fromJson(JsonObject json) throws IllegalArgumentException {
-        if(json == null) throw new NullPointerException("null parameter");
+    // public static Transaction fromJson(JsonObject json) throws IllegalArgumentException {
+    //     if(json == null) throw new NullPointerException("null parameter");
 
-        try {
-            String user = json.get("user").getAsString();
-            double increment = json.get("increment").getAsDouble();
-            Instant timestamp = Instant.parse(json.get("timestamp").getAsString());
+    //     try {
+    //         String user = json.get("user").getAsString();
+    //         double increment = json.get("increment").getAsDouble();
+    //         Instant timestamp = Instant.parse(json.get("timestamp").getAsString());
 
-            return new Transaction(user, increment, timestamp);
-        } catch (ClassCastException | IllegalStateException | NullPointerException ex){
-            throw new IllegalArgumentException("parameter does not represent a valid OriginalPost", ex);
-        }
-    }
+    //         return new Transaction(user, increment, timestamp);
+    //     } catch (ClassCastException | IllegalStateException | NullPointerException ex){
+    //         throw new IllegalArgumentException("parameter does not represent a valid OriginalPost", ex);
+    //     }
+    // }
     
     public void toJson(JsonWriter writer) throws IOException {
         if(writer == null) throw new NullPointerException("null parameter");

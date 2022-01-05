@@ -165,7 +165,7 @@ public abstract class Post {
      * Returns a JsonObject containing a serialized version of this post.
      * @return a JsonObject containing a serialized version of this post
      */
-    public abstract JsonObject toJson();
+    // public abstract JsonObject toJson();
 
     public abstract void toJson(JsonWriter writer) throws IOException;
 }

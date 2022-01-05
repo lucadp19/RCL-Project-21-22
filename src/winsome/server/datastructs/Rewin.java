@@ -95,15 +95,15 @@ public class Rewin extends Post {
      * Returns a JsonObject containing a serialized version of this post.
      * @return a JsonObject containing a serialized version of this post
      */
-    public JsonObject toJson(){
-        JsonObject json = new JsonObject();
+    // public JsonObject toJson(){
+    //     JsonObject json = new JsonObject();
 
-        json.addProperty("id", id);
-        json.addProperty("original-id", this.getOriginalID());
-        json.addProperty("rewinner", this.rewinner);
+    //     json.addProperty("id", id);
+    //     json.addProperty("original-id", this.getOriginalID());
+    //     json.addProperty("rewinner", this.rewinner);
 
-        return json;
-    }
+    //     return json;
+    // }
 
     public void toJson(JsonWriter writer) throws IOException {
         if(writer == null) throw new NullPointerException("null arguments");

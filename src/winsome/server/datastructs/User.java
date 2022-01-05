@@ -84,22 +84,22 @@ public class User {
      * Returns a Json version of this user.
      * @return this user in json format
      */
-    public JsonObject toJson(){
-        // creating JsonObject
-        JsonObject json = new JsonObject();
+    // public JsonObject toJson(){
+    //     // creating JsonObject
+    //     JsonObject json = new JsonObject();
 
-        // adding username and password
-        json.addProperty("username", username);
-        json.addProperty("password", password);
+    //     // adding username and password
+    //     json.addProperty("username", username);
+    //     json.addProperty("password", password);
 
-        // creating and then adding tags
-        JsonArray jsonTags = new JsonArray();
-        tags.forEach(tag -> jsonTags.add(tag));
+    //     // creating and then adding tags
+    //     JsonArray jsonTags = new JsonArray();
+    //     tags.forEach(tag -> jsonTags.add(tag));
 
-        json.add("tags", jsonTags);
+    //     json.add("tags", jsonTags);
 
-        return json;
-    }
+    //     return json;
+    // }
 
     public void toJson(JsonWriter writer) throws IOException {
         if(writer == null) throw new NullPointerException("null arguments");
@@ -122,36 +122,36 @@ public class User {
      * @return the User created from the JsonObject
      * @throws IllegalArgumentException whenever json does not represent a valid User
      */
-    public static User fromJson(JsonObject json) throws IllegalArgumentException {
-        // null checking
-        if(json == null) throw new NullPointerException("null json object");
+    // public static User fromJson(JsonObject json) throws IllegalArgumentException {
+    //     // null checking
+    //     if(json == null) throw new NullPointerException("null json object");
 
-        // getting the relevant fields
-        JsonElement userJson = json.get("username");
-        JsonElement passJson = json.get("password");
-        JsonElement tagsJson = json.get("tags");
+    //     // getting the relevant fields
+    //     JsonElement userJson = json.get("username");
+    //     JsonElement passJson = json.get("password");
+    //     JsonElement tagsJson = json.get("tags");
 
-        User user = null;
+    //     User user = null;
         
-        try {
-            String username = userJson.getAsString();
-            String password = passJson.getAsString();
-            Set<String> tags = new HashSet<>();
+    //     try {
+    //         String username = userJson.getAsString();
+    //         String password = passJson.getAsString();
+    //         Set<String> tags = new HashSet<>();
             
-            // adding tags to the set
-            Iterator<JsonElement> iter = tagsJson.getAsJsonArray().iterator();
-            while(iter.hasNext()){
-                JsonElement tagJson = iter.next();
-                tags.add(tagJson.getAsString());
-            }
+    //         // adding tags to the set
+    //         Iterator<JsonElement> iter = tagsJson.getAsJsonArray().iterator();
+    //         while(iter.hasNext()){
+    //             JsonElement tagJson = iter.next();
+    //             tags.add(tagJson.getAsString());
+    //         }
 
-            user = new User(username, password, tags);
-        } catch (ClassCastException | IllegalStateException | NullPointerException ex) {
-            throw new IllegalArgumentException("parameter did not represent a valid User"); // TODO: create exception
-        }
+    //         user = new User(username, password, tags);
+    //     } catch (ClassCastException | IllegalStateException | NullPointerException ex) {
+    //         throw new IllegalArgumentException("parameter did not represent a valid User"); // TODO: create exception
+    //     }
 
-        return user;        
-    }
+    //     return user;        
+    // }
  
     /**
      * Takes a JsonReader and creates a new User from the given information.

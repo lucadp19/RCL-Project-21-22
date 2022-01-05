@@ -258,38 +258,38 @@ public class OriginalPost extends Post {
 
     // ------------------- To/From JSON ------------------- //
 
-    @Override
-    public JsonObject toJson(){
-        JsonObject json = new JsonObject();
-        // adding standard properties
-        json.addProperty("id", id);
-        json.addProperty("author", author);
-        json.addProperty("title", title);
-        json.addProperty("contents", contents);
+    // @Override
+    // public JsonObject toJson(){
+    //     JsonObject json = new JsonObject();
+    //     // adding standard properties
+    //     json.addProperty("id", id);
+    //     json.addProperty("author", author);
+    //     json.addProperty("title", title);
+    //     json.addProperty("contents", contents);
 
-        // adding votes
-        JsonArray jsonVotes = new JsonArray();
-        for(Entry<String, Vote> vote : votes.entrySet()){
-            JsonObject jsonVote = new JsonObject();
+    //     // adding votes
+    //     JsonArray jsonVotes = new JsonArray();
+    //     for(Entry<String, Vote> vote : votes.entrySet()){
+    //         JsonObject jsonVote = new JsonObject();
 
-            jsonVote.addProperty("voter", vote.getKey());
-            jsonVote.addProperty("vote", vote.getValue().toString());
+    //         jsonVote.addProperty("voter", vote.getKey());
+    //         jsonVote.addProperty("vote", vote.getValue().toString());
 
-            jsonVotes.add(jsonVote);
-        }
-        json.add("votes", jsonVotes);
+    //         jsonVotes.add(jsonVote);
+    //     }
+    //     json.add("votes", jsonVotes);
 
-        // adding comments
-        JsonArray jsonComments = new JsonArray();
-        for(Comment comment : comments){ jsonComments.add(comment.toJson()); }
-        json.add("comments", jsonComments);
+    //     // adding comments
+    //     JsonArray jsonComments = new JsonArray();
+    //     for(Comment comment : comments){ jsonComments.add(comment.toJson()); }
+    //     json.add("comments", jsonComments);
 
-        // adding counters
-        json.addProperty("oldUpvoteNumber", oldUpvoteNumber);
-        json.addProperty("rewardsCounter", rewardsCounter);
+    //     // adding counters
+    //     json.addProperty("oldUpvoteNumber", oldUpvoteNumber);
+    //     json.addProperty("rewardsCounter", rewardsCounter);
 
-        return json;
-    }
+    //     return json;
+    // }
 
     @Override
     public void toJson(JsonWriter writer) throws IOException {
