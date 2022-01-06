@@ -30,9 +30,6 @@ import winsome.server.exceptions.*;
 public class WinsomeServer extends RemoteObject implements RemoteServer {
     /** A class for loading the Server status from data and persist the current state. */
     private class ServerPersistence implements Callable<Void> {
-        /** Path to the persisted data. */
-        private final String dirpath;
-
         /** Name of the file containing the persisted users */
         private final static String USERS_FILE = "users.json";
         /** Name of the file containing the persisted original posts */
@@ -51,9 +48,11 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         private final File followsFile;
         private final File transFile;
 
+        private AtomicBoolean running = new AtomicBoolean(false);
+        public Object runningSync = new Object();
+
         public ServerPersistence(String dirpath) throws FileNotFoundException { 
             if(dirpath == null) throw new NullPointerException("directory path is null");
-            this.dirpath = dirpath; 
 
             dir = new File(dirpath);
 
@@ -65,6 +64,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             followsFile = new File(dir, FOLLOWS_FILE);
             transFile   = new File(dir, TRANSACTIONS_FILE);
         }
+
+        public boolean isRunning(){ return running.get(); }
 
         /** 
          * Reads the persisted data from the given directory.
@@ -256,7 +257,17 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
         public Void call() throws IOException {
             while(true){
-                try { persistData(); }
+                try { 
+                    synchronized(runningSync) { 
+                        if(Thread.interrupted()) return null;
+
+                        running.set(true); 
+                        persistData(); 
+                        running.set(false);
+
+                        runningSync.notify();
+                    }
+                }
                 catch(IOException ex){
                     selector.wakeup();
                     throw new IOException("IO exception while persisting data", ex);
@@ -1256,9 +1267,11 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
         public Void call() throws IOException {
             while(true) {
+                if(Thread.interrupted()) return null;
+
                 try { TimeUnit.SECONDS.sleep(waitTime); }
                 catch (InterruptedException ex) {
-                    break;
+                    return null;
                 }
 
                 for(Post post : posts.values()){
@@ -1291,13 +1304,12 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     throw new IOException("IO error while sending 'Updated rewards!' message through multicast", ex);
                 }
             }
-
-            return null;
         }
     }
 
     /** Boolean flag representing whether the Server data has been loaded yet or not. */
-    private static AtomicBoolean isDataInit = new AtomicBoolean(false);
+    private AtomicBoolean isDataInit = new AtomicBoolean(false);
+    private AtomicBoolean isRunning  = new AtomicBoolean(false);
 
     /** The Server config. */
     private ServerConfig config;
@@ -1310,7 +1322,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
     private Future<Void> rewardsResult;
 
     /** The thread pool for the Worker Threads. */
-    private Executor pool;
+    private ExecutorService pool;
 
     /** The channel selector */
     private Selector selector;
@@ -1428,15 +1440,14 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
      * @throws IOException
      */
     public void runServer() throws IOException {
-
-
+        isRunning.set(true);
         while(true){
             // wait for client to wake up the server
             try { selector.select(); }
             catch(IOException ex){ throw new IOException("IO Error in select", ex); }
 
             if(isInterrupted()){
-                break; 
+                shutdown(); return;
             } 
 
             // get the selected keys
@@ -1452,10 +1463,10 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                         client.configureBlocking(false);
                         client.register(selector, SelectionKey.OP_READ, new KeyAttachment()); 
 
-                        System.out.println("accepted client!");
+                        // System.out.println("accepted client!");
                     } 
                     if(key.isReadable() && key.isValid()){ // request from already connected client
-                        System.out.println("Key is readable!");
+                        // System.out.println("Key is readable!");
                         
                         // reading new request from client and parsing as a Json Object
                         JsonObject request = null;
@@ -1475,11 +1486,16 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                         pool.execute(new Worker(request, key));
                     }
                 } catch(IOException ex){ // fatal IO Exception
-                    System.err.println("Connection closed as a result of an IO Exception.");
+                    // System.err.println("Connection closed as a result of an IO Exception.");
                     endUserSession(key);
                 }
             }
         }
+    }
+
+    public void closeServer(){
+        isRunning.set(false);
+        selector.wakeup();
     }
 
     private boolean isInterrupted(){
@@ -1487,9 +1503,45 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             rewardsResult.get(1, TimeUnit.MILLISECONDS);
             persistenceResult.get(1, TimeUnit.MILLISECONDS);
         } catch (InterruptedException | ExecutionException ex) { return true; }
-        catch (TimeoutException ex) { return false; }
+        catch (TimeoutException ex) { }
+
+        if(!isRunning.get()) return true;
 
         return false;
+    }
+
+    private void shutdown() throws IOException {
+        selector.wakeup();
+
+        try { UnicastRemoteObject.unexportObject(this, true); }
+        catch(NoSuchObjectException ex){ } // won't happen: server was exported in startServer
+
+        // shutting down thread pool
+        pool.shutdown();
+        try {
+            if(!pool.awaitTermination(100, TimeUnit.MILLISECONDS)) // TODO: config
+                pool.shutdownNow();
+        } catch (InterruptedException ex) { pool.shutdownNow(); }
+
+        // removing all clients
+        Iterator<SelectionKey> iter = selector.keys().iterator();
+        while(iter.hasNext()){ iter.next().cancel(); }
+
+        // closing sockets
+        selector.close();
+        multicastSocket.close();
+        
+        // shutting down Rewards Algorithm and Persistence
+        rewardsThread.shutdownNow();
+        try {
+            synchronized(persistenceWorker.runningSync){
+                while(persistenceWorker.isRunning())
+                    persistenceWorker.wait();
+                
+                persistenceWorker.persistData(); 
+                persistenceThread.shutdownNow();
+            }
+        } catch (InterruptedException ex){ persistenceThread.shutdownNow(); }
     }
 
     /** Test function to echo a message */ // TODO: delete it
@@ -1521,7 +1573,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 throw new UserAlreadyExistsException("\"" + username + "\" is not available as a new username");
         }
 
-        System.out.println("New user: \n\tUsername: " + username + "\n\tPassword: " + password + "\n\tTags: " + tags);
+        // System.out.println("New user: \n\tUsername: " + username + "\n\tPassword: " + password + "\n\tTags: " + tags);
     }
 
     @Override
