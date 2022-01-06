@@ -2,7 +2,6 @@ package winsome.api;
 
 import java.io.*;
 import java.net.*;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.rmi.*;
 import java.rmi.registry.LocateRegistry;
@@ -14,7 +13,6 @@ import java.util.Map.Entry;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -385,7 +383,9 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         }
     }
 
-    public void followUser(String toFollow) throws IOException, MalformedJSONException, NoLoggedUserException, FollowException {
+    public void followUser(String toFollow) 
+            throws IOException, MalformedJSONException, NoLoggedUserException, 
+                    UserNotVisibleException, FollowException {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
 
         JsonObject request = new JsonObject();
@@ -400,6 +400,8 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         switch (responseCode) {
             case SUCCESS:
                 return;
+            case USER_NOT_VISIBLE:
+                throw new UserNotVisibleException("user to follow has no common tags");
             case ALREADY_FOLLOWED:
                 throw new FollowException("user already followed");
             default: {  //
@@ -419,7 +421,9 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         }
     }
 
-    public void unfollowUser(String toUnfollow) throws IOException, MalformedJSONException, NoLoggedUserException, FollowException {
+    public void unfollowUser(String toUnfollow) 
+            throws IOException, MalformedJSONException, NoLoggedUserException, 
+                UserNotVisibleException, FollowException {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
 
         JsonObject request = new JsonObject();
@@ -434,6 +438,8 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         switch (responseCode) {
             case SUCCESS:
                 return;
+            case USER_NOT_VISIBLE:
+                throw new UserNotVisibleException("user to follow has no common tags");
             case NOT_FOLLOWING:
                 throw new FollowException("user not followed");
             default: {  //
@@ -453,13 +459,14 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         }
     }
 
-    public List<PostInfo> viewBlog() throws IOException, NoLoggedUserException, MalformedJSONException  {
+    public List<PostInfo> viewBlog() throws IOException, NoLoggedUserException, MalformedJSONException, UserNotVisibleException  {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
 
         return viewBlog(loggedUser);
     }
 
-    public List<PostInfo> viewBlog(String otherUser) throws IOException, NoLoggedUserException, MalformedJSONException  {
+    public List<PostInfo> viewBlog(String otherUser) 
+            throws IOException, NoLoggedUserException, MalformedJSONException, UserNotVisibleException  {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
 
         JsonObject request = new JsonObject();
@@ -486,6 +493,8 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
                 catch (NullPointerException | ClassCastException | IllegalStateException ex) {
                     throw new MalformedJSONException("server sent malformed json");
                 }
+            case USER_NOT_VISIBLE:
+                throw new UserNotVisibleException("user to show is not visible to the current user");
             default: {  //
                 String msg;
                 switch (responseCode) {

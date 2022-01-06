@@ -490,6 +490,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 catch (WrongUserException ex){ // if this client is not logged in with the given user
                     ResponseCode.WRONG_USER.addResponseToJson(response);
                 }
+                catch (UserNotVisibleException ex){ // if the given user cannot see the other user
+                    ResponseCode.USER_NOT_VISIBLE.addResponseToJson(response);
+                }
                 
                 send(response.toString(), key);
             } catch(IOException ex){ 
@@ -647,8 +650,10 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          * @throws NoSuchUserException if the requesting user does not exist
          * @throws NoLoggedUserException if the client is not currently logged in
          * @throws WrongUserException if the client is logged on a different user
+         * @throws UserNotVisible if the client cannot see the user to follow
          */
-        private JsonObject followRequest() throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, WrongUserException {
+        private JsonObject followRequest() throws MalformedJSONException, NoSuchUserException, 
+                NoLoggedUserException, WrongUserException, UserNotVisibleException {
             JsonObject response = new JsonObject();
 
             String username, toFollow;
@@ -663,6 +668,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
             try { 
                 WinsomeServer.this.checkIfLogged(username, key);
+
                 WinsomeServer.this.addFollower(username, toFollow); 
             }
             catch (RemoteException ex) { } // client does not care about RemoteException on followed
@@ -683,8 +689,10 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          * @throws NoSuchUserException if the requesting user does not exist
          * @throws NoLoggedUserException if the client is not currently logged in
          * @throws WrongUserException if the client is logged on a different user
+         * @throws UserNotVisible if the client cannot see the user to unfollow
          */
-        private JsonObject unfollowRequest() throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, WrongUserException {
+        private JsonObject unfollowRequest() throws MalformedJSONException, NoSuchUserException, 
+                NoLoggedUserException, WrongUserException, UserNotVisibleException {
             JsonObject response = new JsonObject();
 
             String username, toUnfollow;
@@ -699,6 +707,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
             try { 
                 WinsomeServer.this.checkIfLogged(username, key);
+
+                if(!isVisible(username, toUnfollow)) 
+                    throw new UserNotVisibleException("the user to unfollow has no common tags with the requester");
                 WinsomeServer.this.removeFollower(username, toUnfollow); 
             }
             catch (RemoteException ex) { } // client does not care about RemoteException on followed
@@ -719,8 +730,11 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          * @throws NoSuchUserException if the requesting user does not exist
          * @throws NoLoggedUserException if the client is not currently logged in
          * @throws WrongUserException if the client is logged on a different user
+         * @throws UserNotVisible if the client cannot see the user to show
          */
-        private JsonObject blogRequest() throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, WrongUserException {
+        private JsonObject blogRequest() 
+                throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, 
+                    UserNotVisibleException, WrongUserException {
             JsonObject response = new JsonObject();
 
             String username, toView;
@@ -736,7 +750,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             WinsomeServer.this.checkIfLogged(username, key);
 
             // check that the user can see the other user
-            if(!isVisible(username, toView)) throw new NoSuchUserException();
+            if(!isVisible(username, toView)) 
+                throw new UserNotVisibleException("the user to show has no common tags with the requester");
             List<Post> posts = getPostByAuthor(toView);
 
             // success!
@@ -1680,16 +1695,33 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         return ans;
     }
 
-    private void addFollower(String username, String toFollow) throws NullPointerException, NoSuchUserException, FollowException, RemoteException {
+    /**
+     * Adds a new user to the followed list of a given user.
+     * @param username user who filed the request
+     * @param toFollow user to follow
+     * @throws NullPointerException if any of username or toFollow are null
+     * @throws NoSuchUserException if any of the two users do not exist
+     * @throws UserNotVisibleException if the user to follow cannot be seen by the first user
+     * @throws FollowException if 'username' already follows 'toFollow'
+     * @throws RemoteException if some RemoteException happens while sending the callback to 'toFollow'
+     */
+    private void addFollower(String username, String toFollow) 
+            throws NullPointerException, NoSuchUserException, 
+                UserNotVisibleException, FollowException, RemoteException {
         if(username == null || toFollow == null) throw new NullPointerException("null arguments");
 
         Set<String> followedSet;
-        User user;
+        User user, userToFollow;
         if((followedSet = following.get(username)) == null  // gets users followed by 'username'
-                || (user = users.get(username)) == null     // gets user with 'username' as name
-                || !isVisible(user, toFollow))              // checks that 'toFollow' exists and that 'username' can see them
-            throw new NoSuchUserException("user does not exist");
-        
+                || (user = users.get(username)) == null)    // gets user with 'username' as name
+            throw new NoSuchUserException("requesting user does not exist");
+                
+        if((userToFollow = users.get(toFollow)) == null)    // checks that 'toFollow exists'
+            throw new NoSuchUserException("user to follow does not exist");
+
+        if(!isVisible(user, userToFollow))                  // checks 'username' can see 'toFollow'
+            throw new UserNotVisibleException("user to follow has no common tags with requesting user");
+
         if(!followedSet.add(toFollow))
             throw new FollowException("user already followed");
         
@@ -1698,15 +1730,32 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             followedClient.addFollower(username, user.getTags());
     }
     
-    private void removeFollower(String username, String toUnfollow) throws NullPointerException, NoSuchUserException, FollowException, RemoteException {
+    /**
+     * Removes an user from the followed list of a given user.
+     * @param username user who filed the request
+     * @param toFollow user to unfollow
+     * @throws NullPointerException if any of 'username' or 'toUnfollow' are null
+     * @throws NoSuchUserException if any of the two users do not exist
+     * @throws UserNotVisibleException if the user to follow cannot be seen by the first user
+     * @throws FollowException if 'username' does not follow 'toUnfollow'
+     * @throws RemoteException if some RemoteException happens while sending the callback to 'toUnfollow'
+     */
+    private void removeFollower(String username, String toUnfollow) 
+            throws NullPointerException, NoSuchUserException, 
+                UserNotVisibleException, FollowException, RemoteException {
         if(username == null || toUnfollow == null) throw new NullPointerException("null arguments");
 
         Set<String> followedSet;
-        User user;
+        User user, userToUnfollow;
         if((followedSet = following.get(username)) == null  // gets users followed by 'username'
-                || (user = users.get(username)) == null     // gets user with 'username' as name
-                || !isVisible(user, toUnfollow))            // checks that 'toUnfollow' exists and that 'username' can see them
-            throw new NoSuchUserException("user does not exist");
+                || (user = users.get(username)) == null)    // gets user with 'username' as name
+            throw new NoSuchUserException("requesting user does not exist");
+                
+        if((userToUnfollow = users.get(toUnfollow)) == null)    // checks that 'toFollow exists'
+            throw new NoSuchUserException("user to follow does not exist");
+
+        if(!isVisible(user, userToUnfollow))                  // checks 'username' can see 'toFollow'
+            throw new UserNotVisibleException("user to follow has no common tags with requesting user");
         
         if(!followedSet.remove(toUnfollow))
             throw new FollowException("user already unfollowed");
@@ -1786,18 +1835,21 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         }
     }
 
-    private void rewinPost(String username, int idPost) throws NoSuchUserException, NoSuchPostException, RewinException {
+    private void rewinPost(String username, int idPost) 
+            throws NoSuchUserException, NoSuchPostException, RewinException {
         if(username == null) throw new NullPointerException();
 
         User user; Post post;
         if((user = users.get(username)) == null) throw new NoSuchUserException();
         if((post = posts.get(idPost)) == null) throw new NoSuchPostException();
 
+        // if(!canInteractWith(username, post))
+        //     throw new PostInteractionException("the author of the post is not visible to the current user");
+
         // synchronizing access with other rewins and with 'delete' operations
         synchronized(posts){
             if(post.getAuthor().equals(username) || post.hasRewinned(username))
                 throw new RewinException("user cannot rewin post");
-            
             Post rewin = new Rewin(post, username);
 
             if(posts.containsKey(idPost)) posts.put(rewin.getID(), rewin);
@@ -1820,6 +1872,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         User povUser, otherUser;
         if((povUser = users.get(povName)) == null || (otherUser = users.get(otherName)) == null)
             throw new NoSuchUserException();
+
+        if(povName.equals(otherName)) return true;
      
         return isVisible(povUser, otherUser);
     }
@@ -1837,6 +1891,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         User otherUser;
         if((otherUser = users.get(otherName)) == null)
             throw new NoSuchUserException();
+
+        if(pov.getUsername().equals(otherName)) return true;
      
         return isVisible(pov, otherUser);
     }
@@ -1854,6 +1910,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         User povUser;
         if((povUser = users.get(povName)) == null)
             throw new NoSuchUserException();
+
+        if(povName.equals(other.getUsername())) return true;
      
         return isVisible(povUser, other);
     }
@@ -1866,6 +1924,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
      */
     private boolean isVisible(User pov, User other){
         if(pov == null || other == null) throw new NullPointerException("null arguments");
+
+        if(pov.getUsername().equals(other.getUsername())) return true;
+
         return pov.hasCommonTags(other);
     }
     
@@ -1936,6 +1997,25 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             // otherwise check that pov can see the original author
             else return isVisible(pov, post.getAuthor());
         } catch (NoSuchUserException ex) { throw new IllegalStateException("post author does not exist"); }
+    }
+
+    private boolean canInteractWith(String username, int idPost) throws NoSuchUserException, NoSuchPostException {
+        if(username == null) throw new NullPointerException("null arguments");
+
+        Post post;
+        if((post = posts.get(idPost)) == null) throw new NoSuchPostException();        
+
+        return canInteractWith(username, post);
+    }
+
+    private boolean canInteractWith(String username, Post post) throws NoSuchUserException {
+        if(username == null || post == null) throw new NullPointerException("null arguments");
+        
+        Set<String> follows;
+        if((follows = following.get(username)) == null) throw new NoSuchUserException();
+
+        String author = (post.isRewin()) ? post.getRewinner() : post.getAuthor();
+        return follows.contains(author);
     }
 
     private double getBTCExchangeRate() throws IOException, NumberFormatException {

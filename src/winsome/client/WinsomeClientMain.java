@@ -364,6 +364,10 @@ public class WinsomeClientMain {
                     System.out.println(ConsoleColors.red("==> Error! ") + "You were already following " + ConsoleColors.red(args[0]) + ".");
                     return;
                 }
+                catch (UserNotVisibleException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "You have no tags in common with " + ConsoleColors.red(args[0]) + ".");
+                    return;
+                }
                 catch (IllegalStateException ex){
                     System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
                     return;
@@ -402,6 +406,10 @@ public class WinsomeClientMain {
                 }
                 catch (FollowException ex){
                     System.out.println(ConsoleColors.red("==> Error! ") + "You were not following " + ConsoleColors.red(args[0]) + ".");
+                    return;
+                }
+                catch (UserNotVisibleException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "You have no tags in common with " + ConsoleColors.red(args[0]) + ".");
                     return;
                 }
                 catch (IllegalStateException ex){
@@ -446,6 +454,10 @@ public class WinsomeClientMain {
                 }
                 catch (NoLoggedUserException ex){
                     System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
+                    return;
+                }
+                catch (UserNotVisibleException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "You have no tags in common with " + ConsoleColors.red(args[0]) + ".");
                     return;
                 }
                 catch (IllegalStateException ex){
