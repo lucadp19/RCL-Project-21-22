@@ -15,6 +15,7 @@ import com.google.gson.stream.JsonWriter;
 
 import winsome.api.exceptions.AlreadyVotedException;
 import winsome.api.exceptions.PostOwnerException;
+import winsome.api.exceptions.TextLengthException;
 import winsome.server.PostRewards;
 import winsome.server.exceptions.InvalidJSONFileException;
 
@@ -94,14 +95,16 @@ public class OriginalPost extends Post {
     /**
      * Creates a new post.
      * @param author author of this post
-     * @param title title of this post
-     * @param contents contents of this post
+     * @param title title of this post (maximum 50 characters)
+     * @param contents contents of this post (maximum 500 characters)
      * @throws IllegalStateException if the ID Generator has not been initialized
-     * @throws NullPointerException if either author, title, contents are null
+     * @throws TextLengthException if title or contents exceed limits
      */
-    public OriginalPost(String author, String title, String contents) throws IllegalStateException, NullPointerException {
+    public OriginalPost(String author, String title, String contents) throws IllegalStateException, TextLengthException {
         if(author == null || title == null || contents == null) 
             throw new NullPointerException("null parameters in Post creation");
+        if(title.length() > 50 || contents.length() > 500) throw new TextLengthException("title or contents of post exceed limits");
+
         this.id = getNextID();
         this.author = author;
         this.title = title;

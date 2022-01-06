@@ -429,8 +429,12 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
     }
 
     public int createPost(String title, String content) 
-            throws IOException, MalformedJSONException, NoLoggedUserException, UnexpectedServerResponseException {
+            throws IOException, MalformedJSONException, NoLoggedUserException, 
+                TextLengthException, UnexpectedServerResponseException {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
+        if(title.isEmpty() || content.isEmpty()) throw new TextLengthException("title and content must not be empty");
+        if(title.length() > 50 || content.length() > 500)
+            throw new TextLengthException("title or content exceed maximum length");
 
         JsonObject request = new JsonObject();
         RequestCode.POST.addRequestToJson(request);

@@ -348,13 +348,18 @@ public class WinsomeClientMain {
                 }
 
                 System.out.println(ConsoleColors.blue("-> ") + "Creating new post...");
-                int id = api.createPost(args.get(0), args.get(1));
+                int id;
+                try { id = api.createPost(args.get(0), args.get(1)); }
+                catch (TextLengthException ex){
+                    printError("Title and content of post exceeded limits.");
+                    System.err.println(cmd.getHelpString());
+                    return;
+                }
 
                 System.out.println(
                     ConsoleColors.blue("==> SUCCESS! ") + "Post created! (id: " + 
                     ConsoleColors.blue(Integer.toString(id)) + ")"
                 );
-                break;
             }
 
             case SHOW_FEED -> {

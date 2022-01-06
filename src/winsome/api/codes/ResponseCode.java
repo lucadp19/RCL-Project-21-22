@@ -30,6 +30,8 @@ public enum ResponseCode {
     ALREADY_FOLLOWED        ("this user already follows the other user"),
     /** User did not follow the other user */
     NOT_FOLLOWING           ("this user does not currently follow the other user"),
+    /** Title or contents of post exceed limits */
+    TEXT_LENGTH             ("title or contents of post exceed maximum length"),
     /** Post does not exist */
     NO_POST                 ("no post with the given ID"),
     /** User is not the owner of the post */

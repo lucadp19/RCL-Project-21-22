@@ -792,9 +792,13 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             WinsomeServer.this.checkIfLogged(username, key);
 
             // creating and adding new post
-            Post post = new OriginalPost(username, title, content);
-            posts.put(post.getID(), post);
-            response.addProperty("id", post.getID());
+            try {
+                Post post = new OriginalPost(username, title, content);
+                posts.put(post.getID(), post);
+                response.addProperty("id", post.getID());
+            } catch (TextLengthException ex) {
+                ResponseCode.TEXT_LENGTH.addResponseToJson(response); return response;
+            }
 
             // success!
             ResponseCode.SUCCESS.addResponseToJson(response);
