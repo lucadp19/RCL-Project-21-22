@@ -702,7 +702,7 @@ public class WinsomeClientMain {
                     System.out.println(ConsoleColors.red("==> Error! ") + "There is no post with the given ID.");
                     return;
                 }
-                catch (RewinException ex){
+                catch (AlreadyRewinnedException ex){
                     System.out.println(ConsoleColors.red("==> Error! ") + "You are either the owner of the given post, or you have already rewinned it.");
                     return;
                 }

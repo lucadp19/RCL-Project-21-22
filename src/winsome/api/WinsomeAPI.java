@@ -670,7 +670,7 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
 
     public void rewinPost(int idPost) 
             throws IOException, NoLoggedUserException, MalformedJSONException, 
-                NoSuchPostException, RewinException, NotFollowingException {
+                NoSuchPostException, AlreadyRewinnedException, NotFollowingException {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
 
         JsonObject request = new JsonObject();
@@ -690,7 +690,7 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
             case NOT_FOLLOWING:
                 throw new NotFollowingException("the current user is not following the owner of the post to interact with");
             case REWIN_ERR:
-                throw new RewinException("this user is either the owner of the given post or has already rewinned it");
+                throw new AlreadyRewinnedException("this user is either the owner of the given post or has already rewinned it");
             default: {  //
                 String msg;
                 switch (responseCode) {

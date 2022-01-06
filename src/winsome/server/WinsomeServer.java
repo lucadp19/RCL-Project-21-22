@@ -526,16 +526,12 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             try {
                 username = request.get("username").getAsString();
                 password = request.get("password").getAsString();
-            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username/password => malformed Json
+            } catch (NullPointerException | ClassCastException | IllegalStateException ex){
                 throw new MalformedJSONException("request had missing fields", ex);
             }
 
-            List<User> following, followers;
-            try { 
-                WinsomeServer.this.login(username, password, key);
-                following = WinsomeServer.this.getFollowing(username);
-                followers = WinsomeServer.this.getFollowers(username);
-            }
+            // logging in
+            try { WinsomeServer.this.login(username, password, key); }
             catch (WrongPasswordException ex){ // if the password does not match
                 ResponseCode.WRONG_PASSW.addResponseToJson(response);
                 return response;
@@ -544,11 +540,13 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 ResponseCode.ALREADY_LOGGED.addResponseToJson(response);
                 return response;
             }
+
+            // getting followers
+            List<User> followers = WinsomeServer.this.getFollowers(username);
             
             // success!
             ResponseCode.SUCCESS.addResponseToJson(response);
-            // sending current followed/followers list to user
-            response.add("following", userTagsToJson(following));
+            // sending current follower list to user
             response.add("followers", userTagsToJson(followers));
             
             return response;
@@ -570,7 +568,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             // reading username and password from the request
             try {
                 username = request.get("username").getAsString();
-            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username/password => malformed Json
+            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){
                 throw new MalformedJSONException("request had missing fields", ex);
             }
 
@@ -596,7 +594,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             // reading username and password from the request
             try {
                 username = request.get("username").getAsString();
-            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username/password => malformed Json
+            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){
                 throw new MalformedJSONException("missing fields in json request", ex);
             }
 
@@ -628,11 +626,13 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             // reading username and password from the request
             try {
                 username = request.get("username").getAsString();
-            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username/password => malformed Json
+            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){
                 throw new MalformedJSONException("missing fields in json request", ex);
             }
 
             WinsomeServer.this.checkIfLogged(username, key);
+
+            // getting following list
             List<User> following = WinsomeServer.this.getFollowing(username);
             
             // success!
@@ -662,16 +662,14 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
              try {
                 username = request.get("username").getAsString();
                 toFollow = request.get("to-follow").getAsString();
-            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username/password => malformed Json
+            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){
                 throw new MalformedJSONException("missing fields in json request", ex);
             }
 
-            try { 
-                WinsomeServer.this.checkIfLogged(username, key);
+            WinsomeServer.this.checkIfLogged(username, key);
 
-                WinsomeServer.this.addFollower(username, toFollow); 
-            }
-            catch (RemoteException ex) { } // client does not care about RemoteException on followed
+            // adding follower
+            try { WinsomeServer.this.addFollower(username, toFollow); }
             catch (AlreadyFollowingException ex){ // if 'username' already follows 'toFollow'
                 ResponseCode.ALREADY_FOLLOWED.addResponseToJson(response);
                 return response;
@@ -701,20 +699,16 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
              try {
                 username = request.get("username").getAsString();
                 toUnfollow = request.get("to-unfollow").getAsString();
-            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username/password => malformed Json
+            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){
                 throw new MalformedJSONException("missing fields in json request", ex);
             }
 
-            try { 
-                WinsomeServer.this.checkIfLogged(username, key);
+            WinsomeServer.this.checkIfLogged(username, key);
 
-                if(!isVisible(username, toUnfollow)) 
-                    throw new UserNotVisibleException("the user to unfollow has no common tags with the requester");
-                WinsomeServer.this.removeFollower(username, toUnfollow); 
-            }
-            catch (RemoteException ex) { } // client does not care about RemoteException on followed
+            // removing follower
+            try { WinsomeServer.this.removeFollower(username, toUnfollow); }
             catch (NotFollowingException ex){ // if 'username' does not follow 'toUnfollow'
-                ResponseCode.ALREADY_FOLLOWED.addResponseToJson(response);
+                ResponseCode.NOT_FOLLOWING.addResponseToJson(response);
                 return response;
             }
 
@@ -750,17 +744,18 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             WinsomeServer.this.checkIfLogged(username, key);
 
             // check that the user can see the other user
-            if(!isVisible(username, toView)) 
-                throw new UserNotVisibleException("the user to show has no common tags with the requester");
+            if(!isVisible(username, toView)) {
+                ResponseCode.USER_NOT_VISIBLE.addResponseToJson(response); return response;
+            }
+            // getting posts
             List<Post> posts = getPostByAuthor(toView);
 
             // success!
             ResponseCode.SUCCESS.addResponseToJson(response);
 
             JsonArray postArray = new JsonArray();
-            for(Post post : posts){
+            for(Post post : posts)
                 postArray.add(postToJson(post, false));
-            }
             response.add("posts", postArray);
 
             return response;
@@ -784,12 +779,13 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 username = request.get("username").getAsString();
                 title = request.get("title").getAsString();
                 content = request.get("content").getAsString();
-            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username/password => malformed Json
+            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){
                 throw new MalformedJSONException("missing fields in json request", ex);
             }
 
             WinsomeServer.this.checkIfLogged(username, key);
 
+            // creating and adding new post
             Post post = new OriginalPost(username, title, content);
             posts.put(post.getID(), post);
             response.addProperty("id", post.getID());
@@ -820,6 +816,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             }
             
             WinsomeServer.this.checkIfLogged(username, key);
+
+            // getting feed
             List<Post> posts = getFeed(username);
             
             // success!
@@ -856,15 +854,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             }
             
             Post post;
-            try { 
-                WinsomeServer.this.checkIfLogged(username, key);
-
-                if((post = posts.get(id)) == null || !isPostVisible(username, post))
-                    throw new NoSuchPostException();
-            }
-            catch (NoSuchPostException ex){ // the given post does not exist or it isn't visible
-                ResponseCode.NO_POST.addResponseToJson(response);
-                return response;
+            WinsomeServer.this.checkIfLogged(username, key);
+            if((post = posts.get(id)) == null || !isPostVisible(username, post)) {
+                ResponseCode.NO_POST.addResponseToJson(response); return response;
             }
 
             // success!
@@ -891,19 +883,19 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             try {
                 username = request.get("username").getAsString();
                 id = request.get("id").getAsInt();
-            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username/password => malformed Json
+            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){
                 throw new MalformedJSONException("missing fields in json request", ex);
             }
 
-            try { 
-                WinsomeServer.this.checkIfLogged(username, key);
-                WinsomeServer.this.deletePost(username, id);
-            }
+            WinsomeServer.this.checkIfLogged(username, key);
+
+            // deleting post
+            try { WinsomeServer.this.deletePost(username, id); }
             catch (NoSuchPostException ex){ // if no post with the given id exists
                 ResponseCode.NO_POST.addResponseToJson(response);
                 return response;
             }
-            catch (NotPostOwnerException ex){ // if the user is now the creator of the post
+            catch (NotPostOwnerException ex){ // if the user is not the creator of the post
                 ResponseCode.NOT_POST_OWNER.addResponseToJson(response);
                 return response;
             }
@@ -930,23 +922,27 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
              try {
                 username = request.get("username").getAsString();
                 id = request.get("id").getAsInt();
-            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username/password => malformed Json
+            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){
                 throw new MalformedJSONException("missing fields in json request", ex);
             }
 
-            try { 
-                WinsomeServer.this.checkIfLogged(username, key);
-                WinsomeServer.this.rewinPost(username, id);
-            }
+            WinsomeServer.this.checkIfLogged(username, key);
+
+            // rewinning post
+            try { WinsomeServer.this.rewinPost(username, id); }
             catch (NoSuchPostException ex){ // if no post with the given id exists
                 ResponseCode.NO_POST.addResponseToJson(response);
                 return response;
             }
-            catch (NotFollowingException ex){
+            catch (NotFollowingException ex){ // user does not follow the owner of the post to rewin
                 ResponseCode.NOT_FOLLOWING.addResponseToJson(response);
                 return response;
             }
-            catch (RewinException ex){ // if user cannot rewin the given post
+            catch (PostOwnerException ex){ // if user is the author of the given post
+                ResponseCode.REWIN_ERR.addResponseToJson(response);
+                return response;
+            }
+            catch (AlreadyRewinnedException ex){ // if user has already rewinned the given post
                 ResponseCode.REWIN_ERR.addResponseToJson(response);
                 return response;
             }
@@ -978,33 +974,29 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 throw new MalformedJSONException("missing fields in json request", ex);
             }
             
+            WinsomeServer.this.checkIfLogged(username, key);
+            
+            Post post;
+            if((post = posts.get(id)) == null){
+                ResponseCode.NO_POST.addResponseToJson(response); return response;
+            }
+            
+            // checking that user follows the author of the post
+            if(!canInteractWith(username, post)) {
+                ResponseCode.USER_NOT_VISIBLE.addResponseToJson(response); return response;
+            }
+            
+            // upvoting post
             try { 
-                WinsomeServer.this.checkIfLogged(username, key);
-                
-                Post post;
-                if((post = posts.get(id)) == null)
-                    throw new NoSuchPostException();
-
-                if(!canInteractWith(username, post))
-                    throw new NotFollowingException("user does not follow the author of the post");
-                
                 if(vote == 1) post.upvote(username);
                 else if(vote == -1) post.downvote(username);
                 else throw new WrongVoteFormatException("vote must be +1/-1"); 
             }
-            catch (NoSuchPostException ex){ // the given post does not exist or it isn't visible
-                ResponseCode.NO_POST.addResponseToJson(response);
-                return response;
-            }
-            catch (NotFollowingException ex){
-                ResponseCode.NOT_FOLLOWING.addResponseToJson(response);
-                return response;
-            }
-            catch (AlreadyVotedException ex){ // if no user with the given username is registered
+            catch (AlreadyVotedException ex){
                 ResponseCode.ALREADY_VOTED.addResponseToJson(response);
                 return response;
             }
-            catch (WrongVoteFormatException ex){ // if no user with the given username is registered
+            catch (WrongVoteFormatException ex){
                 ResponseCode.WRONG_VOTE_FORMAT.addResponseToJson(response);
                 return response;
             }
@@ -1036,26 +1028,20 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 throw new MalformedJSONException("missing fields in json request", ex);
             }
             
-            try { 
-                WinsomeServer.this.checkIfLogged(username, key);
-                
-                Post post;
-                if((post = posts.get(id)) == null)
-                    throw new NoSuchPostException();
+            WinsomeServer.this.checkIfLogged(username, key);
+            
+            Post post;
+            if((post = posts.get(id)) == null){
+                ResponseCode.NO_POST.addResponseToJson(response); return response;
+            }
 
-                if(!canInteractWith(username, post))
-                    throw new NotFollowingException("user does not follow the author of the post");
-                
-                post.addComment(username, contents);
+            // checking that user follows the author of the post
+            if(!canInteractWith(username, post)) {
+                ResponseCode.USER_NOT_VISIBLE.addResponseToJson(response); return response;
             }
-            catch (NoSuchPostException ex){ // the given post does not exist or it isn't visible
-                ResponseCode.NO_POST.addResponseToJson(response);
-                return response;
-            }
-            catch (NotFollowingException ex){
-                ResponseCode.NOT_FOLLOWING.addResponseToJson(response);
-                return response;
-            }
+            
+            // adding comment
+            try { post.addComment(username, contents); }
             catch (PostOwnerException ex){ // the given user is the owner of the post
                 ResponseCode.POST_OWNER.addResponseToJson(response);
                 return response;
@@ -1087,6 +1073,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             }
             
             WinsomeServer.this.checkIfLogged(username, key);
+
+            // getting transactions
             Collection<Transaction> trans = transactions.get(username); // not null because user exists and is logged
 
             JsonArray array = new JsonArray();
@@ -1128,7 +1116,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             }
             
             WinsomeServer.this.checkIfLogged(username, key);
-            Collection<Transaction>  trans = transactions.get(username); // not null because user exists and is logged
+
+            // getting transactions
+            Collection<Transaction> trans = transactions.get(username); // not null because user exists and is logged
 
             double total = 0; double exchange;
             for(Transaction transaction : trans)
@@ -1648,6 +1638,21 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         key.cancel();
     }
 
+    /**
+     * Closes a given client's session.
+     * @param username the username of the client
+     */
+    private void endUserSession(String username){
+        if(username == null) throw new NullPointerException("null arguments");
+
+        SelectionKey key;
+        if((key = userSessions.get(username)) != null)
+            endUserSession(key);
+        
+        userSessions.remove(username);
+        registeredToCallbacks.remove(username);
+    }
+
     /* ************** Get users/posts ************** */
 
     /**
@@ -1723,11 +1728,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
      * @throws NoSuchUserException if any of the two users do not exist
      * @throws UserNotVisibleException if the user to follow cannot be seen by the first user
      * @throws AlreadyFollowingException if 'username' already follows 'toFollow'
-     * @throws RemoteException if some RemoteException happens while sending the callback to 'toFollow'
      */
     private void addFollower(String username, String toFollow) 
-            throws NullPointerException, NoSuchUserException, 
-                UserNotVisibleException, AlreadyFollowingException, RemoteException {
+            throws NullPointerException, NoSuchUserException, UserNotVisibleException, AlreadyFollowingException {
         if(username == null || toFollow == null) throw new NullPointerException("null arguments");
 
         Set<String> followedSet;
@@ -1746,8 +1749,13 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             throw new AlreadyFollowingException("user already followed");
         
         RemoteClient followedClient;
-        if((followedClient = registeredToCallbacks.get(toFollow)) != null)
-            followedClient.addFollower(username, user.getTags());
+        if((followedClient = registeredToCallbacks.get(toFollow)) != null){
+            try { followedClient.addFollower(username, user.getTags()); }
+            catch (RemoteException ex) { // remote error -> removing client
+                endUserSession(toFollow);
+            }
+        }
+            
     }
     
     /**
@@ -1758,11 +1766,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
      * @throws NoSuchUserException if any of the two users do not exist
      * @throws UserNotVisibleException if the user to follow cannot be seen by the first user
      * @throws NotFollowingException if 'username' does not follow 'toUnfollow'
-     * @throws RemoteException if some RemoteException happens while sending the callback to 'toUnfollow'
      */
     private void removeFollower(String username, String toUnfollow) 
-            throws NullPointerException, NoSuchUserException, 
-                UserNotVisibleException, NotFollowingException, RemoteException {
+            throws NullPointerException, NoSuchUserException, UserNotVisibleException, NotFollowingException {
         if(username == null || toUnfollow == null) throw new NullPointerException("null arguments");
 
         Set<String> followedSet;
@@ -1781,8 +1787,14 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             throw new NotFollowingException("user already unfollowed");
         
         RemoteClient unfollowedClient;
-        if((unfollowedClient = registeredToCallbacks.get(toUnfollow)) != null)
-            unfollowedClient.removeFollower(username);
+
+        if((unfollowedClient = registeredToCallbacks.get(toUnfollow)) != null){
+            try { unfollowedClient.removeFollower(username); }
+            catch (RemoteException ex){ // remote error -> removing client
+                endUserSession(toUnfollow);
+            }
+        }
+            
     }
 
     // -------------- Post methods --------------- //
@@ -1856,20 +1868,23 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
     }
 
     private void rewinPost(String username, int idPost) 
-            throws NoSuchUserException, NoSuchPostException, RewinException, NotFollowingException {
+            throws NoSuchUserException, NoSuchPostException, PostOwnerException, AlreadyRewinnedException, NotFollowingException {
         if(username == null) throw new NullPointerException();
 
-        User user; Post post;
-        if((user = users.get(username)) == null) throw new NoSuchUserException();
-        if((post = posts.get(idPost)) == null) throw new NoSuchPostException();
+        Post post;
+        if(users.containsKey(username)) throw new NoSuchUserException("user does not exist");
+        if((post = posts.get(idPost)) == null) throw new NoSuchPostException("no post with the given ID exists");
 
         if(!canInteractWith(username, post))
             throw new NotFollowingException("user does not follow the author of the post");
 
+        if(post.getAuthor().equals(username))
+            throw new PostOwnerException("user is the author of the post");
+    
         // synchronizing access with other rewins and with 'delete' operations
         synchronized(posts){
-            if(post.getAuthor().equals(username) || post.hasRewinned(username))
-                throw new RewinException("user cannot rewin post");
+            if(post.hasRewinned(username))
+                throw new AlreadyRewinnedException("user cannot rewin post");
             Post rewin = new Rewin(post, username);
 
             if(posts.containsKey(idPost)) posts.put(rewin.getID(), rewin);
