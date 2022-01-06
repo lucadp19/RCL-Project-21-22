@@ -1,11 +1,8 @@
 package winsome.utils.configs.exceptions;
 
-public class KeyNotSetException extends RuntimeException {
+public class KeyNotSetException extends InvalidConfigFileException {
     public KeyNotSetException(){ super(); }
-    public KeyNotSetException(String key){ super(KeyNotSetException.msg(key)); }
+    public KeyNotSetException(String msg){ super(msg); }
     public KeyNotSetException(Throwable err){ super(err); }
-    public KeyNotSetException(String key, Throwable err){ super(KeyNotSetException.msg(key), err); }
-    
-    private static String msg(String key){ return "key \"" + key + "\" has not been initialized"; }
-
+    public KeyNotSetException(String msg, Throwable err){ super(msg, err); }
 }

@@ -1,6 +1,6 @@
 package winsome.utils.configs.exceptions;
 
-public class UnknownKeyException extends RuntimeException {
+public class UnknownKeyException extends InvalidConfigFileException {
     public UnknownKeyException(){ super(); }
     public UnknownKeyException(String key){ super(UnknownKeyException.msg(key)); }
     public UnknownKeyException(Throwable err){ super(err); }

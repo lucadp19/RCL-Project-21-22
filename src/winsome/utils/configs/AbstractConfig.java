@@ -7,7 +7,7 @@ import java.util.Optional;
 import winsome.utils.configs.exceptions.MalformedEntryException;
 
 public abstract class AbstractConfig {
-    public File getConfigFile(String configPath) throws NullPointerException, FileNotFoundException {
+    public static File getConfigFile(String configPath) throws NullPointerException, FileNotFoundException {
         if(configPath == null) throw new NullPointerException("configPath must not be null");
 
         File configFile = new File(configPath);
@@ -17,7 +17,7 @@ public abstract class AbstractConfig {
         return configFile;
     }
 
-    public Optional<ConfigEntry> readEntry(String line) throws MalformedEntryException {
+    public static Optional<ConfigEntry> readEntry(String line) throws MalformedEntryException {
         if(line == null) throw new NullPointerException();
         
         String trimmed = line.trim();

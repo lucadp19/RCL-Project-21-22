@@ -1,6 +1,6 @@
 package winsome.utils.configs.exceptions;
 
-public class MalformedEntryException extends RuntimeException {
+public class MalformedEntryException extends InvalidConfigFileException {
     public MalformedEntryException(){ super(); }
     public MalformedEntryException(String msg){ super(msg); }
     public MalformedEntryException(Throwable err){ super(err); }

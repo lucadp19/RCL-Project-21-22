@@ -60,13 +60,17 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         /** Object used for synchronization */
         public Object runningSync = new Object();
 
+        /** Time to wait between two successive iterations of the Persistence Algorithm */
+        private final long waitTime;
+
         /**
          * Creates a new ServerPersistence object.
          * @param dirpath the path to the directory that contains/will contain the persisted data
          * @throws InvalidDirectoryException if the given path does not point to an existing directory
          */
-        public ServerPersistence(String dirpath) throws InvalidDirectoryException { 
+        public ServerPersistence(String dirpath, long waitTime) throws InvalidDirectoryException { 
             if(dirpath == null) throw new NullPointerException("directory path is null");
+            this.waitTime = waitTime;
 
             // initializing directory
             dir = new File(dirpath);
@@ -506,8 +510,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          */
         private JsonObject multicastRequest(){
             JsonObject response = new JsonObject();
-            response.addProperty("multicast-addr", config.getMulticastAddr());
-            response.addProperty("multicast-port", config.getMulticastPort());
+            response.addProperty("multicast-addr", config.multicastAddr);
+            response.addProperty("multicast-port", config.multicastPort);
             return response;
         }
         
@@ -1271,8 +1275,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 // notifying clients
                 byte[] data = "Updated rewards!".getBytes();
                 try {
-                    InetAddress addr = InetAddress.getByName(config.getMulticastAddr());
-                    int port = config.getMulticastPort();
+                    InetAddress addr = InetAddress.getByName(config.multicastAddr);
+                    int port = config.multicastPort;
 
                     DatagramPacket packet = new DatagramPacket(data, data.length, addr, port);
                     multicastSocket.send(packet);
@@ -1346,7 +1350,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
     public WinsomeServer(String configPath) throws FileNotFoundException, InvalidConfigFileException, IOException {
         super();
 
-        config = new ServerConfig(Objects.requireNonNull(configPath, "config path must not be null"));
+        config = ServerConfig.fromConfigFile(Objects.requireNonNull(configPath, "config path must not be null"));
     }
 
     /**
@@ -1357,15 +1361,14 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
      * @throws IOException if there are errors in reading config files/persisted data
      */
     public void init() throws InvalidDirectoryException, FileNotFoundException, InvalidJSONFileException, IOException {
-        persistenceWorker = new ServerPersistence(config.getPersistenceDir());
+        persistenceWorker = new ServerPersistence(config.persistenceDir, config.persistenceInterval);
         try { persistenceWorker.getPersistedData(); }
         finally {
             // getting max ID
-            int maxPostID = -1;
-            for(Post post : posts.values()) {
-                if(post.getID() > maxPostID) 
-                    maxPostID = post.getID();
-            }
+            int maxPostID = 
+                posts.values().stream()
+                    .mapToInt(post -> post.getID())
+                    .max().orElse(-1);
             
             // initializing the ID generator for posts
             Post.initIDGenerator(maxPostID + 1);
@@ -1381,7 +1384,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
      */
     public void start() throws IOException {
         // initializing socket and selector
-        InetSocketAddress sockAddress = new InetSocketAddress(config.getTCPPort());
+        InetSocketAddress sockAddress = new InetSocketAddress(config.portTCP);
         selector = Selector.open();
         socketChannel = ServerSocketChannel.open();
         
@@ -1390,23 +1393,23 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         socketChannel.register(selector, SelectionKey.OP_ACCEPT);
 
         // initializing multicast socket
-        multicastSocket = new DatagramSocket(config.getUDPPort());
+        multicastSocket = new DatagramSocket(config.portUDP);
         
         // RMI startup
         RemoteServer stub = (RemoteServer) UnicastRemoteObject.exportObject(this, 0);
-        LocateRegistry.createRegistry(config.getRegPort());
-        Registry reg = LocateRegistry.getRegistry(config.getRegPort());
-        reg.rebind(config.getRegHost(), stub);
+        LocateRegistry.createRegistry(config.regPort);
+        Registry reg = LocateRegistry.getRegistry(config.regPort);
+        reg.rebind(config.regHost, stub);
 
         // starting threads
         persistenceResult = persistenceThread.submit(persistenceWorker);
         rewardsResult = rewardsThread.submit(
-            new RewardsAlgorithm(config.getRewardPerc(), config.getRewardInterval())
+            new RewardsAlgorithm(config.percentage, config.rewardInterval)
         );
 
         pool = new ThreadPoolExecutor(
-            config.getMinThreads(), config.getMaxThreads(), 
-            60L, TimeUnit.SECONDS, new LinkedBlockingQueue<>()
+            config.minThreads, config.maxThreads, 
+            config.keepAlive, TimeUnit.SECONDS, new LinkedBlockingQueue<>()
         );
     }
 
@@ -1514,7 +1517,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         // shutting down thread pool
         pool.shutdown();
         try {
-            if(!pool.awaitTermination(100, TimeUnit.MILLISECONDS)) // TODO: config
+            if(!pool.awaitTermination(config.poolTimeout, TimeUnit.MILLISECONDS)) // TODO: config
                 pool.shutdownNow();
         } catch (InterruptedException ex) { pool.shutdownNow(); }
 

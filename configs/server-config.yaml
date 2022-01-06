@@ -1,8 +1,5 @@
 # Server config
 
-# Server address
-server-addr: 192.168.1.2
-
 # Server TCP port
 tcp-port: 6666
 
@@ -21,11 +18,8 @@ registry-host: localhost
 # RMI Registry port
 registry-port: 7777
 
-# Socket timeout 
-socket-timeout: 100000 # comments may be written after values
-
-# Interval for reward computation
-reward-interval: 1000
+# Waiting time (in seconds) between two executions of the Rewards Algorithm
+reward-interval: 30 # comments may be written after values
 
 # Percentage of the reward going to the author
 reward-percentage: 70
@@ -33,8 +27,17 @@ reward-percentage: 70
 # Directory containing the persisted state
 persistence-dir: ./.persisted-data
 
+# Waiting time (in seconds) between two executions of the Persistence Algorithm
+persistence-interval: 60
+
+# Keep alive time (in seconds) for worker threads
+keep-alive: 60
+
 # Minimum number of always active threads
 min-threads: 4
 
 # Maximum number of simultaneously active threads
 max-threads: 12
+
+# Timeout (in milliseconds) before forcefully shutting down the thread pool
+pool-timeout: 30

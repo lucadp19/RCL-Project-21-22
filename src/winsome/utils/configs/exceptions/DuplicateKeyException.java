@@ -1,6 +1,6 @@
 package winsome.utils.configs.exceptions;
 
-public class DuplicateKeyException extends RuntimeException {
+public class DuplicateKeyException extends InvalidConfigFileException {
     public DuplicateKeyException(){ super(); }
     public DuplicateKeyException(String key){ super(DuplicateKeyException.msg(key)); }
     public DuplicateKeyException(Throwable err){ super(err); }
