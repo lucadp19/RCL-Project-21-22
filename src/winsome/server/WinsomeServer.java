@@ -157,6 +157,14 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             return users;
         }
 
+        /**
+         * Tries to parse the files containing original posts and rewins and returns a populated map.
+         * @param originalPostsFile the file containing the serialized original posts
+         * @param rewinFile the file containing the serialized rewins
+         * @return the populated posts map
+         * @throws InvalidJSONFileException if the given files are not valid JSON files
+         * @throws IOException if some IO error occurs while reading the files
+         */
         private ConcurrentHashMap<Integer, Post> parsePosts(File originalPostsFile, File rewinFile) 
                 throws InvalidJSONFileException, IOException {
             ConcurrentHashMap<Integer, Post> posts = new ConcurrentHashMap<>();
@@ -196,8 +204,10 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         }
     
         /**
-         * Tries to parse the file containing serialized "follows" relations and returns a populated map.
+         * Tries to parse the file containing serialized "follows" relations and populates an already initialized map.
+         * <p> The input map must be initialized with an entry for every possible existing user.
          * @param followsFile the file containing the serialized "follows"
+         * @param follows the already initialized map
          * @return the populated map
          * @throws InvalidJSONFileException if the given file is not a valid JSON file
          * @throws IOException if there is an IO error while reading the file
@@ -237,8 +247,10 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         }
 
         /**
-         * Tries to parse the file containing serialized transactions and returns a populated map.
+         * Tries to parse the file containing serialized transactions and populates an already initialized map.
+         * <p> The input map must be initialized with an entry for every possible existing user.
          * @param transactionsFile the file containing the serialized transactions
+         * @param transactions the already initialized map
          * @return the populated transactions map
          * @throws InvalidJSONFileException if the given file is not a valid JSON file
          * @throws IOException if there is an IO error while reading the file
@@ -277,10 +289,16 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             return transactions;
         }
 
+        /**
+         * Runs the {@link #persistData()} method periodically.
+         * @return null
+         * @throws IOException if some IO error occurs while writing data
+         */
+        @Override
         public Void call() throws IOException {
             while(true){
                 try { 
-                    synchronized(runningSync) { 
+                    synchronized(runningSync) { // to synchronize with server.shutdown()
                         if(Thread.interrupted()) return null;
 
                         running.set(true); 
@@ -302,6 +320,10 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             return null;
         }
 
+        /**
+         * Writes all the current server data into the persistence files.
+         * @throws IOException if some IO error occurs while writing
+         */
         private void persistData() throws IOException {
             persistTransactions(transFile);
             persistPosts(origsFile, rewinsFile);
@@ -309,6 +331,11 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             persistUsers(usersFile);
         }
 
+        /**
+         * Serializes all the trasactions and writes them into a file.
+         * @param transFile the destination file
+         * @throws IOException if some IO error occurs while writing
+         */
         private void persistTransactions(File transFile) throws IOException {
             try (
                 JsonWriter writer = new JsonWriter(new BufferedWriter(new FileWriter(transFile)));
@@ -330,6 +357,11 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             }
         }
 
+        /**
+         * Serializes all the "follows" relations and writes them into a file.
+         * @param followsFile the destination file
+         * @throws IOException if some IO error occurs while writing
+         */
         private void persistFollows(File followsFile) throws IOException {
             try (
                 JsonWriter writer = new JsonWriter(new BufferedWriter(new FileWriter(followsFile)));
@@ -352,6 +384,12 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             }
         }
 
+        /**
+         * Serializes all the posts and writes them into a file.
+         * @param origsFile the destination file for original posts
+         * @param rewinsFile the destination file for rewins
+         * @throws IOException if some IO error occurs while writing
+         */
         private void persistPosts(File origsFile, File rewinsFile) throws IOException {
             try (
                 JsonWriter origsWriter = new JsonWriter(new BufferedWriter(new FileWriter(origsFile)));
@@ -369,6 +407,11 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             }
         }
 
+        /**
+         * Serializes all the users and writes them into a file.
+         * @param usersFile the destination file
+         * @throws IOException if some IO error occurs while writing
+         */
         private void persistUsers(File userFile) throws IOException {
             try (
                 JsonWriter writer = new JsonWriter(new BufferedWriter(new FileWriter(usersFile)));
