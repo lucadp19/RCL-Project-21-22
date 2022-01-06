@@ -1921,11 +1921,11 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         if(!users.containsKey(username)) throw new NoSuchUserException("user does not exist");
         if((post = posts.get(idPost)) == null) throw new NoSuchPostException("no post with the given ID exists");
 
-        if(!canInteractWith(username, post))
-            throw new NotFollowingException("user does not follow the author of the post");
-
         if(post.getAuthor().equals(username))
             throw new PostOwnerException("user is the author of the post");
+
+        if(!canInteractWith(username, post))
+            throw new NotFollowingException("user does not follow the author of the post");
     
         // synchronizing access with other rewins and with 'delete' operations
         synchronized(posts){
