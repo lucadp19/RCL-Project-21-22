@@ -297,6 +297,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         @Override
         public Void call() throws IOException {
             while(true){
+                try { TimeUnit.SECONDS.sleep(60); }
+                catch (InterruptedException ex) { break; }
+
                 try { 
                     synchronized(runningSync) { // to synchronize with server.shutdown()
                         if(Thread.interrupted()) return null;
@@ -312,9 +315,6 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     selector.wakeup();
                     throw new IOException("IO exception while persisting data", ex);
                 }
-
-                try { TimeUnit.SECONDS.sleep(60); }
-                catch (InterruptedException ex) { break; }
             }
 
             return null;
@@ -1217,10 +1217,14 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         }
     }
 
+    /** Calculates asynchronously the rewards for each post. */
     private class RewardsAlgorithm implements Callable<Void> {
+        /** The percentage of the reward going to the author/curator */
         private final RewardsPercentage percentage;
+        /** The waiting time betweet two iterations */
         private final long waitTime;
 
+        /** Initializes the algorithm */
         public RewardsAlgorithm(RewardsPercentage percentage, long waitTime){
             if(percentage == null) throw new NullPointerException("null parameter");
 
@@ -1228,6 +1232,12 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             this.waitTime = waitTime;
         }
 
+        /**
+         * Computes periodically the new rewards and notifies clients.
+         * @return null
+         * @throws IOException if some IO error occurs while notifying clients
+         */
+        @Override
         public Void call() throws IOException {
             while(true) {
                 if(Thread.interrupted()) return null;
@@ -1237,17 +1247,20 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     return null;
                 }
 
+                // computing rewards
                 for(Post post : posts.values()){
                     if(post.isRewin()) continue;
 
                     PostRewards rewards = ((OriginalPost) post).reapRewards();
                     if(rewards.reward == 0) continue;
                     
+                    // adding transaction for author
                     String author = post.getAuthor();
                     transactions.get(author).add(
                         new Transaction(author, rewards.authorReward(percentage))
                     );
 
+                    // adding transactions for curators
                     for(String curator : rewards.getCurators()){
                         transactions.get(curator).add(
                             new Transaction(curator, rewards.curatorReward(percentage))
@@ -1255,6 +1268,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     }
                 }
 
+                // notifying clients
                 byte[] data = "Updated rewards!".getBytes();
                 try {
                     InetAddress addr = InetAddress.getByName(config.getMulticastAddr());
@@ -1272,6 +1286,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
     /** Boolean flag representing whether the Server data has been loaded yet or not. */
     private AtomicBoolean isDataInit = new AtomicBoolean(false);
+    /** Boolean flag representin whether the server is currently running */
     private AtomicBoolean isRunning  = new AtomicBoolean(false);
 
     /** The Server config. */
