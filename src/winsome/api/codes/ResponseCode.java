@@ -1,5 +1,7 @@
 package winsome.api.codes;
 
+import java.util.Objects;
+
 import com.google.gson.JsonObject;
 
 import winsome.api.exceptions.MalformedJSONException;
@@ -7,44 +9,51 @@ import winsome.api.exceptions.MalformedJSONException;
 /** A Response code for the communication Server-Client */
 public enum ResponseCode {
     /** Successful operation */
-    SUCCESS,
+    SUCCESS                 ("successful operation"),
     /** Request was malformed */
-    MALFORMED_JSON_REQUEST,
+    MALFORMED_JSON_REQUEST  ("malformed request"),
     /** The given user is not signed up */
-    USER_NOT_REGISTERED,
+    USER_NOT_REGISTERED     ("user does not exist"),
     /** Wrong password in login */
-    WRONG_PASSW,
+    WRONG_PASSW             ("wrong password"),
     /** User or client is already logged */
-    ALREADY_LOGGED,
+    ALREADY_LOGGED          ("user or client is already logged"),
     /** Client is not logged in */
-    NO_LOGGED_USER,
+    NO_LOGGED_USER          ("client is not logged in"),
     /** Client is logged on another user */
-    WRONG_USER,
+    WRONG_USER              ("client is logged on another user"),
     /** Client cannot see another user */
-    USER_NOT_VISIBLE,
+    USER_NOT_VISIBLE        ("client has no common tags with other user"),
+    /** User cannot follow/unfollow themselves */
+    SELF_FOLLOW             ("cannot follow/unfollow oneself"),
     /** User already followed the other user */
-    ALREADY_FOLLOWED,
+    ALREADY_FOLLOWED        ("this user already follows the other user"),
     /** User did not follow the other user */
-    NOT_FOLLOWING,
+    NOT_FOLLOWING           ("this user does not currently follow the other user"),
     /** Post does not exist */
-    NO_POST,
+    NO_POST                 ("no post with the given ID"),
     /** User is not the owner of the post */
-    NOT_POST_OWNER,
+    NOT_POST_OWNER          ("this user is not the author/rewinner of the given post"),
     /** User is the owner of the post */
-    POST_OWNER,
+    POST_OWNER              ("this user is the author/rewinner of the given post"),
     /** Rewin error: user is author of the post or has already rewinned it */
-    REWIN_ERR,
+    REWIN_ERR               ("this user has already rewinned the given post"),
     /** The user had already voted the post */
-    ALREADY_VOTED,
+    ALREADY_VOTED           ("this user has already voted the given post"),
     /** The vote was in a wrong format */
-    WRONG_VOTE_FORMAT,
+    WRONG_VOTE_FORMAT       ("vote was not +1 or -1"),
     /** Could not compute the exchange rate to BTC */
-    EXCHANGE_RATE_ERROR,
+    EXCHANGE_RATE_ERROR     ("server could not comupte the exchange rate to BTC"),
     /** Fatal communication error */
-    FATAL_ERR;
+    FATAL_ERR               ("fatal communication error");
 
     /** Name of the response field in Json representation */
     private static final String responseFieldName = "response-code";
+
+    private final String msg;
+    ResponseCode(String msg){ this.msg = Objects.requireNonNull(msg, "null ResponseCode message"); }
+
+    public String getMessage(){ return this.msg; }
 
     /**
      * Adds a response code to a Json object.

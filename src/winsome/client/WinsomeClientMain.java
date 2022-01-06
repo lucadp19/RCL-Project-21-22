@@ -58,35 +58,42 @@ public class WinsomeClientMain {
             while((line = input.readLine().trim()) != null){
                 if(line.isEmpty()) continue;
                 if(line.startsWith("quit")) {
-                    // maybe print message or create termination handler
+                    // TODO: clean termination
                     System.exit(0);
                 }
 
-                // test command; TODO: eliminate it
-                if(line.startsWith("echo")){
-                    String msg = line.substring(4).trim();
-                    
-                    String ans = api.echoMsg(msg);
-                    System.out.println(ConsoleColors.blue("--> Echoed message: ") + ans);
-                    
-                } else
-                executeCommand(api, line);
+                try { executeCommand(api, line); }
+                catch (MalformedJSONException ex){
+                    System.err.println(
+                        ConsoleColors.red("==> Server sent malformed response!")
+                    );
+                }
+                catch (NoLoggedUserException ex){
+                    printError("No user is currently logged: please log in.");
+                    return;
+                }
+                catch (UnexpectedServerResponseException ex){
+                    System.err.println(
+                        ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage()
+                    );
+                }
 
                 Optional<String> serverMsg = api.getServerMsg();
                 if(serverMsg.isPresent())
-                    System.out.println(ConsoleColors.blue("\n--> SERVER MESSAGE: ") + serverMsg.get());
+                    System.out.println(ConsoleColors.yellow("\n==> SERVER MESSAGE: ") + serverMsg.get());
                 
                 System.out.print(ConsoleColors.green("\n-> "));
             }
         } catch(IOException ex){ ex.printStackTrace(); }
     }
 
-    private static void executeCommand(WinsomeAPI api, String line){
-        Command cmd = null;
+    private static void executeCommand(WinsomeAPI api, String line)
+            throws IOException, MalformedJSONException, NoLoggedUserException, UnexpectedServerResponseException {
+        Command cmd;
 
         try { cmd = Command.fromString(line); }
         catch(UnknownCommandException ex){
-            System.out.println(ConsoleColors.red("==> ERROR! ") + ex.getMessage() + "\n");
+            printError(ex.getMessage() + "\n");
             System.out.print(Command.help());
             return;
         }
@@ -94,7 +101,7 @@ public class WinsomeClientMain {
         String argStr = line.substring(cmd.name.length()).trim();
 
         switch (cmd) {
-            case HELP: {
+            case HELP -> {
                 Command cmd1 = null;
                 try { 
                     cmd1 = Command.fromString(argStr); 
@@ -102,16 +109,14 @@ public class WinsomeClientMain {
                 } catch(UnknownCommandException ex){ System.out.println("\n" + Command.help()); }
                 break;
             }
-            case REGISTER: {
+
+            case REGISTER -> {
                 String[] args = argStr.split("\\s+"); // splitting on space
 
                 // checking argument number
                 if(args.length < 3 || args.length > 7){
-                    System.out.println(
-                        ConsoleColors.red("==> ERROR! ") + 
-                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
-                    );
-                    System.out.println(cmd.getHelpString());
+                    printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
+                    System.err.println(cmd.getHelpString());
                     return;
                 }
 
@@ -120,52 +125,34 @@ public class WinsomeClientMain {
                 for(int i = 0; i < args.length - 2; i++) tags.add(args[i+2]);
 
                 try { api.register(args[0], args[1], tags); }
-                catch (NullPointerException ex){
-                    System.err.println(ConsoleColors.red("==> Internal error: ") + ex.getMessage());
-                    return;
-                }
-                catch (UserAlreadyLoggedException ex){
+                catch (UserAlreadyLoggedException ex) {
                     System.err.println(ConsoleColors.red("==> Error: ") + ex.getMessage());
                     return;
                 }
-                catch (UserAlreadyExistsException ex){
+                catch (UserAlreadyExistsException ex) {
                     System.err.println(ConsoleColors.red("==> Error: ") + "this username is not available");
-                    return;
-                }
-                catch (RemoteException ex){
-                    System.err.println(ConsoleColors.red("==> Communication error!"));
                     return;
                 }
 
                 System.out.println(
                     ConsoleColors.blue("==> SUCCESS: ") +
-                    ConsoleColors.blue(args[0]) + " has been registered in the Social Network!");
+                    ConsoleColors.blue(args[0]) + " has been registered in the Social Network!"
+                );
                 break;
             }
-            case LOGIN: {
+            case LOGIN -> {
                 String[] args = argStr.split("\\s+"); // splitting on space
 
                 // checking argument number
                 if(args.length != 2){
-                    System.out.println(
-                        ConsoleColors.red("==> ERROR! ") + 
-                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
-                    );
-                    System.out.println(cmd.getHelpString());
+                    printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
+                    System.err.println(cmd.getHelpString());
                     return;
                 }
 
                 System.out.println(ConsoleColors.blue("-> ") + "Logging in as " + ConsoleColors.blue(args[0]) + "...");
 
                 try { api.login(args[0], args[1]); }
-                catch (IOException ex){
-                    System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
-                    return;
-                } 
-                catch (MalformedJSONException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "Server sent malformed response message.");
-                    return;
-                }
                 catch (UserAlreadyLoggedException ex){
                     System.out.println(ConsoleColors.red("==> Error! User is already logged: ") + ex.getMessage());
                     return;
@@ -178,110 +165,58 @@ public class WinsomeClientMain {
                     System.out.println(ConsoleColors.red("==> Error! Wrong password: ") + ex.getMessage());
                     return;
                 }
-                catch (IllegalStateException ex){
-                    System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
-                }
 
                 System.out.println(
                     ConsoleColors.blue("==> SUCCESS: ") + "you are now logged in as " + 
                     ConsoleColors.blue(args[0]) + "!");
-                break;
             }
 
-            case LOGOUT: {
+            case LOGOUT -> {
                 // checking argument number
                 if(!argStr.isEmpty()){
-                    System.out.println(
-                        ConsoleColors.red("==> ERROR! ") + 
-                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
-                    );
-                    System.out.println(cmd.getHelpString());
+                    printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
+                    System.err.println(cmd.getHelpString());
                     return;
                 }
 
                 System.out.println(ConsoleColors.blue("-> ") + "Attempting to log out...");
-                try { api.logout(); }
-                catch (IOException ex){
-                    System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
-                    return;
-                }
-                catch (MalformedJSONException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "Server sent malformed response message.");
-                    return;
-                }
-                catch (NoLoggedUserException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
-                    return;
-                }
-                catch (IllegalStateException ex){
-                    System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
-                    return;
-                }
+                api.logout();
+
                 System.out.println(ConsoleColors.blue("==> SUCCESS!"));
-                break;
             }
 
-            case LIST_USERS: {
+            case LIST_USERS -> {
                 // checking argument number
                 if(!argStr.isEmpty()){
-                    System.out.println(
-                        ConsoleColors.red("==> ERROR! ") + 
-                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
-                    );
-                    System.out.println(cmd.getHelpString());
+                    printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
+                    System.err.println(cmd.getHelpString());
                     return;
                 }
 
                 System.out.println(ConsoleColors.blue("-> ") + "Getting users...");
-                Map<String, List<String>> users;
-                try { users = api.listUsers(); }
-                catch(IOException ex){
-                    System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
-                    return;
-                }
-                catch(MalformedJSONException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "Server sent malformed response message.");
-                    return;
-                }
-                catch(NoLoggedUserException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in first.");
-                    return;
-                }
-                catch(IllegalStateException ex){
-                    System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
-                    return;
-                }
+                Map<String, List<String>> users = api.listUsers();
 
-                String msg;
-                if(users.size() == 0)
-                    msg = "Currently no user shares interests with you.";
-                else msg = "Currently the following " + users.size() + " user" +
-                    (users.size() == 1 ? " " : "s ") +
-                    "share interests with you:\n";
+                String msg = (users.size() == 0) ?
+                    "Currently no user shares interests with you." :
+                    "Currently the following " + users.size() + " user" +
+                        (users.size() == 1 ? " " : "s ") +
+                        "share interests with you:\n";
 
                 System.out.println(ConsoleColors.blue("==> SUCCESS! ") + msg);
                 if(users.size() > 0) printUsers(users);
-                break;
             }
 
-            case LIST_FOLLOWERS: {
+            case LIST_FOLLOWERS -> {
                 // checking argument number
                 if(!argStr.isEmpty()){
-                    System.out.println(
-                        ConsoleColors.red("==> ERROR! ") + 
-                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
-                    );
-                    System.out.println(cmd.getHelpString());
+                    printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
+                    System.err.println(cmd.getHelpString());
                     return;
                 }
                 
-                Map<String, List<String>> followers;  
+                 
                 System.out.println(ConsoleColors.blue("-> ") + "Listing followers...");
-                try { followers = api.listFollowers(); }
-                catch(NoLoggedUserException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
-                    return;
-                }
+                Map<String, List<String>> followers = api.listFollowers();
 
                 System.out.println(
                     ConsoleColors.blue("==> SUCCESS! ") + 
@@ -289,40 +224,18 @@ public class WinsomeClientMain {
                     + (followers.size() == 1 ? ".\n" : "s.\n")
                 );
                 printUsers(followers);
-                break;
             }
 
-            case LIST_FOLLOWING: {
+            case LIST_FOLLOWING -> {
                 // checking argument number
                 if(!argStr.isEmpty()){
-                    System.out.println(
-                        ConsoleColors.red("==> ERROR! ") + 
-                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
-                    );
-                    System.out.println(cmd.getHelpString());
+                    printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
+                    System.err.println(cmd.getHelpString());
                     return;
                 }
 
-                Map<String, List<String>> followed;  
                 System.out.println(ConsoleColors.blue("-> ") + "Listing followed users...");
-                try { followed = api.listFollowing(); }
-                catch (IOException ex){
-                    System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
-                    return;
-                }
-                catch(NoLoggedUserException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
-                    return;
-                }
-                catch (MalformedJSONException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "Server sent malformed response message.");
-                    return;
-                }
-                catch (IllegalStateException ex){
-                    System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
-                    return;
-                }
-
+                Map<String, List<String>> followed = api.listFollowing();
 
                 System.out.println(
                     ConsoleColors.blue("==> SUCCESS! ") + 
@@ -333,43 +246,28 @@ public class WinsomeClientMain {
                 break;
             }
 
-            case FOLLOW: {
+            case FOLLOW -> {
                 String[] args = argStr.split("\\s+"); // splitting on space
 
                 // checking argument number
                 if(args.length != 1){
-                    System.out.println(
-                        ConsoleColors.red("==> ERROR! ") + 
-                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
-                    );
-                    System.out.println(cmd.getHelpString());
+                    printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
+                    System.err.println(cmd.getHelpString());
                     return;
                 }
 
                 System.out.println(ConsoleColors.blue("-> ") + "Following " + ConsoleColors.blue(args[0]) + "...");
                 try { api.followUser(args[0]); }
-                catch (IOException ex){
-                    System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
-                    return;
-                }
-                catch (MalformedJSONException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "Server sent malformed response message.");
-                    return;
-                }
-                catch (NoLoggedUserException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
-                    return;
-                }
-                catch (FollowException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "You were already following " + ConsoleColors.red(args[0]) + ".");
+                catch (AlreadyFollowingException ex){
+                    printError("You were already following " + ConsoleColors.red(args[0]) + ".");
                     return;
                 }
                 catch (UserNotVisibleException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "You have no tags in common with " + ConsoleColors.red(args[0]) + ".");
+                    printError("You have no tags in common with " + ConsoleColors.red(args[0]) + ".");
                     return;
                 }
-                catch (IllegalStateException ex){
-                    System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
+                catch (SelfFollowException ex){
+                    printError("You cannot follow yourself!");
                     return;
                 }
 
@@ -377,43 +275,28 @@ public class WinsomeClientMain {
                 break;
             }
             
-            case UNFOLLOW: {
+            case UNFOLLOW -> {
                 String[] args = argStr.split("\\s+"); // splitting on space
 
                 // checking argument number
                 if(args.length != 1){
-                    System.out.println(
-                        ConsoleColors.red("==> ERROR! ") + 
-                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
-                    );
-                    System.out.println(cmd.getHelpString());
+                    printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
+                    System.err.println(cmd.getHelpString());
                     return;
                 }
 
                 System.out.println(ConsoleColors.blue("-> ") + "Unfollowing " + ConsoleColors.blue(args[0]) + "...");
                 try { api.unfollowUser(args[0]); }
-                catch (IOException ex){
-                    System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
-                    return;
-                }
-                catch (MalformedJSONException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "Server sent malformed response message.");
-                    return;
-                }
-                catch (NoLoggedUserException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
-                    return;
-                }
-                catch (FollowException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "You were not following " + ConsoleColors.red(args[0]) + ".");
+                catch (NotFollowingException ex){
+                    printError("You were not following " + ConsoleColors.red(args[0]) + ".");
                     return;
                 }
                 catch (UserNotVisibleException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "You have no tags in common with " + ConsoleColors.red(args[0]) + ".");
+                    printError("You have no tags in common with " + ConsoleColors.red(args[0]) + ".");
                     return;
                 }
-                catch (IllegalStateException ex){
-                    System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
+                catch (SelfFollowException ex){
+                    printError("You cannot unfollow yourself!");
                     return;
                 }
 
@@ -421,7 +304,7 @@ public class WinsomeClientMain {
                 break;
             }
 
-            case BLOG: {
+            case BLOG -> {
                 String[] args;
 
                 // checking argument number
@@ -429,11 +312,8 @@ public class WinsomeClientMain {
                 else {
                     args = argStr.split("\\s+");
                     if(args.length != 1) {
-                        System.out.println(
-                            ConsoleColors.red("==> ERROR! ") + 
-                            "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
-                        );
-                        System.out.println(cmd.getHelpString());
+                        printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
+                        System.err.println(cmd.getHelpString());
                         return;
                     }  
                 }
@@ -444,24 +324,8 @@ public class WinsomeClientMain {
                     if(args.length == 0) posts = api.viewBlog(); 
                     else posts = api.viewBlog(args[0]);
                 }
-                catch (IOException ex){
-                    System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
-                    return;
-                }
-                catch (MalformedJSONException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "Server sent malformed response message.");
-                    return;
-                }
-                catch (NoLoggedUserException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
-                    return;
-                }
                 catch (UserNotVisibleException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "You have no tags in common with " + ConsoleColors.red(args[0]) + ".");
-                    return;
-                }
-                catch (IllegalStateException ex){
-                    System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
+                    printError("You have no tags in common with " + ConsoleColors.red(args[0]) + ".");
                     return;
                 }
 
@@ -473,38 +337,18 @@ public class WinsomeClientMain {
                 break;
             }
 
-            case POST: {
+            case POST -> {
                 List<String> args = splitQuotes(argStr); // splitting on first space
 
                 // checking argument number
                 if(args.size() != 2){
-                    System.out.println(
-                        ConsoleColors.red("==> ERROR! ") + 
-                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
-                    );
-                    System.out.println(cmd.getHelpString());
+                    printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
+                    System.err.println(cmd.getHelpString());
                     return;
                 }
 
                 System.out.println(ConsoleColors.blue("-> ") + "Creating new post...");
-                int id;
-                try { id = api.createPost(args.get(0), args.get(1)); }
-                catch (IOException ex){
-                    System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
-                    return;
-                }
-                catch (MalformedJSONException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "Server sent malformed response message.");
-                    return;
-                }
-                catch (NoLoggedUserException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
-                    return;
-                }
-                catch (IllegalStateException ex){
-                    System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
-                    return;
-                }
+                int id = api.createPost(args.get(0), args.get(1));
 
                 System.out.println(
                     ConsoleColors.blue("==> SUCCESS! ") + "Post created! (id: " + 
@@ -513,36 +357,16 @@ public class WinsomeClientMain {
                 break;
             }
 
-            case SHOW_FEED: {
+            case SHOW_FEED -> {
                 // checking argument number
                 if(!argStr.isEmpty()){
-                    System.out.println(
-                        ConsoleColors.red("==> ERROR! ") + 
-                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
-                    );
-                    System.out.println(cmd.getHelpString());
+                    printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
+                    System.err.println(cmd.getHelpString());
                     return;
                 }
 
                 System.out.println(ConsoleColors.blue("-> ") + "Getting your feed...");
-                List<PostInfo> posts;
-                try { posts = api.showFeed(); }
-                catch (IOException ex){
-                    System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
-                    return;
-                }
-                catch (MalformedJSONException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "Server sent malformed response message.");
-                    return;
-                }
-                catch (NoLoggedUserException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
-                    return;
-                }
-                catch (IllegalStateException ex){
-                    System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
-                    return;
-                }
+                List<PostInfo> posts = api.showFeed();
 
                 System.out.println(
                     ConsoleColors.blue("==> SUCCESS! ") + "You have " + 
@@ -552,16 +376,13 @@ public class WinsomeClientMain {
                 break;
             }
 
-            case SHOW_POST: {
+            case SHOW_POST -> {
                 String[] args = argStr.split("\\s+"); // splitting on space
 
                 // checking argument number
                 if(args.length != 1){
-                    System.out.println(
-                        ConsoleColors.red("==> ERROR! ") + 
-                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
-                    );
-                    System.out.println(cmd.getHelpString());
+                    printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
+                    System.err.println(cmd.getHelpString());
                     return;
                 }
 
@@ -572,31 +393,15 @@ public class WinsomeClientMain {
                         ConsoleColors.red("==> ERROR! ") + 
                         "The given post ID is not a positive integer.\n"
                     );
-                    System.out.println(cmd.getHelpString());
+                    System.err.println(cmd.getHelpString());
                     return;
                 }
 
                 System.out.println(ConsoleColors.blue("-> ") + "Showing post with ID " + ConsoleColors.blue(args[0]) + "...");
                 PostInfo post;
                 try { post = api.showPost(id); }
-                catch (IOException ex){
-                    System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
-                    return;
-                }
-                catch (MalformedJSONException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "Server sent malformed response message.");
-                    return;
-                }
-                catch (NoLoggedUserException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
-                    return;
-                }
                 catch (NoSuchPostException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "There is no post with the given ID.");
-                    return;
-                }
-                catch (IllegalStateException ex){
-                    System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
+                    printError("There is no post with the given ID.");
                     return;
                 }
 
@@ -606,16 +411,13 @@ public class WinsomeClientMain {
             }
 
             
-            case DELETE: {
+            case DELETE -> {
                 String[] args = argStr.split("\\s+"); // splitting on space
 
                 // checking argument number
                 if(args.length != 1){
-                    System.out.println(
-                        ConsoleColors.red("==> ERROR! ") + 
-                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
-                    );
-                    System.out.println(cmd.getHelpString());
+                    printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
+                    System.err.println(cmd.getHelpString());
                     return;
                 }
 
@@ -626,50 +428,32 @@ public class WinsomeClientMain {
                         ConsoleColors.red("==> ERROR! ") + 
                         "The given post ID is not a positive integer.\n"
                     );
-                    System.out.println(cmd.getHelpString());
+                    System.err.println(cmd.getHelpString());
                     return;
                 }
 
                 System.out.println(ConsoleColors.blue("-> ") + "Deleting post with ID \"" + ConsoleColors.blue(args[0]) + "\"...");
                 try { api.deletePost(id); }
-                catch (IOException ex){
-                    System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
-                    return;
-                }
-                catch (MalformedJSONException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "Server sent malformed response message.");
-                    return;
-                }
-                catch (NoLoggedUserException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
-                    return;
-                }
                 catch (NoSuchPostException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "There is no post with the given ID.");
+                    printError("There is no post with the given ID.");
                     return;
                 }
                 catch (NotPostOwnerException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "You are not the owner of the given post.");
+                    printError("You cannot delete this post because you are not its owner.");
                     return;
                 }
-                catch (IllegalStateException ex){
-                    System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
-                    return;
-                }
+                
                 System.out.println(ConsoleColors.blue("==> SUCCESS!"));
                 break;
             }
 
-            case REWIN: {
+            case REWIN -> {
                 String[] args = argStr.split("\\s+"); // splitting on space
 
                 // checking argument number
                 if(args.length != 1){
-                    System.out.println(
-                        ConsoleColors.red("==> ERROR! ") + 
-                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
-                    );
-                    System.out.println(cmd.getHelpString());
+                    printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
+                    System.err.println(cmd.getHelpString());
                     return;
                 }
 
@@ -680,54 +464,40 @@ public class WinsomeClientMain {
                         ConsoleColors.red("==> ERROR! ") + 
                         "The given post ID is not a positive integer.\n"
                     );
-                    System.out.println(cmd.getHelpString());
+                    System.err.println(cmd.getHelpString());
                     return;
                 }
 
                 System.out.println(ConsoleColors.blue("-> ") + "Rewinning post with ID \"" + ConsoleColors.blue(args[0]) + "\"...");
                 try { api.rewinPost(id); }
-                catch (IOException ex){
-                    System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
-                    return;
-                }
-                catch (MalformedJSONException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "Server sent malformed response message.");
-                    return;
-                }
-                catch (NoLoggedUserException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
-                    return;
-                }
                 catch (NoSuchPostException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "There is no post with the given ID.");
+                    printError("There is no post with the given ID.");
+                    return;
+                }
+                catch (PostOwnerException ex){
+                    printError("You cannot rewin your own post.");
                     return;
                 }
                 catch (AlreadyRewinnedException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "You are either the owner of the given post, or you have already rewinned it.");
+                    printError("You are have already rewinned this post.");
                     return;
                 }
                 catch (NotFollowingException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "You cannot rewin a post without following its author or rewinner.");
+                    printError("You cannot rewin a post without following its author or rewinner.");
                     return;
                 }
-                catch (IllegalStateException ex){
-                    System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
-                    return;
-                }
+
                 System.out.println(ConsoleColors.blue("==> SUCCESS!"));
                 break;
             }
 
-            case RATE: {
+            case RATE -> {
                 String[] args = argStr.split("\\s+"); // splitting on space
 
                 // checking argument number
                 if(args.length != 2){
-                    System.out.println(
-                        ConsoleColors.red("==> ERROR! ") + 
-                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
-                    );
-                    System.out.println(cmd.getHelpString());
+                    printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
+                    System.err.println(cmd.getHelpString());
                     return;
                 }
 
@@ -735,11 +505,8 @@ public class WinsomeClientMain {
 
                 try { id = Integer.parseInt(args[0]); }
                 catch(NumberFormatException ex){
-                    System.out.println(
-                        ConsoleColors.red("==> ERROR! ") + 
-                        "The given post ID is not a positive integer.\n"
-                    );
-                    System.out.println(cmd.getHelpString());
+                    printError("The given post ID is not a positive integer.\n");
+                    System.err.println(cmd.getHelpString());
                     return;
                 }
 
@@ -748,11 +515,8 @@ public class WinsomeClientMain {
                     if(vote != -1 && vote != 1) throw new NumberFormatException("vote must be +1 or -1");
                 }
                 catch(NumberFormatException ex){
-                    System.out.println(
-                        ConsoleColors.red("==> ERROR! ") +
-                        "The given vote is neither +1 nor -1.\n"
-                    );
-                    System.out.println(cmd.getHelpString());
+                    printError("The given vote is neither +1 nor -1.\n");
+                    System.err.println(cmd.getHelpString());
                     return;
                 }
 
@@ -760,170 +524,99 @@ public class WinsomeClientMain {
                     ConsoleColors.blue("-> ") + ((vote == +1) ? "Upvoting" : "Downvoting") 
                     + " post with ID \"" + ConsoleColors.blue(args[0]) + "\"..."
                 );
+
                 try { api.ratePost(id, vote); }
-                catch (IOException ex){
-                    System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
-                    return;
-                }
-                catch (MalformedJSONException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "Server sent malformed response message.");
-                    return;
-                }
-                catch (NoLoggedUserException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
-                    return;
-                }
                 catch (NoSuchPostException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "There is no post with the given ID.");
+                    printError("There is no post with the given ID.");
                     return;
                 }
                 catch (AlreadyVotedException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "You have already voted this post.");
+                    printError("You have already voted this post.");
                     return;
                 }
                 catch (WrongVoteFormatException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "The given vote is neither +1 nor -1.");
+                    printError("The given vote is neither +1 nor -1.");
+                    return;
+                }
+                catch (PostOwnerException ex){
+                    printError("You cannot rate your own posts.");
                     return;
                 }
                 catch (NotFollowingException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "You cannot rate a post without following its author or rewinner.");
+                    printError("You cannot rate a post without following its author or rewinner.");
                     return;
                 }
-                catch (IllegalStateException ex){
-                    System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
-                    return;
-                }
+                
                 System.out.println(ConsoleColors.blue("==> SUCCESS!"));
-                break;
-
             }
 
-            case COMMENT: {
+            case COMMENT -> {
                 List<String> args = splitQuotes(argStr); // splitting on first space
 
                 // checking argument number
                 if(args.size() != 2){
-                    System.out.println(
-                        ConsoleColors.red("==> ERROR! ") + 
-                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
-                    );
-                    System.out.println(cmd.getHelpString());
+                    printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
+                    System.err.println(cmd.getHelpString());
                     return;
                 }
 
                 int id = -1;
                 try { id = Integer.parseInt(args.get(0)); }
                 catch(NumberFormatException ex){
-                    System.out.println(
-                        ConsoleColors.red("==> ERROR! ") + 
-                        "The given post ID is not a positive integer.\n"
-                    );
-                    System.out.println(cmd.getHelpString());
+                    printError("The given post ID is not a positive integer.\n");
+                    System.err.println(cmd.getHelpString());
                     return;
                 }
 
                 System.out.println(ConsoleColors.blue("-> ") + "Adding comment on post with ID " 
                     + ConsoleColors.blue(args.get(0)) + "...");
+
                 try { api.addComment(id, args.get(1)); }
-                catch (IOException ex){
-                    System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
-                    return;
-                }
-                catch (MalformedJSONException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "Server sent malformed response message.");
-                    return;
-                }
-                catch (NoLoggedUserException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
-                    return;
-                }
                 catch (NoSuchPostException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "There is no post with the given ID.");
+                    printError("There is no post with the given ID.");
                     return;
                 }
                 catch (PostOwnerException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "You cannot add a comment to your own post.");
+                    printError("You cannot add a comment to your own post.");
                     return;
                 }
                 catch (NotFollowingException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + 
+                    printError(
                         "You cannot add a comment to a post without following its author or rewinner.");
                     return;
                 }
-                catch (IllegalStateException ex){
-                    System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
-                    return;
-                }
-                break;
+
+                System.out.println(ConsoleColors.blue("==> SUCCESS!"));
             }
 
-            case WALLET: {
+            case WALLET -> {
                 // checking argument number
                 if(!argStr.isEmpty()){
-                    System.out.println(
-                        ConsoleColors.red("==> ERROR! ") + 
-                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
-                    );
-                    System.out.println(cmd.getHelpString());
+                    printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
+                    System.err.println(cmd.getHelpString());
                     return;
                 }
 
                 System.out.println(ConsoleColors.blue("-> ") + "Getting your wallet...");
-                Wallet wallet;
-                try { wallet = api.getWallet(); }
-                catch (IOException ex){
-                    System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
-                    return;
-                }
-                catch (MalformedJSONException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "Server sent malformed response message.");
-                    return;
-                }
-                catch (NoLoggedUserException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
-                    return;
-                }
-                catch (IllegalStateException ex){
-                    System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
-                    return;
-                }
+                Wallet wallet = api.getWallet();
+                
                 System.out.println(ConsoleColors.blue("==> SUCCESS!") + " Printing your wallet...\n");
                 printWallet(wallet);
-                break;
             }
 
-            case WALLET_BTC: {
+            case WALLET_BTC -> {
                 // checking argument number
                 if(!argStr.isEmpty()){
-                    System.out.println(
-                        ConsoleColors.red("==> ERROR! ") + 
-                        "Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n"
-                    );
-                    System.out.println(cmd.getHelpString());
+                    printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
+                    System.err.println(cmd.getHelpString());
                     return;
                 }
 
                 double total;
                 System.out.println(ConsoleColors.blue("-> ") + "Getting your wallet in bitcoin...");
                 try { total = api.getWalletInBitcoin(); }
-                catch (IOException ex){
-                    System.out.println(ConsoleColors.red("==> Fatal error in server communication"));
-                    return;
-                }
-                catch (MalformedJSONException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "Server sent malformed response message.");
-                    return;
-                }
-                catch (NoLoggedUserException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "No user is currently logged: please log in.");
-                    return;
-                }
                 catch (ExchangeRateException ex){
-                    System.out.println(ConsoleColors.red("==> Error! ") + "Server could not compute the current exchange rate to BTC.");
-                    return;
-                }
-                catch (IllegalStateException ex){
-                    System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
+                    printError("Server could not compute the current exchange rate to BTC.");
                     return;
                 }
 
@@ -932,15 +625,13 @@ public class WinsomeClientMain {
                     ConsoleColors.blue("%.6f") + " bitcoins.\n",
                     total
                 );
-                break;
-            }
-
-            default: {
-                System.out.println(ConsoleColors.red("==> Command not yet implemented :("));
-                break;
             }
         }
 
+    }
+
+    private static void printError(String msg){
+        System.err.println(ConsoleColors.red("==> Error! ") + msg);
     }
 
     private static List<String> splitQuotes(String str){
@@ -991,7 +682,11 @@ public class WinsomeClientMain {
 
     private static void printWallet(Wallet wallet){
         System.out.printf(ConsoleColors.yellow("- Total: ") + "%.4f\n", wallet.total);
-        System.out.println(ConsoleColors.yellow("- Transactions:"));
+        System.out.println(
+            ConsoleColors.yellow("- Transactions:") + " there are currently " + 
+            ConsoleColors.yellow(Integer.toString(wallet.getTransactions().size())) + 
+            " transactions in your name."
+        );
         for(TransactionInfo transaction : wallet.getTransactions()){
             System.out.printf(ConsoleColors.yellow("    - Amount: ") + "%.4f", transaction.amount);
             System.out.println(ConsoleColors.yellow("      Timestamp: ") + transaction.timestamp);

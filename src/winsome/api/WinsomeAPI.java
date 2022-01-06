@@ -150,21 +150,18 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
 
     @Override
     public void addFollower(String user, Collection<String> tags) throws RemoteException {
-        if(loggedUser == null) throw new IllegalStateException(); // TODO: make new exception
+        if(loggedUser == null) return;
         if(user == null || tags == null) throw new NullPointerException("null parameters while adding new follower");
         for(String tag : tags) 
             if(tag == null) throw new NullPointerException("null parameters while adding new follower");
-        
-        if(followers.containsKey(user)) throw new IllegalArgumentException(); // TODO: make new exception
 
-        followers.put(user, new ArrayList<>(tags));
+        followers.putIfAbsent(user, new ArrayList<>(tags));
     }
 
     @Override
     public void removeFollower(String user) throws RemoteException {
         if(loggedUser == null) throw new IllegalStateException(); // TODO: make new exception
         if(user == null) throw new NullPointerException("null parameter while removing follower");
-        if(!followers.containsKey(user)) throw new IllegalArgumentException(); // TODO: make new exception
 
         followers.remove(user);
     }
@@ -200,8 +197,7 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
      * @throws RemoteException
      */
     public void register(String username, String password, Set<String> tags) 
-            throws NullPointerException, IllegalStateException, UserAlreadyExistsException, 
-                UserAlreadyLoggedException, RemoteException {
+            throws NullPointerException, UserAlreadyExistsException, UserAlreadyLoggedException, RemoteException {
         if(username == null || password == null || tags == null) throw new NullPointerException("null arguments to register");
         for(String tag : tags)
             if(tag == null) throw new NullPointerException("null tag in register");
@@ -220,10 +216,11 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
      * @throws UserAlreadyLoggedException if this client or the user is already logged in
      * @throws NoSuchUserException if no user with the given username exists
      * @throws WrongPasswordException if the password does not match the actual password
+     * @throws UnexpectedServerResponse if the server sent an unexpected response
      */
     public void login(String user, String passw) 
             throws IOException, MalformedJSONException, UserAlreadyLoggedException, 
-                NoSuchUserException, WrongPasswordException {
+                NoSuchUserException, WrongPasswordException, UnexpectedServerResponseException {
         if(isLogged()) throw new UserAlreadyLoggedException(
             "already logged as " + loggedUser + ". Please logout before trying to login with another user.");
 
@@ -253,15 +250,12 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
 
                 mcastSocket.joinGroup(mcastAddress);
                 serverMsg = thread.submit(worker);
+
                 return;
-            case USER_NOT_REGISTERED:
-                throw new NoSuchUserException("\"" + user + "\" is not signed up");
-            case WRONG_PASSW:
-                throw new WrongPasswordException("password does not match");
-            case ALREADY_LOGGED:
-                throw new UserAlreadyLoggedException("user is already logged in");
-            default:
-                throw new IllegalStateException(responseCode.toString());
+            case USER_NOT_REGISTERED: throw new NoSuchUserException("\"" + user + "\" does not exist");
+            case WRONG_PASSW: throw new WrongPasswordException("password does not match");
+            case ALREADY_LOGGED: throw new UserAlreadyLoggedException("user is already logged in");
+            default: throw new UnexpectedServerResponseException(responseCode.getMessage());
         }
     }
 
@@ -271,9 +265,11 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
      * @throws IllegalStateException if an unexpected error is thrown
      * @throws MalformedJSONException if the response is a malformed JSON
      * @throws NoLoggedUserException if this client is not currently logged in as any user
+     * @throws UnexpectedServerResponse if the server sent an unexpected response
      */
     public void logout() 
-            throws IOException, IllegalStateException, MalformedJSONException, NoLoggedUserException {
+            throws IOException, IllegalStateException, MalformedJSONException, 
+                NoLoggedUserException, UnexpectedServerResponseException {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
 
         JsonObject request = new JsonObject();
@@ -292,24 +288,12 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
                 serverMsg.cancel(true);
                 serverMsg = null;
                 break;
-            default: {  // there should not be any errors on logout, hence they are all in default
-                String msg;
-                switch (responseCode) {
-                    case USER_NOT_REGISTERED:
-                        msg = ("the user \"" + loggedUser + "\" is not signed up in the Social Network");
-                    case NO_LOGGED_USER:
-                        msg = ("no user is currently logged; please log in first");
-                    case WRONG_USER:
-                        msg = ("the user currently logged does not correspond to the user to log out");
-                    default:
-                        msg = responseCode.toString();
-                }
-                throw new IllegalStateException(msg);
-            }
+            default: throw new UnexpectedServerResponseException(responseCode.getMessage());
         }
     }
 
-    public Map<String, List<String>> listUsers() throws IOException, NoLoggedUserException, MalformedJSONException {
+    public Map<String, List<String>> listUsers() 
+            throws IOException, NoLoggedUserException, MalformedJSONException, UnexpectedServerResponseException {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
 
         JsonObject request = new JsonObject();
@@ -321,24 +305,9 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         JsonObject response = getJsonResponse();
         ResponseCode responseCode = ResponseCode.getResponseFromJson(response);
         switch (responseCode) {
-            case SUCCESS: {
-                return getUsersAndTags(response, "users");
-            }
+            case SUCCESS: return getUsersAndTags(response, "users");
             // there should not be any errors on list_users
-            default: {
-                String msg;
-                switch (responseCode) {
-                    case USER_NOT_REGISTERED:
-                        msg = ("the user \"" + loggedUser + "\" is not signed up in the Social Network");
-                    case NO_LOGGED_USER:
-                        msg = ("no user is currently logged; please log in first");
-                    case WRONG_USER:
-                        msg = ("the user currently logged does not correspond to the username in the request");
-                    default:
-                        msg = responseCode.toString();
-                }
-                throw new IllegalStateException(msg);
-            }
+            default: throw new UnexpectedServerResponseException(responseCode.getMessage());
         }
     }
 
@@ -352,7 +321,8 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         return ans;
     }
 
-    public Map<String, List<String>> listFollowing() throws IOException, NoLoggedUserException, MalformedJSONException {
+    public Map<String, List<String>> listFollowing() 
+            throws IOException, NoLoggedUserException, MalformedJSONException, UnexpectedServerResponseException {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
 
         JsonObject request = new JsonObject();
@@ -364,28 +334,14 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         JsonObject response = getJsonResponse();
         ResponseCode responseCode = ResponseCode.getResponseFromJson(response);
         switch (responseCode) {
-            case SUCCESS:
-                return getUsersAndTags(response, "following");
-            default: {  //
-                String msg;
-                switch (responseCode) {
-                    case USER_NOT_REGISTERED:
-                        msg = ("the user \"" + loggedUser + "\" is not signed up in the Social Network");
-                    case NO_LOGGED_USER:
-                        msg = ("no user is currently logged; please log in first");
-                    case WRONG_USER:
-                        msg = ("the user currently logged does not correspond to the user to log out");
-                    default:
-                        msg = responseCode.toString();
-                }
-                throw new IllegalStateException(msg);
-            }
+            case SUCCESS: return getUsersAndTags(response, "following");
+            default: throw new UnexpectedServerResponseException(responseCode.getMessage());
         }
     }
 
     public void followUser(String toFollow) 
-            throws IOException, MalformedJSONException, NoLoggedUserException, 
-                    UserNotVisibleException, FollowException {
+            throws IOException, MalformedJSONException, NoLoggedUserException, SelfFollowException,
+                    UserNotVisibleException, AlreadyFollowingException, UnexpectedServerResponseException {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
 
         JsonObject request = new JsonObject();
@@ -398,32 +354,17 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         JsonObject response = getJsonResponse();
         ResponseCode responseCode = ResponseCode.getResponseFromJson(response);
         switch (responseCode) {
-            case SUCCESS:
-                return;
-            case USER_NOT_VISIBLE:
-                throw new UserNotVisibleException("user to follow has no common tags");
-            case ALREADY_FOLLOWED:
-                throw new FollowException("user already followed");
-            default: {  //
-                String msg;
-                switch (responseCode) {
-                    case USER_NOT_REGISTERED:
-                        msg = ("the user \"" + loggedUser + "\" is not signed up in the Social Network");
-                    case NO_LOGGED_USER:
-                        msg = ("no user is currently logged; please log in first");
-                    case WRONG_USER:
-                        msg = ("the user currently logged does not correspond to the user to log out");
-                    default:
-                        msg = responseCode.toString();
-                }
-                throw new IllegalStateException(msg);
-            }
+            case SUCCESS: return;
+            case USER_NOT_VISIBLE: throw new UserNotVisibleException("user to follow has no common tags");
+            case SELF_FOLLOW: throw new SelfFollowException("user cannot follow themselves");
+            case ALREADY_FOLLOWED: throw new AlreadyFollowingException("user already followed");
+            default: throw new UnexpectedServerResponseException(responseCode.getMessage());
         }
     }
 
     public void unfollowUser(String toUnfollow) 
-            throws IOException, MalformedJSONException, NoLoggedUserException, 
-                UserNotVisibleException, FollowException {
+            throws IOException, MalformedJSONException, NoLoggedUserException, SelfFollowException,
+                UserNotVisibleException, NotFollowingException, UnexpectedServerResponseException {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
 
         JsonObject request = new JsonObject();
@@ -436,40 +377,29 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         JsonObject response = getJsonResponse();
         ResponseCode responseCode = ResponseCode.getResponseFromJson(response);
         switch (responseCode) {
-            case SUCCESS:
-                return;
-            case USER_NOT_VISIBLE:
-                throw new UserNotVisibleException("user to follow has no common tags");
-            case NOT_FOLLOWING:
-                throw new FollowException("user not followed");
-            default: {  //
-                String msg;
-                switch (responseCode) {
-                    case USER_NOT_REGISTERED:
-                        msg = ("the user \"" + loggedUser + "\" is not signed up in the Social Network");
-                    case NO_LOGGED_USER:
-                        msg = ("no user is currently logged; please log in first");
-                    case WRONG_USER:
-                        msg = ("the user currently logged does not correspond to the user to log out");
-                    default:
-                        msg = responseCode.toString();
-                }
-                throw new IllegalStateException(msg);
-            }
+            case SUCCESS: return;
+            case USER_NOT_VISIBLE: throw new UserNotVisibleException("user to follow has no common tags");
+            case SELF_FOLLOW: throw new SelfFollowException("user cannot un follow themselves");
+            case NOT_FOLLOWING: throw new NotFollowingException("user not followed");
+            default: throw new UnexpectedServerResponseException(responseCode.getMessage());
         }
     }
 
-    public List<PostInfo> viewBlog() throws IOException, NoLoggedUserException, MalformedJSONException, UserNotVisibleException  {
+    public List<PostInfo> viewBlog() 
+        throws IOException, NoLoggedUserException, MalformedJSONException, 
+            UserNotVisibleException, UnexpectedServerResponseException  {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
 
         return viewBlog(loggedUser);
     }
 
     public List<PostInfo> viewBlog(String otherUser) 
-            throws IOException, NoLoggedUserException, MalformedJSONException, UserNotVisibleException  {
+            throws IOException, NoLoggedUserException, MalformedJSONException, 
+                UserNotVisibleException, UnexpectedServerResponseException  {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
 
         JsonObject request = new JsonObject();
+
         RequestCode.BLOG.addRequestToJson(request);
         request.addProperty("username", loggedUser);
         request.addProperty("to-view", otherUser);
@@ -493,26 +423,13 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
                 catch (NullPointerException | ClassCastException | IllegalStateException ex) {
                     throw new MalformedJSONException("server sent malformed json");
                 }
-            case USER_NOT_VISIBLE:
-                throw new UserNotVisibleException("user to show is not visible to the current user");
-            default: {  //
-                String msg;
-                switch (responseCode) {
-                    case USER_NOT_REGISTERED:
-                        msg = ("the user \"" + loggedUser + "\" is not signed up in the Social Network");
-                    case NO_LOGGED_USER:
-                        msg = ("no user is currently logged; please log in first");
-                    case WRONG_USER:
-                        msg = ("the user currently logged does not correspond to the user to log out");
-                    default:
-                        msg = responseCode.toString();
-                }
-                throw new IllegalStateException(msg);
-            }
+            case USER_NOT_VISIBLE: throw new UserNotVisibleException("user to show is not visible to the current user");
+            default: throw new UnexpectedServerResponseException(responseCode.getMessage());
         }
     }
 
-    public int createPost(String title, String content) throws IOException, MalformedJSONException, NoLoggedUserException {
+    public int createPost(String title, String content) 
+            throws IOException, MalformedJSONException, NoLoggedUserException, UnexpectedServerResponseException {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
 
         JsonObject request = new JsonObject();
@@ -531,24 +448,11 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
                 catch (NullPointerException | ClassCastException | IllegalStateException ex) {
                     throw new MalformedJSONException("server sent malformed json");
                 }
-            default: {  //
-                String msg;
-                switch (responseCode) {
-                    case USER_NOT_REGISTERED:
-                        msg = ("the user \"" + loggedUser + "\" is not signed up in the Social Network");
-                    case NO_LOGGED_USER:
-                        msg = ("no user is currently logged; please log in first");
-                    case WRONG_USER:
-                        msg = ("the user currently logged does not correspond to the user to log out");
-                    default:
-                        msg = responseCode.toString();
-                }
-                throw new IllegalStateException(msg);
-            }
+            default: throw new UnexpectedServerResponseException(responseCode.getMessage());
         }
     }
     
-    public List<PostInfo> showFeed() throws IOException, NoLoggedUserException, MalformedJSONException  {
+    public List<PostInfo> showFeed() throws IOException, NoLoggedUserException, MalformedJSONException, UnexpectedServerResponseException  {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
 
         JsonObject request = new JsonObject();
@@ -574,24 +478,13 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
                 catch (NullPointerException | ClassCastException | IllegalStateException ex) {
                     throw new MalformedJSONException("server sent malformed json");
                 }
-            default: {  //
-                String msg;
-                switch (responseCode) {
-                    case USER_NOT_REGISTERED:
-                        msg = ("the user \"" + loggedUser + "\" is not signed up in the Social Network");
-                    case NO_LOGGED_USER:
-                        msg = ("no user is currently logged; please log in first");
-                    case WRONG_USER:
-                        msg = ("the user currently logged does not correspond to the user to log out");
-                    default:
-                        msg = responseCode.toString();
-                }
-                throw new IllegalStateException(msg);
-            }
+            default: throw new UnexpectedServerResponseException(responseCode.getMessage());
         }
     }
 
-    public PostInfo showPost(int idPost) throws IOException, MalformedJSONException, NoLoggedUserException, NoSuchPostException {
+    public PostInfo showPost(int idPost) 
+            throws IOException, MalformedJSONException, NoLoggedUserException, 
+                NoSuchPostException, UnexpectedServerResponseException {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
 
         JsonObject request = new JsonObject();
@@ -605,34 +498,18 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         ResponseCode responseCode = ResponseCode.getResponseFromJson(response);
         switch (responseCode) {
             case SUCCESS:
-                try { 
-                    return getPostFromJson(response.get("post").getAsJsonObject(), true);
-                }
+                try { return getPostFromJson(response.get("post").getAsJsonObject(), true); }
                 catch (NullPointerException | ClassCastException | IllegalStateException ex) {
                     throw new MalformedJSONException("server sent malformed json");
                 }
-            case NO_POST:
-                throw new NoSuchPostException("the given post does not exist");
-            default: {  //
-                String msg;
-                switch (responseCode) {
-                    case USER_NOT_REGISTERED:
-                        msg = ("the user \"" + loggedUser + "\" is not signed up in the Social Network");
-                    case NO_LOGGED_USER:
-                        msg = ("no user is currently logged; please log in first");
-                    case WRONG_USER:
-                        msg = ("the user currently logged does not correspond to the user to log out");
-                    default:
-                        msg = responseCode.toString();
-                }
-                throw new IllegalStateException(msg);
-            }
+            case NO_POST: throw new NoSuchPostException("the given post does not exist");
+            default: throw new UnexpectedServerResponseException(responseCode.getMessage());
         }
     }
 
     public void deletePost(int idPost) 
             throws IOException, NoLoggedUserException, MalformedJSONException, 
-                NoSuchPostException, NotPostOwnerException {
+                NoSuchPostException, NotPostOwnerException, UnexpectedServerResponseException {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
 
         JsonObject request = new JsonObject();
@@ -645,32 +522,16 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         JsonObject response = getJsonResponse();
         ResponseCode responseCode = ResponseCode.getResponseFromJson(response);
         switch (responseCode) {
-            case SUCCESS:
-                return;
-            case NO_POST:
-                throw new NoSuchPostException("there is no post with the given id");
-            case NOT_POST_OWNER:
-                throw new NotPostOwnerException("this user is not the owner of the given post");
-            default: {  //
-                String msg;
-                switch (responseCode) {
-                    case USER_NOT_REGISTERED:
-                        msg = ("the user \"" + loggedUser + "\" is not signed up in the Social Network");
-                    case NO_LOGGED_USER:
-                        msg = ("no user is currently logged; please log in first");
-                    case WRONG_USER:
-                        msg = ("the user currently logged does not correspond to the user to log out");
-                    default:
-                        msg = responseCode.toString();
-                }
-                throw new IllegalStateException(msg);
-            }
+            case SUCCESS: return;
+            case NO_POST: throw new NoSuchPostException("there is no post with the given id");
+            case NOT_POST_OWNER: throw new NotPostOwnerException("this user is not the owner of the given post");
+            default: throw new UnexpectedServerResponseException(responseCode.getMessage());
         }
     }
 
     public void rewinPost(int idPost) 
-            throws IOException, NoLoggedUserException, MalformedJSONException, 
-                NoSuchPostException, AlreadyRewinnedException, NotFollowingException {
+            throws IOException, NoLoggedUserException, MalformedJSONException, NoSuchPostException, 
+                AlreadyRewinnedException, NotFollowingException, PostOwnerException, UnexpectedServerResponseException {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
 
         JsonObject request = new JsonObject();
@@ -683,34 +544,19 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         JsonObject response = getJsonResponse();
         ResponseCode responseCode = ResponseCode.getResponseFromJson(response);
         switch (responseCode) {
-            case SUCCESS:
-                return;
-            case NO_POST:
-                throw new NoSuchPostException("there is no post with the given id");
-            case NOT_FOLLOWING:
-                throw new NotFollowingException("the current user is not following the owner of the post to interact with");
-            case REWIN_ERR:
-                throw new AlreadyRewinnedException("this user is either the owner of the given post or has already rewinned it");
-            default: {  //
-                String msg;
-                switch (responseCode) {
-                    case USER_NOT_REGISTERED:
-                        msg = ("the user \"" + loggedUser + "\" is not signed up in the Social Network");
-                    case NO_LOGGED_USER:
-                        msg = ("no user is currently logged; please log in first");
-                    case WRONG_USER:
-                        msg = ("the user currently logged does not correspond to the user to log out");
-                    default:
-                        msg = responseCode.toString();
-                }
-                throw new IllegalStateException(msg);
-            }
+            case SUCCESS: return;
+            case NO_POST: throw new NoSuchPostException("there is no post with the given id");
+            case NOT_FOLLOWING: throw new NotFollowingException("the current user is not following the owner of the post to interact with");
+            case POST_OWNER: throw new PostOwnerException("this user is the owner of the given post");
+            case REWIN_ERR: throw new AlreadyRewinnedException("this user has already rewinned this post");
+            default: throw new UnexpectedServerResponseException(responseCode.getMessage());
         }
     }
 
     public void ratePost(int idPost, int vote) 
             throws IOException, NoLoggedUserException, MalformedJSONException, 
-                NoSuchPostException, AlreadyVotedException, WrongVoteFormatException, NotFollowingException {
+                NoSuchPostException, AlreadyVotedException, WrongVoteFormatException, 
+                NotFollowingException, PostOwnerException, UnexpectedServerResponseException {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
         if(vote != +1 && vote != -1) throw new WrongVoteFormatException("vote should be either +1 or -1");
 
@@ -725,36 +571,18 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         JsonObject response = getJsonResponse();
         ResponseCode responseCode = ResponseCode.getResponseFromJson(response);
         switch (responseCode) {
-            case SUCCESS:
-                return;
-            case NO_POST:
-                throw new NoSuchPostException("there is no post with the given id");
-            case NOT_FOLLOWING:
-                throw new NotFollowingException("the current user is not following the owner of the post to interact with");
-            case ALREADY_VOTED:
-                throw new AlreadyVotedException("this user has already voted the given post");
-            default: {  //
-                String msg;
-                switch (responseCode) {
-                    case USER_NOT_REGISTERED:
-                        msg = ("the user \"" + loggedUser + "\" is not signed up in the Social Network");
-                    case NO_LOGGED_USER:
-                        msg = ("no user is currently logged; please log in first");
-                    case WRONG_USER:
-                        msg = ("the user currently logged does not correspond to the user to log out");
-                    case WRONG_VOTE_FORMAT:
-                        msg = "the vote should be either +1 or -1";
-                default:
-                        msg = responseCode.toString();
-                }
-                throw new IllegalStateException(msg);
-            }
+            case SUCCESS: return;
+            case NO_POST: throw new NoSuchPostException("there is no post with the given id");
+            case NOT_FOLLOWING: throw new NotFollowingException("the current user is not following the owner of the post to interact with");
+            case POST_OWNER: throw new PostOwnerException("cannot vote your own posts");
+            case ALREADY_VOTED: throw new AlreadyVotedException("this user has already voted the given post");
+            default: throw new UnexpectedServerResponseException(responseCode.getMessage());
         }
     }
 
     public void addComment(int idPost, String comment) 
             throws IOException, NoLoggedUserException, MalformedJSONException, 
-                NoSuchPostException, PostOwnerException, NotFollowingException {
+                NoSuchPostException, PostOwnerException, NotFollowingException, UnexpectedServerResponseException {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
 
         JsonObject request = new JsonObject();
@@ -768,34 +596,15 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         JsonObject response = getJsonResponse();
         ResponseCode responseCode = ResponseCode.getResponseFromJson(response);
         switch (responseCode) {
-            case SUCCESS:
-                return;
-            case NO_POST:
-                throw new NoSuchPostException("there is no post with the given id");
-            case NOT_FOLLOWING:
-                throw new NotFollowingException("the current user is not following the owner of the post to interact with");
-            case POST_OWNER:
-                throw new PostOwnerException("you are the owner of the post");
-            default: {  //
-                String msg;
-                switch (responseCode) {
-                    case USER_NOT_REGISTERED:
-                        msg = ("the user \"" + loggedUser + "\" is not signed up in the Social Network");
-                    case NO_LOGGED_USER:
-                        msg = ("no user is currently logged; please log in first");
-                    case WRONG_USER:
-                        msg = ("the user currently logged does not correspond to the user to log out");
-                    case WRONG_VOTE_FORMAT:
-                        msg = "the vote should be either +1 or -1";
-                default:
-                        msg = responseCode.toString();
-                }
-                throw new IllegalStateException(msg);
-            }
+            case SUCCESS: return;
+            case NO_POST: throw new NoSuchPostException("there is no post with the given id");
+            case NOT_FOLLOWING: throw new NotFollowingException("the current user is not following the owner of the post to interact with");
+            case POST_OWNER: throw new PostOwnerException("you are the owner of the post");
+            default: throw new UnexpectedServerResponseException(responseCode.getMessage());
         }
     }
 
-    public Wallet getWallet() throws IOException, NoLoggedUserException, MalformedJSONException {
+    public Wallet getWallet() throws IOException, NoLoggedUserException, MalformedJSONException, UnexpectedServerResponseException {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
 
         JsonObject request = new JsonObject();
@@ -812,24 +621,13 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
                 catch (NullPointerException | ClassCastException | IllegalStateException ex) {
                     throw new MalformedJSONException("server sent malformed json");
                 }
-            default: {
-                String msg;
-                switch (responseCode) {
-                    case USER_NOT_REGISTERED:
-                        msg = ("the user \"" + loggedUser + "\" is not signed up in the Social Network");
-                    case NO_LOGGED_USER:
-                        msg = ("no user is currently logged; please log in first");
-                    case WRONG_USER:
-                        msg = ("the user currently logged does not correspond to the user to log out");
-                    default:
-                        msg = responseCode.toString();
-                }
-                throw new IllegalStateException(msg);
-            }
+            default: throw new UnexpectedServerResponseException(responseCode.getMessage());
         }
     }
     
-    public double getWalletInBitcoin() throws IOException, NoLoggedUserException, MalformedJSONException, ExchangeRateException {
+    public double getWalletInBitcoin() 
+            throws IOException, NoLoggedUserException, MalformedJSONException, 
+                ExchangeRateException, UnexpectedServerResponseException {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
 
         JsonObject request = new JsonObject();
@@ -846,22 +644,8 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
                 catch (NullPointerException | ClassCastException | IllegalStateException ex) {
                     throw new MalformedJSONException("server sent malformed json");
                 }
-            case EXCHANGE_RATE_ERROR:
-                throw new ExchangeRateException("server could not compute the current exchange rate");
-            default: {
-                String msg;
-                switch (responseCode) {
-                    case USER_NOT_REGISTERED:
-                        msg = ("the user \"" + loggedUser + "\" is not signed up in the Social Network");
-                    case NO_LOGGED_USER:
-                        msg = ("no user is currently logged; please log in first");
-                    case WRONG_USER:
-                        msg = ("the user currently logged does not correspond to the user to log out");
-                    default:
-                        msg = responseCode.toString();
-                }
-                throw new IllegalStateException(msg);
-            }
+            case EXCHANGE_RATE_ERROR: throw new ExchangeRateException("server could not compute the current exchange rate");
+            default: throw new UnexpectedServerResponseException(responseCode.getMessage());
         }
     }
 

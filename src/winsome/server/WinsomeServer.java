@@ -668,6 +668,10 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
             WinsomeServer.this.checkIfLogged(username, key);
 
+            if(username.equals(toFollow)) {
+                ResponseCode.SELF_FOLLOW.addResponseToJson(response); return response;
+            }
+
             // adding follower
             try { WinsomeServer.this.addFollower(username, toFollow); }
             catch (AlreadyFollowingException ex){ // if 'username' already follows 'toFollow'
@@ -705,6 +709,10 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
             WinsomeServer.this.checkIfLogged(username, key);
 
+            if(username.equals(toUnfollow)) {
+                ResponseCode.SELF_FOLLOW.addResponseToJson(response); return response;
+            }
+
             // removing follower
             try { WinsomeServer.this.removeFollower(username, toUnfollow); }
             catch (NotFollowingException ex){ // if 'username' does not follow 'toUnfollow'
@@ -724,11 +732,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          * @throws NoSuchUserException if the requesting user does not exist
          * @throws NoLoggedUserException if the client is not currently logged in
          * @throws WrongUserException if the client is logged on a different user
-         * @throws UserNotVisible if the client cannot see the user to show
          */
         private JsonObject blogRequest() 
-                throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, 
-                    UserNotVisibleException, WrongUserException {
+                throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, WrongUserException {
             JsonObject response = new JsonObject();
 
             String username, toView;
@@ -809,9 +815,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             String username;
 
             // reading username from the request
-            try {
-                username = request.get("username").getAsString();
-            } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username => malformed Json
+            try { username = request.get("username").getAsString(); }
+            catch (NullPointerException | ClassCastException | IllegalStateException ex ){
                 throw new MalformedJSONException("missing fields in json request", ex);
             }
             
@@ -939,7 +944,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 return response;
             }
             catch (PostOwnerException ex){ // if user is the author of the given post
-                ResponseCode.REWIN_ERR.addResponseToJson(response);
+                ResponseCode.POST_OWNER.addResponseToJson(response);
                 return response;
             }
             catch (AlreadyRewinnedException ex){ // if user has already rewinned the given post
@@ -980,10 +985,14 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             if((post = posts.get(id)) == null){
                 ResponseCode.NO_POST.addResponseToJson(response); return response;
             }
+
+            if(post.getAuthor().equals(username)){
+                ResponseCode.POST_OWNER.addResponseToJson(response); return response;
+            }
             
             // checking that user follows the author of the post
             if(!canInteractWith(username, post)) {
-                ResponseCode.USER_NOT_VISIBLE.addResponseToJson(response); return response;
+                ResponseCode.NOT_FOLLOWING.addResponseToJson(response); return response;
             }
             
             // upvoting post
@@ -1037,7 +1046,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
             // checking that user follows the author of the post
             if(!canInteractWith(username, post)) {
-                ResponseCode.USER_NOT_VISIBLE.addResponseToJson(response); return response;
+                ResponseCode.NOT_FOLLOWING.addResponseToJson(response); return response;
             }
             
             // adding comment
@@ -1845,9 +1854,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
     private void deletePost(String username, int id) throws NoSuchUserException, NoSuchPostException, NotPostOwnerException {
         if(username == null) throw new NullPointerException();
 
-        User user; Post post;
+        Post post;
 
-        if((user = users.get(username)) == null) throw new NoSuchUserException(); 
+        if(!users.containsKey(username)) throw new NoSuchUserException(); 
         if((post = posts.get(id)) == null) throw new NoSuchPostException();
 
         if(post.isRewin()){
@@ -1872,7 +1881,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         if(username == null) throw new NullPointerException();
 
         Post post;
-        if(users.containsKey(username)) throw new NoSuchUserException("user does not exist");
+        if(!users.containsKey(username)) throw new NoSuchUserException("user does not exist");
         if((post = posts.get(idPost)) == null) throw new NoSuchPostException("no post with the given ID exists");
 
         if(!canInteractWith(username, post))
