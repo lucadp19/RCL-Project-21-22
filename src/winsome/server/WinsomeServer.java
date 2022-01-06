@@ -1294,9 +1294,13 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
     /** A Runnable object that loads and writes the Server state from/to disk. */
     private ServerPersistence persistenceWorker;
 
+    /** Thread executing the persistence worker */
     private ExecutorService persistenceThread = Executors.newSingleThreadExecutor();
-    private ExecutorService rewardsThread = Executors.newSingleThreadExecutor();
+    /** Result of the persistence worker (to check that no exceptions have been thrown) */
     private Future<Void> persistenceResult;
+    /** Thread executing the Rewards Algorithm */
+    private ExecutorService rewardsThread = Executors.newSingleThreadExecutor();
+    /** Result of the Rewards Algorithm (to check that no exceptions have been thrown) */
     private Future<Void> rewardsResult;
 
     /** The thread pool for the Worker Threads. */
@@ -1307,6 +1311,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
     /** The server socket channel */
     private ServerSocketChannel socketChannel;
 
+    /** The multicast socket to notify clients of new rewards */
     private DatagramSocket multicastSocket;
 
     /** Users of the Social Network, represented as a map from usernames to User objects. */
@@ -1355,12 +1360,14 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         persistenceWorker = new ServerPersistence(config.getPersistenceDir());
         try { persistenceWorker.getPersistedData(); }
         finally {
+            // getting max ID
             int maxPostID = -1;
             for(Post post : posts.values()) {
                 if(post.getID() > maxPostID) 
                     maxPostID = post.getID();
             }
             
+            // initializing the ID generator for posts
             Post.initIDGenerator(maxPostID + 1);
         }
     }
@@ -1433,6 +1440,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             // get the selected keys
             Set<SelectionKey> keys = selector.selectedKeys();
             Iterator<SelectionKey> iter = keys.iterator();
+            // iterate on keys
             while(iter.hasNext()){
                 SelectionKey key = iter.next();
                 iter.remove();
@@ -1442,14 +1450,11 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                         SocketChannel client = socketChannel.accept();
                         client.configureBlocking(false);
                         client.register(selector, SelectionKey.OP_READ, new KeyAttachment()); 
-
-                        // System.out.println("accepted client!");
                     } 
                     if(key.isReadable() && key.isValid()){ // request from already connected client
-                        // System.out.println("Key is readable!");
-                        
                         // reading new request from client and parsing as a Json Object
-                        JsonObject request = null;
+                        JsonObject request;
+
                         try { request = getJsonRequest(key); }
                         catch (MalformedJSONException ex){ // parsing failed
                             JsonObject response = new JsonObject();
@@ -1466,18 +1471,24 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                         pool.execute(new Worker(request, key));
                     }
                 } catch(IOException ex){ // fatal IO Exception
-                    // System.err.println("Connection closed as a result of an IO Exception.");
                     endUserSession(key);
                 }
             }
         }
     }
 
+    /** Closes the server, starting the shutdown procedure. */
     public void close(){
         isRunning.set(false);
         selector.wakeup();
     }
 
+    /**
+     * Checks whether this server has been interrupted.
+     * <p> Interruption causes are either an external call to {@link #close()}
+     * or an exception thrown by one of the non-worker threads. 
+     * @return true if and only if this thread should shutdown
+     */
     private boolean isInterrupted(){
         try {
             rewardsResult.get(1, TimeUnit.MILLISECONDS);
@@ -1490,6 +1501,10 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         return false;
     }
 
+    /** 
+     * Shuts down the server, closing all connections and terminating threads.
+     * @throws IOException if some IOException occurs while shutting the server down
+     */
     private void shutdown() throws IOException {
         selector.wakeup();
 
@@ -1524,17 +1539,6 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         } catch (InterruptedException ex){ persistenceThread.shutdownNow(); }
     }
 
-    /** Test function to echo a message */ // TODO: delete it
-    public void echo(SelectionKey key) throws IOException {
-        String msg = receive(key);
-        System.out.println("String is: " + msg);
-
-        String ans = msg + " echoed by server";
-        System.out.println("Answer is: " + ans);
-        
-        send(ans, key);
-    }
-
     /* **************** Remote Methods **************** */
 
     @Override
@@ -1543,17 +1547,17 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         for(String tag : tags) 
             if(tag == null) throw new NullPointerException("null parameters in signUp method");
         
+        // TODO: cipher passwords
+        // TODO: check for empty password
         User newUser = new User(username, password, tags);
 
-        synchronized(this){ // TODO: is this the best way to synchronize things?
+        synchronized(this){ 
             following.computeIfAbsent(username, key -> ConcurrentHashMap.newKeySet());
             transactions.computeIfAbsent(username, key -> new ConcurrentLinkedQueue<>());
 
             if(users.putIfAbsent(username, newUser) != null)
                 throw new UserAlreadyExistsException("\"" + username + "\" is not available as a new username");
         }
-
-        // System.out.println("New user: \n\tUsername: " + username + "\n\tPassword: " + password + "\n\tTags: " + tags);
     }
 
     @Override
@@ -1580,7 +1584,6 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
      * @param username username of the user
      * @param password password of the user
      * @param client selection key relative to the client's connection
-     * @throws NullPointerException if any of username, password or client are null
      * @throws NoSuchUserException if no user with the given username exists
      * @throws WrongPasswordException if the password does not match the saved password
      * @throws UserAlreadyLoggedException if the client is already logged in, or the user is logged on another client
@@ -1608,7 +1611,6 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
      * Removes a user from the list of logged users.
      * @param username username of the given user
      * @param client selection key relative to the client's connection
-     * @throws NullPointerException if any of username, client are null
      * @throws NoSuchUserException if no user with the given username exists
      * @throws NoLoggedUserException if the given user is not logged in
      * @throws WrongUserException if the client is logged in with another user
@@ -1626,7 +1628,6 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
      * Asserts that a given client is logged in on a given user; otherwise it throws some exception.
      * @param username username of the given user
      * @param client selection key relative to the client's connection
-     * @throws NullPointerException if any of username, client are null
      * @throws NoSuchUserException if no user with the given username exists
      * @throws NoLoggedUserException if the given user is not logged in
      * @throws WrongUserException if the client is logged in with another user
@@ -1637,7 +1638,6 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
         // checking that the user exists
         if(!users.containsKey(username)) throw new NoSuchUserException("user is not registered");
-
 
         KeyAttachment attachment = (KeyAttachment) client.attachment();
         if(!attachment.isLoggedIn()) // the client is not logged in
@@ -1741,8 +1741,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
         List<User> ans = new ArrayList<>();
         for(Entry<String, Set<String>> entry : following.entrySet()){
-            if(entry.getValue().contains(username)) 
-            ans.add(users.get(entry.getKey()));
+            if(entry.getValue().contains(username)) // if this user follows 'username'
+                ans.add(users.get(entry.getKey()));
         }
 
         return ans;
@@ -1752,7 +1752,6 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
      * Adds a new user to the followed list of a given user.
      * @param username user who filed the request
      * @param toFollow user to follow
-     * @throws NullPointerException if any of username or toFollow are null
      * @throws NoSuchUserException if any of the two users do not exist
      * @throws UserNotVisibleException if the user to follow cannot be seen by the first user
      * @throws AlreadyFollowingException if 'username' already follows 'toFollow'
@@ -1776,6 +1775,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         if(!followedSet.add(toFollow))
             throw new AlreadyFollowingException("user already followed");
         
+        // updating followed through RMI
         RemoteClient followedClient;
         if((followedClient = registeredToCallbacks.get(toFollow)) != null){
             try { followedClient.addFollower(username, user.getTags()); }
@@ -1814,19 +1814,24 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         if(!followedSet.remove(toUnfollow))
             throw new NotFollowingException("user already unfollowed");
         
+        // updating unfollowed through RMI
         RemoteClient unfollowedClient;
-
         if((unfollowedClient = registeredToCallbacks.get(toUnfollow)) != null){
             try { unfollowedClient.removeFollower(username); }
             catch (RemoteException ex){ // remote error -> removing client
                 endUserSession(toUnfollow);
             }
         }
-            
     }
 
     // -------------- Post methods --------------- //
 
+    /**
+     * Returns all the posts written by a given user.
+     * @param username the username of the author
+     * @return a list with all the post written by the given user
+     * @throws NoSuchUserException if no user with the given username exist
+     */
     private List<Post> getPostByAuthor(String username) throws NoSuchUserException {
         if(username == null) throw new NullPointerException("null arguments");
         if(!users.containsKey(username)) throw new NoSuchUserException("user does not exist");
@@ -1835,25 +1840,16 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         for(Post post : posts.values()){
             if((!post.isRewin() && post.getAuthor().equals(username)) || (post.isRewin() && post.getRewinner().equals(username))) 
                 ans.add(post);
-            
-        }
-        return ans;
-    }
-
-    private List<Post> getVisiblePosts(String username) throws NoSuchUserException {
-        if(username == null) throw new NullPointerException("null arguments");
-
-        User user;
-        if((user = users.get(username)) == null) throw new NoSuchUserException("user does not exist");
-
-        List<Post> ans = new ArrayList<>();
-        for(Post post : posts.values()){
-            if(isPostVisible(user, post))
-                ans.add(post); 
         }
         return ans;
     }
     
+    /**
+     * Returns a client's feed, i.e. all the posts published by the users followed by the given client.
+     * @param username the username of the given client
+     * @return the client's feed
+     * @throws NoSuchUserException if no user with the given username exists
+     */
     private List<Post> getFeed(String username) throws NoSuchUserException {
         if(username == null) throw new NullPointerException("null arguments");
 
@@ -1870,21 +1866,30 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         return ans;
     }
 
+    /**
+     * Deletes a post.<p>
+     * If the post is a rewin, it only deletes the post; if it's original, all rewins are deleted with it.
+     * @param username the username of the deleter
+     * @param id the id of the post to delete
+     * @throws NoSuchUserException if no user with the given username exists
+     * @throws NoSuchPostException if no post with the given id exists
+     * @throws NotPostOwnerException if the client is not the author/rewinner of the given post
+     */
     private void deletePost(String username, int id) throws NoSuchUserException, NoSuchPostException, NotPostOwnerException {
         if(username == null) throw new NullPointerException();
 
         Post post;
 
-        if(!users.containsKey(username)) throw new NoSuchUserException(); 
-        if((post = posts.get(id)) == null) throw new NoSuchPostException();
+        if(!users.containsKey(username)) throw new NoSuchUserException("no user with the given username exists"); 
+        if((post = posts.get(id)) == null) throw new NoSuchPostException("no post with the given id exists");
 
         if(post.isRewin()){
-            if(!post.getRewinner().equals(username)) throw new NotPostOwnerException();
+            if(!post.getRewinner().equals(username)) throw new NotPostOwnerException("user is not the rewinner of this post");
 
             // synchronized with rewins
             synchronized(posts) { posts.remove(id); }
         } else {
-            if(!post.getAuthor().equals(username)) throw new NotPostOwnerException();
+            if(!post.getAuthor().equals(username)) throw new NotPostOwnerException("user is not the author of this post");
 
             // synchronized with rewins
             synchronized(posts) { posts.remove(id); }
@@ -1895,6 +1900,16 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         }
     }
 
+    /**
+     * Rewins a post.
+     * @param username the username of the rewinner
+     * @param idPost the id of the post to rewin
+     * @throws NoSuchUserException no user with the given username exists
+     * @throws NoSuchPostException no post with the given id exists
+     * @throws PostOwnerException user is the author of the post
+     * @throws AlreadyRewinnedException user has already rewinned the post
+     * @throws NotFollowingException user is not following the owner of the post
+     */
     private void rewinPost(String username, int idPost) 
             throws NoSuchUserException, NoSuchPostException, PostOwnerException, AlreadyRewinnedException, NotFollowingException {
         if(username == null) throw new NullPointerException();
@@ -1916,7 +1931,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             Post rewin = new Rewin(post, username);
 
             if(posts.containsKey(idPost)) posts.put(rewin.getID(), rewin);
-            else throw new NoSuchPostException();
+            else throw new NoSuchPostException("no post with the given ID exists");
         }
     }
 
@@ -2062,6 +2077,14 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         } catch (NoSuchUserException ex) { throw new IllegalStateException("post author does not exist"); }
     }
 
+    /**
+     * Checks whether a user can interact with a post, i.e. if they follow the post's owner.
+     * @param username the username of the given user
+     * @param idPost the id of the post to interact with
+     * @return true if and only if the user can interact with the given post
+     * @throws NoSuchUserException if no user with the given username exists
+     * @throws NoSuchPostException if no post with the given id exists
+     */
     private boolean canInteractWith(String username, int idPost) throws NoSuchUserException, NoSuchPostException {
         if(username == null) throw new NullPointerException("null arguments");
 
@@ -2071,6 +2094,13 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         return canInteractWith(username, post);
     }
 
+    /**
+     * Checks whether a user can interact with a post, i.e. if they follow the post's owner.
+     * @param username the username of the given user
+     * @param idPost the post to interact with
+     * @return true if and only if the user can interact with the given post
+     * @throws NoSuchUserException if no user with the given username exists
+     */
     private boolean canInteractWith(String username, Post post) throws NoSuchUserException {
         if(username == null || post == null) throw new NullPointerException("null arguments");
         
@@ -2081,17 +2111,23 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         return follows.contains(author);
     }
 
-    private double getBTCExchangeRate() throws IOException, NumberFormatException {
+    /**
+     * Calculates the current exchange rate from Wincoins to Bitcoins.
+     * @return the exchange rate to BTC
+     * @throws IOException if some IO error occurs
+     */
+    private double getBTCExchangeRate() throws IOException {
         final String randomGenURL = "https://www.random.org/decimal-fractions/?num=1&dec=10&col=1&format=plain&rnd=new";
 
         try ( 
             BufferedReader in = new BufferedReader(new InputStreamReader(new URL(randomGenURL).openStream()));
         ) {
             return Double.parseDouble(in.readLine());
-        }
+        } catch (NumberFormatException ex) { throw new IOException("result was not a valid exchange rate"); }
     }
 
     /* ************** Send/receive methods ************** */
+    
     /**
      * Receives a string from a given client.
      * @param key the given client
