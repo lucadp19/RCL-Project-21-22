@@ -672,7 +672,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 WinsomeServer.this.addFollower(username, toFollow); 
             }
             catch (RemoteException ex) { } // client does not care about RemoteException on followed
-            catch (FollowException ex){ // if 'username' already follows 'toFollow'
+            catch (AlreadyFollowingException ex){ // if 'username' already follows 'toFollow'
                 ResponseCode.ALREADY_FOLLOWED.addResponseToJson(response);
                 return response;
             }
@@ -713,7 +713,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 WinsomeServer.this.removeFollower(username, toUnfollow); 
             }
             catch (RemoteException ex) { } // client does not care about RemoteException on followed
-            catch (FollowException ex){ // if 'username' does not follow 'toUnfollow'
+            catch (NotFollowingException ex){ // if 'username' does not follow 'toUnfollow'
                 ResponseCode.ALREADY_FOLLOWED.addResponseToJson(response);
                 return response;
             }
@@ -942,6 +942,10 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 ResponseCode.NO_POST.addResponseToJson(response);
                 return response;
             }
+            catch (NotFollowingException ex){
+                ResponseCode.NOT_FOLLOWING.addResponseToJson(response);
+                return response;
+            }
             catch (RewinException ex){ // if user cannot rewin the given post
                 ResponseCode.REWIN_ERR.addResponseToJson(response);
                 return response;
@@ -978,14 +982,22 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 WinsomeServer.this.checkIfLogged(username, key);
                 
                 Post post;
-                if((post = posts.get(id)) == null || !isPostVisible(username, post))
+                if((post = posts.get(id)) == null)
                     throw new NoSuchPostException();
+
+                if(!canInteractWith(username, post))
+                    throw new NotFollowingException("user does not follow the author of the post");
+                
                 if(vote == 1) post.upvote(username);
                 else if(vote == -1) post.downvote(username);
                 else throw new WrongVoteFormatException("vote must be +1/-1"); 
             }
             catch (NoSuchPostException ex){ // the given post does not exist or it isn't visible
                 ResponseCode.NO_POST.addResponseToJson(response);
+                return response;
+            }
+            catch (NotFollowingException ex){
+                ResponseCode.NOT_FOLLOWING.addResponseToJson(response);
                 return response;
             }
             catch (AlreadyVotedException ex){ // if no user with the given username is registered
@@ -1028,12 +1040,20 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 WinsomeServer.this.checkIfLogged(username, key);
                 
                 Post post;
-                if((post = posts.get(id)) == null || !isPostVisible(username, post))
+                if((post = posts.get(id)) == null)
                     throw new NoSuchPostException();
+
+                if(!canInteractWith(username, post))
+                    throw new NotFollowingException("user does not follow the author of the post");
+                
                 post.addComment(username, contents);
             }
             catch (NoSuchPostException ex){ // the given post does not exist or it isn't visible
                 ResponseCode.NO_POST.addResponseToJson(response);
+                return response;
+            }
+            catch (NotFollowingException ex){
+                ResponseCode.NOT_FOLLOWING.addResponseToJson(response);
                 return response;
             }
             catch (PostOwnerException ex){ // the given user is the owner of the post
@@ -1702,12 +1722,12 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
      * @throws NullPointerException if any of username or toFollow are null
      * @throws NoSuchUserException if any of the two users do not exist
      * @throws UserNotVisibleException if the user to follow cannot be seen by the first user
-     * @throws FollowException if 'username' already follows 'toFollow'
+     * @throws AlreadyFollowingException if 'username' already follows 'toFollow'
      * @throws RemoteException if some RemoteException happens while sending the callback to 'toFollow'
      */
     private void addFollower(String username, String toFollow) 
             throws NullPointerException, NoSuchUserException, 
-                UserNotVisibleException, FollowException, RemoteException {
+                UserNotVisibleException, AlreadyFollowingException, RemoteException {
         if(username == null || toFollow == null) throw new NullPointerException("null arguments");
 
         Set<String> followedSet;
@@ -1723,7 +1743,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             throw new UserNotVisibleException("user to follow has no common tags with requesting user");
 
         if(!followedSet.add(toFollow))
-            throw new FollowException("user already followed");
+            throw new AlreadyFollowingException("user already followed");
         
         RemoteClient followedClient;
         if((followedClient = registeredToCallbacks.get(toFollow)) != null)
@@ -1737,12 +1757,12 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
      * @throws NullPointerException if any of 'username' or 'toUnfollow' are null
      * @throws NoSuchUserException if any of the two users do not exist
      * @throws UserNotVisibleException if the user to follow cannot be seen by the first user
-     * @throws FollowException if 'username' does not follow 'toUnfollow'
+     * @throws NotFollowingException if 'username' does not follow 'toUnfollow'
      * @throws RemoteException if some RemoteException happens while sending the callback to 'toUnfollow'
      */
     private void removeFollower(String username, String toUnfollow) 
             throws NullPointerException, NoSuchUserException, 
-                UserNotVisibleException, FollowException, RemoteException {
+                UserNotVisibleException, NotFollowingException, RemoteException {
         if(username == null || toUnfollow == null) throw new NullPointerException("null arguments");
 
         Set<String> followedSet;
@@ -1758,7 +1778,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             throw new UserNotVisibleException("user to follow has no common tags with requesting user");
         
         if(!followedSet.remove(toUnfollow))
-            throw new FollowException("user already unfollowed");
+            throw new NotFollowingException("user already unfollowed");
         
         RemoteClient unfollowedClient;
         if((unfollowedClient = registeredToCallbacks.get(toUnfollow)) != null)
@@ -1836,15 +1856,15 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
     }
 
     private void rewinPost(String username, int idPost) 
-            throws NoSuchUserException, NoSuchPostException, RewinException {
+            throws NoSuchUserException, NoSuchPostException, RewinException, NotFollowingException {
         if(username == null) throw new NullPointerException();
 
         User user; Post post;
         if((user = users.get(username)) == null) throw new NoSuchUserException();
         if((post = posts.get(idPost)) == null) throw new NoSuchPostException();
 
-        // if(!canInteractWith(username, post))
-        //     throw new PostInteractionException("the author of the post is not visible to the current user");
+        if(!canInteractWith(username, post))
+            throw new NotFollowingException("user does not follow the author of the post");
 
         // synchronizing access with other rewins and with 'delete' operations
         synchronized(posts){

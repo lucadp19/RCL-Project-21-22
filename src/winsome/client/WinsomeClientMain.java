@@ -706,6 +706,10 @@ public class WinsomeClientMain {
                     System.out.println(ConsoleColors.red("==> Error! ") + "You are either the owner of the given post, or you have already rewinned it.");
                     return;
                 }
+                catch (NotFollowingException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "You cannot rewin a post without following its author or rewinner.");
+                    return;
+                }
                 catch (IllegalStateException ex){
                     System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
                     return;
@@ -781,6 +785,10 @@ public class WinsomeClientMain {
                     System.out.println(ConsoleColors.red("==> Error! ") + "The given vote is neither +1 nor -1.");
                     return;
                 }
+                catch (NotFollowingException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + "You cannot rate a post without following its author or rewinner.");
+                    return;
+                }
                 catch (IllegalStateException ex){
                     System.out.println(ConsoleColors.red("==> Unexpected error from server: ") + ex.getMessage());
                     return;
@@ -835,6 +843,11 @@ public class WinsomeClientMain {
                 }
                 catch (PostOwnerException ex){
                     System.out.println(ConsoleColors.red("==> Error! ") + "You cannot add a comment to your own post.");
+                    return;
+                }
+                catch (NotFollowingException ex){
+                    System.out.println(ConsoleColors.red("==> Error! ") + 
+                        "You cannot add a comment to a post without following its author or rewinner.");
                     return;
                 }
                 catch (IllegalStateException ex){

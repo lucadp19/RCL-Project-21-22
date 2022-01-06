@@ -670,7 +670,7 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
 
     public void rewinPost(int idPost) 
             throws IOException, NoLoggedUserException, MalformedJSONException, 
-                NoSuchPostException, RewinException {
+                NoSuchPostException, RewinException, NotFollowingException {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
 
         JsonObject request = new JsonObject();
@@ -687,6 +687,8 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
                 return;
             case NO_POST:
                 throw new NoSuchPostException("there is no post with the given id");
+            case NOT_FOLLOWING:
+                throw new NotFollowingException("the current user is not following the owner of the post to interact with");
             case REWIN_ERR:
                 throw new RewinException("this user is either the owner of the given post or has already rewinned it");
             default: {  //
@@ -708,7 +710,7 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
 
     public void ratePost(int idPost, int vote) 
             throws IOException, NoLoggedUserException, MalformedJSONException, 
-                NoSuchPostException, AlreadyVotedException, WrongVoteFormatException {
+                NoSuchPostException, AlreadyVotedException, WrongVoteFormatException, NotFollowingException {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
         if(vote != +1 && vote != -1) throw new WrongVoteFormatException("vote should be either +1 or -1");
 
@@ -727,6 +729,8 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
                 return;
             case NO_POST:
                 throw new NoSuchPostException("there is no post with the given id");
+            case NOT_FOLLOWING:
+                throw new NotFollowingException("the current user is not following the owner of the post to interact with");
             case ALREADY_VOTED:
                 throw new AlreadyVotedException("this user has already voted the given post");
             default: {  //
@@ -750,7 +754,7 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
 
     public void addComment(int idPost, String comment) 
             throws IOException, NoLoggedUserException, MalformedJSONException, 
-                NoSuchPostException, PostOwnerException {
+                NoSuchPostException, PostOwnerException, NotFollowingException {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
 
         JsonObject request = new JsonObject();
@@ -768,6 +772,8 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
                 return;
             case NO_POST:
                 throw new NoSuchPostException("there is no post with the given id");
+            case NOT_FOLLOWING:
+                throw new NotFollowingException("the current user is not following the owner of the post to interact with");
             case POST_OWNER:
                 throw new PostOwnerException("you are the owner of the post");
             default: {  //
