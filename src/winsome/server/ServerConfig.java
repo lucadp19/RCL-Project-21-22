@@ -8,7 +8,7 @@ import winsome.utils.configs.ConfigEntry;
 import winsome.utils.configs.exceptions.*;
 
 public class ServerConfig extends AbstractConfig {
-    private enum SCField {
+    private static enum SCField {
         SERVER_ADDR     ("server-addr"),
         PORT_TCP        ("tcp-port"),
         PORT_UDP        ("udp-port"),

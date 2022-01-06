@@ -1,28 +1,60 @@
 package winsome.server;
 
 import java.io.BufferedReader;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+
+import winsome.server.exceptions.InvalidDirectoryException;
+import winsome.server.exceptions.InvalidJSONFileException;
+import winsome.utils.configs.exceptions.InvalidConfigFileException;
 
 public class WinsomeServerMain {
     private static final String DEFAULT_CONFIG_PATH = "./configs/server-config.yaml";
 
     public static void main(String[] args) {
-        WinsomeServer server = new WinsomeServer();
+        if(args.length > 1) { System.exit(1); } // TODO: error message
 
+        String configPath = (args.length == 1) ? args[0] : DEFAULT_CONFIG_PATH;
+
+        WinsomeServer server;
+        try { server = new WinsomeServer(configPath); }
+        catch (InvalidConfigFileException | IOException ex){
+            System.err.println("Error! " + ex.getMessage());
+            System.err.println("Aborting."); 
+            System.exit(1);
+            return; // otherwise java complains about uninitialized variables
+        }
+
+        // initializing server data
         try { 
-            // initializing server data
-            server.initServer(DEFAULT_CONFIG_PATH);
+            System.out.println("Initializing server...");
+            server.init();
             System.out.println("Server initialized!");
-
-            // connecting server
-            server.startServer();
-            System.out.println("Server connected!");
-        } catch(Exception ex){ ex.printStackTrace(); }
+        } catch (FileNotFoundException ex){
+            System.out.println("Persisted data missing: initialized server with empty data.");
+        } catch (InvalidJSONFileException ex){
+            System.out.println("Persisted data was in an invalid format: initialized server with empty data.");
+        } catch (InvalidDirectoryException ex){
+            System.err.println("Persisted data directory does not exist: aborting.");
+            System.exit(1);
+        } catch (IOException ex){
+            System.err.println("Some IO error occurred while reading persisted data: aborting.");
+            System.exit(1);
+        }
+        
+        // connecting server
+        try {
+            System.out.println("Starting server...");
+            server.start();
+            System.out.println("Server started!");
+        } catch (IOException ex){
+            System.err.println("Some IO error occurred while reading persisted data: aborting.");
+            System.exit(1);
+        }
 
         // shutdown hook
         Runtime.getRuntime().addShutdownHook(
@@ -37,19 +69,23 @@ public class WinsomeServerMain {
         );
         
         // running main loop
-        System.out.println("Server listening...");
+        System.out.println("Server running...");
         ExecutorService main = Executors.newSingleThreadExecutor();
         main.execute( () -> {
-            try { server.runServer(); }
-            catch(IOException ex){ System.err.println("EXCEPTION"); System.exit(1); }
+            try { server.run(); }
+            catch(IOException ex){ 
+                System.err.println("Error: some IO exception occurred while server was running. Aborting immediately."); 
+                System.exit(1); 
+            }
         });
 
+        // waiting for 
         try ( BufferedReader in = new BufferedReader(new InputStreamReader(System.in)); ){
-            System.out.print("-> Write 'quit' to quit: ");
-            String msg = in.readLine();
+            System.out.print("-> Press ENTER to quit: ");
+            in.readLine();
         } 
-        catch (IOException ex) { System.err.println("Error while reading from standard input."); } 
-        finally { server.closeServer(); }
+        catch (IOException ex) { System.err.println("Some IO error occurred while reading from standard input."); } 
+        finally { server.close(); }
 
         System.out.println("Started server shutdown...");
         main.shutdown();

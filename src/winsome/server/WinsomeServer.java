@@ -25,6 +25,7 @@ import winsome.api.codes.*;
 import winsome.api.exceptions.*;
 import winsome.server.datastructs.*;
 import winsome.server.exceptions.*;
+import winsome.utils.configs.exceptions.InvalidConfigFileException;
 
 /** A Server instance for the Winsome Social Network. */
 public class WinsomeServer extends RemoteObject implements RemoteServer {
@@ -41,23 +42,37 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         /** Name of the file containing the persisted transactions */
         private final static String TRANSACTIONS_FILE = "transactions.json";
 
+        /** Directory containing the persisted data */
         private final File dir;
+        /** File containing the persisted users */
         private final File usersFile;
+        /** File containing the persisted original posts */
         private final File origsFile;
+        /** File containing the persisted rewins */
         private final File rewinsFile;
+        /** File containing the persisted "follows" relations */
         private final File followsFile;
+        /** File containing the persisted transactions */
         private final File transFile;
 
+        /** Is true if and only if this object is currently writing the persisted data to disk */
         private AtomicBoolean running = new AtomicBoolean(false);
+        /** Object used for synchronization */
         public Object runningSync = new Object();
 
-        public ServerPersistence(String dirpath) throws FileNotFoundException { 
+        /**
+         * Creates a new ServerPersistence object.
+         * @param dirpath the path to the directory that contains/will contain the persisted data
+         * @throws InvalidDirectoryException if the given path does not point to an existing directory
+         */
+        public ServerPersistence(String dirpath) throws InvalidDirectoryException { 
             if(dirpath == null) throw new NullPointerException("directory path is null");
 
+            // initializing directory
             dir = new File(dirpath);
+            if(!dir.exists() || !dir.isDirectory()) throw new InvalidDirectoryException("the given directory does not exist");
 
-            if(!dir.exists() || !dir.isDirectory()) throw new FileNotFoundException("the given directory does not exist");
-
+            // initializing files
             usersFile   = new File(dir, USERS_FILE);
             origsFile   = new File(dir, ORIG_POSTS_FILE);
             rewinsFile  = new File(dir, REWIN_FILE);
@@ -65,6 +80,10 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             transFile   = new File(dir, TRANSACTIONS_FILE);
         }
 
+        /**
+         * Checks whether this is currently persisting data.
+         * @return true if and only if this is currently persisting data
+         */
         public boolean isRunning(){ return running.get(); }
 
         /** 
@@ -72,10 +91,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          * <p> 
          * On any failure, initializes the server with empty data.  
          */
-        public void getPersistedData(){
+        public void getPersistedData() throws FileNotFoundException, InvalidJSONFileException, IOException {
             if(isDataInit.get()) throw new IllegalStateException("data has already been initialized");
-
-            if(!dir.exists() || !dir.isDirectory()) { setEmptyData(); return; }
             
             ConcurrentHashMap<String, User> users;
             ConcurrentHashMap<Integer, Post> posts;
@@ -83,9 +100,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             ConcurrentHashMap<String, Collection<Transaction>> transactions = new ConcurrentHashMap<>();
 
             try {
-                users = parseUsers(usersFile);
+                users = parseUsers(usersFile); // parsing users
 
-                // initializing usernames
+                // initializing follows and transactions structures
                 for(String username : users.keySet()){
                     follows.put(username, ConcurrentHashMap.newKeySet());
                     transactions.put(username, new ConcurrentLinkedQueue<>());
@@ -94,7 +111,10 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 posts = parsePosts(origsFile, rewinsFile);
                 follows = parseFollowers(followsFile, follows);
                 transactions = parseTransactions(transFile, transactions);
-            } catch(IOException | InvalidJSONFileException ex) { ex.printStackTrace(); setEmptyData(); return; }
+            }
+            catch (FileNotFoundException ex){ setEmptyData(); throw new FileNotFoundException(ex.getMessage()); } 
+            catch (InvalidJSONFileException ex){ setEmptyData(); throw new InvalidJSONFileException(ex.getMessage(), ex); }
+            catch(IOException ex) { setEmptyData(); throw new IOException(ex.getMessage(), ex); }
 
             // initializing the WinsomeServer structures
             WinsomeServer.this.users = users;
@@ -129,10 +149,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             ){
                 reader.beginArray();
                 while(reader.hasNext()){
-                    User nextUser = User.fromJson(reader); // reading a user
-                    String nextUsername = nextUser.getUsername();
-
-                    users.put(nextUsername, nextUser);
+                    User user = User.fromJson(reader); // reading a user
+                    users.put(user.getUsername(), user);
                 }
                 reader.endArray();
             }
@@ -143,6 +161,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 throws InvalidJSONFileException, IOException {
             ConcurrentHashMap<Integer, Post> posts = new ConcurrentHashMap<>();
 
+            // reading posts
             try (
                 JsonReader reader = new JsonReader(new BufferedReader(new FileReader(originalPostsFile)));
             ) {
@@ -154,6 +173,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 reader.endArray();
             }
 
+            // reading rewins
             try (
                 JsonReader reader = new JsonReader(new BufferedReader(new FileReader(rewinFile)))
             ) {
@@ -164,7 +184,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     int idOriginal = Rewin.getOriginalIDFromJson(rewinJson);
 
                     Post orig;
-                    if((orig = posts.get(idOriginal)) == null) continue; // TODO: should I do something?!
+                    if((orig = posts.get(idOriginal)) == null) continue; // ignoring rewins of non-existing posts
 
                     Post rewin = Rewin.getRewinFromJson(orig, rewinJson);
                     posts.put(rewin.getID(), rewin);
@@ -194,16 +214,17 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     reader.beginObject();
 
                     String username = reader.nextName();
-                    Set<String> userFollows; 
+                    Set<String> userFollows = null; 
+
+                    // check that user actually exists
                     boolean skip = false;
-                    if((userFollows = follows.get(username)) == null){
-                        userFollows = ConcurrentHashMap.newKeySet();
+                    if((userFollows = follows.get(username)) == null)
                         skip = true;
-                    }
 
                     reader.beginArray();
                     while(reader.hasNext()){
-                        userFollows.add(reader.nextString());
+                        String followed = reader.nextString();
+                        if(!skip) userFollows.add(followed);
                     }
                     reader.endArray();
                     reader.endObject();
@@ -234,16 +255,17 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     reader.beginObject();
 
                     String username = reader.nextName();
-                    Collection<Transaction> userTrans;
+                    Collection<Transaction> userTrans = null;
+
+                    // checking that user actually exists
                     boolean skip = false;
-                    if((userTrans = transactions.get(username)) == null) {
-                        userTrans = new ConcurrentLinkedQueue<>();
+                    if((userTrans = transactions.get(username)) == null)
                         skip = true;
-                    }
 
                     reader.beginArray();
                     while(reader.hasNext()){
-                        userTrans.add(Transaction.fromJson(reader));
+                        Transaction transaction = Transaction.fromJson(reader);
+                        if(!skip) userTrans.add(transaction);
                     }
                     reader.endArray();
                     reader.endObject();
@@ -316,12 +338,13 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
                 writer.beginArray();
                 for(Entry<String, Set<String>> entry : WinsomeServer.this.following.entrySet()){
-                    writer.beginObject();
-                    writer.name(entry.getKey());
+                    writer.beginObject()
+                          .name(entry.getKey())
+                          .beginArray();
 
-                    writer.beginArray();
                     for(String followed : entry.getValue())
                         writer.value(followed);
+
                     writer.endArray()
                           .endObject();
                 }
@@ -350,10 +373,12 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             try (
                 JsonWriter writer = new JsonWriter(new BufferedWriter(new FileWriter(usersFile)));
             ) {
-                writer.setIndent("    "); 
+                writer.setIndent("    ");
+
                 writer.beginArray();
                 for(User user : users.values())
                     user.toJson(writer);
+
                 writer.endArray();
             }
         }
@@ -1353,74 +1378,76 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
      */
     private final ConcurrentMap<String, RemoteClient> registeredToCallbacks = new ConcurrentHashMap<>();
 
-    /** Winsome Server Constructor */
-    public WinsomeServer(){
+    /**
+     * Creates the Server instance reading the parameters from the given configuration file.
+     * @param configPath The path to the configuration file.
+     * @throws FileNotFoundException if the configuration file does not exist
+     * @throws InvalidConfigFileException if the configuration file is not valid
+     * @throws IOException if some IO error occurs while reading the configuration file
+     */
+    public WinsomeServer(String configPath) throws FileNotFoundException, InvalidConfigFileException, IOException {
         super();
+
+        config = new ServerConfig(Objects.requireNonNull(configPath, "config path must not be null"));
     }
 
     /**
-     * Initializes a new instance of WinsomeServer.
-     * <p>
-     * This method reads the config from the given path, then
-     * loads the persisted data and finally starts the Worker
-     * Thread Pool.
-     * @param configPath the path to the config file
-     * @throws NullPointerException if the given config path is null
-     * @throws FileNotFoundException if the given config path does not lead to a regular file
-     * @throws NumberFormatException // TODO: should probably remove this
+     * Initializes a new instance of WinsomeServer by loading the persisted data.
+     * @throws InvalidDirectoryException if the directory containing the persisted data does not exist
+     * @throws FileNotFoundException if any of the persisted files do not exist
+     * @throws InvalidJSONFileException if any of the persisted files are invalid
      * @throws IOException if there are errors in reading config files/persisted data
      */
-    public void initServer(String configPath) 
-        throws NullPointerException, FileNotFoundException, 
-                NumberFormatException, IOException {
-        config = new ServerConfig(configPath);
-
+    public void init() throws InvalidDirectoryException, FileNotFoundException, InvalidJSONFileException, IOException {
         persistenceWorker = new ServerPersistence(config.getPersistenceDir());
-        persistenceWorker.getPersistedData();
-
-        persistenceResult = persistenceThread.submit(persistenceWorker);
-        rewardsResult = rewardsThread.submit(
-            new RewardsAlgorithm(config.getRewardPerc(), config.getRewardInterval())
-        );
-
-        int maxPostID = -1;
-        for(Post post : posts.values()) {
-            if(post.getID() > maxPostID) 
-                maxPostID = post.getID();
+        try { persistenceWorker.getPersistedData(); }
+        finally {
+            int maxPostID = -1;
+            for(Post post : posts.values()) {
+                if(post.getID() > maxPostID) 
+                    maxPostID = post.getID();
+            }
+            
+            Post.initIDGenerator(maxPostID + 1);
         }
-        
-        Post.initIDGenerator(maxPostID + 1);
-
-        pool = new ThreadPoolExecutor(
-            config.getMinThreads(), config.getMaxThreads(), 
-            60L, TimeUnit.SECONDS, new LinkedBlockingQueue<>()
-        );
     }
 
-    /* **************** Connection methods **************** */
-
     /**
-     * Initializes the server socket and registry.
-     * @throws IOException if any of the socket related operations fail
+     * Starts this server.
+     * <p>
+     * This method initializes and opens the TCP Socket, the Multicast Socket and the RMI stub.
+     * Finally, it starts the thread pool, the Persistence Thread and the Rewards Algorithm Thread.
+     * @throws IOException
      */
-    public void startServer() throws IOException {
+    public void start() throws IOException {
         // initializing socket and selector
         InetSocketAddress sockAddress = new InetSocketAddress(config.getTCPPort());
         selector = Selector.open();
         socketChannel = ServerSocketChannel.open();
-
-        // initializing multicast socket
-        multicastSocket = new DatagramSocket(config.getUDPPort());
-
+        
         socketChannel.bind(sockAddress);
         socketChannel.configureBlocking(false);
         socketChannel.register(selector, SelectionKey.OP_ACCEPT);
 
+        // initializing multicast socket
+        multicastSocket = new DatagramSocket(config.getUDPPort());
+        
         // RMI startup
         RemoteServer stub = (RemoteServer) UnicastRemoteObject.exportObject(this, 0);
         LocateRegistry.createRegistry(config.getRegPort());
         Registry reg = LocateRegistry.getRegistry(config.getRegPort());
         reg.rebind(config.getRegHost(), stub);
+
+        // starting threads
+        persistenceResult = persistenceThread.submit(persistenceWorker);
+        rewardsResult = rewardsThread.submit(
+            new RewardsAlgorithm(config.getRewardPerc(), config.getRewardInterval())
+        );
+
+        pool = new ThreadPoolExecutor(
+            config.getMinThreads(), config.getMaxThreads(), 
+            60L, TimeUnit.SECONDS, new LinkedBlockingQueue<>()
+        );
     }
 
     /* **************** Main Loop **************** */
@@ -1439,7 +1466,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
      * Each request is served by one of the threads in the thread pool.
      * @throws IOException
      */
-    public void runServer() throws IOException {
+    public void run() throws IOException {
         isRunning.set(true);
         while(true){
             // wait for client to wake up the server
@@ -1493,7 +1520,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         }
     }
 
-    public void closeServer(){
+    public void close(){
         isRunning.set(false);
         selector.wakeup();
     }
