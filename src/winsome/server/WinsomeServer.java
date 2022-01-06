@@ -433,12 +433,15 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
      * and sends back the result.
      */
     private class Worker implements Runnable {
+        /** The request in JSON format */
         JsonObject request;
+        /** The SelectionKey of the client who sent the request */
         SelectionKey key;
 
         /** Creates a new Worker object. */
         public Worker(JsonObject request, SelectionKey key){
-            this.request = request; this.key = key; 
+            this.request = Objects.requireNonNull(request, "null request in worker thread"); 
+            this.key = Objects.requireNonNull(key, "null client key in worker thread"); 
         }
 
         /**
@@ -446,84 +449,58 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          */
         @Override
         public void run(){
+            JsonObject response = new JsonObject();
             try {
-                RequestCode code;
-                JsonObject response;
+                try {
+                    // read request code
+                    RequestCode code = RequestCode.getRequestFromJson(request);
 
-                // read request code
-                try { code = RequestCode.getRequestFromJson(request); }
+                    // switch between request types
+                    response = switch (code) {
+                        case MULTICAST -> multicastRequest();
+                        case LOGIN -> loginRequest();
+                        case LOGOUT -> logoutRequest();
+                        case GET_USERS -> getUsersRequest();
+                        case GET_FOLLOWING -> getFollowingRequest();
+                        case FOLLOW -> followRequest();
+                        case UNFOLLOW -> unfollowRequest();
+                        case BLOG -> blogRequest();
+                        case POST -> postRequest();
+                        case FEED -> feedRequest();
+                        case SHOW_POST -> showPostRequest();
+                        case DELETE_POST -> deleteRequest();
+                        case REWIN_POST -> rewinRequest();
+                        case RATE_POST -> rateRequest();
+                        case COMMENT -> commentRequest();
+                        case WALLET -> walletRequest();
+                        case WALLET_BTC -> walletBTCRequest();
+                        default -> throw new MalformedJSONException("unknown key");
+                    };
+                }
                 catch (MalformedJSONException ex){ // failure in parsing json
                     response = new JsonObject();
                     ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
-                    send(response.toString(), key);
-
-                    return;
+                } 
+                catch (NoSuchUserException ex){ // if no user with the given username is registered
+                    ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
                 }
-
-                // switch between request types
-                switch (code) {
-                    case MULTICAST: response = multicastRequest(); break;
-                    case LOGIN:
-                        response = loginRequest();
-                        break;
-                    case LOGOUT:
-                        response = logoutRequest();
-                        break;
-                    case GET_USERS:
-                        response = getUsersRequest();
-                        break;
-                    case GET_FOLLOWING:
-                        response = getFollowingRequest();
-                        break;
-                    case FOLLOW:
-                        response = followRequest();
-                        break;
-                    case UNFOLLOW:
-                        response = unfollowRequest();
-                        break;
-                    case BLOG:
-                        response = blogRequest();
-                        break;
-                    case POST:
-                        response = postRequest();
-                        break;
-                    case FEED:
-                        response = feedRequest();
-                        break;
-                    case SHOW_POST:
-                        response = showPostRequest();
-                        break;
-                    case DELETE_POST:
-                        response = deleteRequest();
-                        break;
-                    case REWIN_POST:
-                        response = rewinRequest();
-                        break;
-                    case RATE_POST:
-                        response = rateRequest();
-                        break;
-                    case COMMENT:
-                        response = commentRequest();
-                        break;
-                    case WALLET:
-                        response = walletRequest();
-                        break;
-                    case WALLET_BTC:
-                        response = walletBTCRequest();
-                        break;
-                    default:
-                        response = new JsonObject();
-                        ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
+                catch (NoLoggedUserException ex){ // if this client is not logged in
+                    ResponseCode.NO_LOGGED_USER.addResponseToJson(response);
                 }
-
+                catch (WrongUserException ex){ // if this client is not logged in with the given user
+                    ResponseCode.WRONG_USER.addResponseToJson(response);
+                }
+                
                 send(response.toString(), key);
-            }
-            catch(IOException ex){
-                // removing the user
-                endUserSession(key);
+            } catch(IOException ex){ 
+                endUserSession(key); // removing the user
             }
         }     
 
+        /**
+         * Fulfills a client's request for the Server Multicast Socket address and port.
+         * @return the response, formatted as a JsonObject
+         */
         private JsonObject multicastRequest(){
             JsonObject response = new JsonObject();
             response.addProperty("multicast-addr", config.getMulticastAddr());
@@ -534,20 +511,20 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         /**
          * Fulfills a client's login request.
          * @return the response, formatted as a JsonObject
+         * @throws MalformedJSONException if the client request was not in a valid format
+         * @throws NoSuchUserException if the user to login into does not exist
          */
-        private JsonObject loginRequest(){
+        private JsonObject loginRequest() throws MalformedJSONException, NoSuchUserException {
             JsonObject response = new JsonObject();
 
-            String username = null; 
-            String password = null; 
+            String username, password; 
             
             // reading username and password from the request
             try {
                 username = request.get("username").getAsString();
                 password = request.get("password").getAsString();
             } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username/password => malformed Json
-                ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
-                return response;
+                throw new MalformedJSONException("request had missing fields", ex);
             }
 
             List<User> following, followers;
@@ -555,10 +532,6 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 WinsomeServer.this.login(username, password, key);
                 following = WinsomeServer.this.getFollowing(username);
                 followers = WinsomeServer.this.getFollowers(username);
-            }
-            catch (NoSuchUserException ex){ // if no user with the given username is registered
-                ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
-                return response;
             }
             catch (WrongPasswordException ex){ // if the password does not match
                 ResponseCode.WRONG_PASSW.addResponseToJson(response);
@@ -581,35 +554,25 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         /**
          * Fulfills a client's logout request.
          * @return the response, formatted as a JsonObject
+         * @throws MalformedJSONException if the client request was not in a valid format
+         * @throws NoSuchUserException if the requesting user does not exist
+         * @throws NoLoggedUserException if the client is not currently logged in
+         * @throws WrongUserException if the client is logged on a different user
          */
-        private JsonObject logoutRequest(){
+        private JsonObject logoutRequest() throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, WrongUserException {
             JsonObject response = new JsonObject();
 
-            String username = null;
+            String username;
             
             // reading username and password from the request
             try {
                 username = request.get("username").getAsString();
             } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username/password => malformed Json
-                ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
-                return response;
+                throw new MalformedJSONException("request had missing fields", ex);
             }
 
-            try { WinsomeServer.this.logout(username, key); }
-            catch (NoSuchUserException ex){// if no user with the given username is registered
-                ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
-                return response;
-            }
-            catch (NoLoggedUserException ex){ // if this client is not logged in
-                ResponseCode.NO_LOGGED_USER.addResponseToJson(response);
-                return response;
-            }
-            catch (WrongUserException ex){ // if this client is not logged in with the given user
-                ResponseCode.WRONG_USER.addResponseToJson(response);
-                return response;
-            }
+            WinsomeServer.this.logout(username, key); 
             
-            // success!
             ResponseCode.SUCCESS.addResponseToJson(response);
             return response;
         }
@@ -617,37 +580,25 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         /**
          * Fulfills a client's "GET_USERS" request.
          * @return the response, formatted as a JsonObject
+         * @throws MalformedJSONException if the client request was not in a valid format
+         * @throws NoSuchUserException if the requesting user does not exist
+         * @throws NoLoggedUserException if the client is not currently logged in
+         * @throws WrongUserException if the client is logged on a different user
          */
-        private JsonObject getUsersRequest(){
+        private JsonObject getUsersRequest() throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, WrongUserException {
             JsonObject response = new JsonObject();
 
-            String username = null;
+            String username;
             
             // reading username and password from the request
             try {
                 username = request.get("username").getAsString();
             } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username/password => malformed Json
-                ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
-                return response;
+                throw new MalformedJSONException("missing fields in json request", ex);
             }
 
-            List<User> visibleUsers;
-            try { 
-                WinsomeServer.this.checkIfLogged(username, key); // assert that the user is logged in
-                visibleUsers = WinsomeServer.this.getVisibleUsers(username); 
-            }
-            catch (NoSuchUserException ex){// if no user with the given username is registered
-                ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
-                return response;
-            }
-            catch (NoLoggedUserException ex){ // if this client is not logged in
-                ResponseCode.NO_LOGGED_USER.addResponseToJson(response);
-                return response;
-            }
-            catch (WrongUserException ex){ // if this client is not logged in with the given user
-                ResponseCode.WRONG_USER.addResponseToJson(response);
-                return response;
-            }
+            WinsomeServer.this.checkIfLogged(username, key); // assert that the user is logged in
+            List<User> visibleUsers = WinsomeServer.this.getVisibleUsers(username); 
 
             // adding users to JSON
             JsonArray usersJson = userTagsToJson(visibleUsers);
@@ -661,8 +612,12 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         /**
          * Fulfills a client's GET_FOLLOWING request.
          * @return the response, formatted as a JsonObject
+         * @throws MalformedJSONException if the client request was not in a valid format
+         * @throws NoSuchUserException if the requesting user does not exist
+         * @throws NoLoggedUserException if the client is not currently logged in
+         * @throws WrongUserException if the client is logged on a different user
          */
-        private JsonObject getFollowingRequest(){
+        private JsonObject getFollowingRequest() throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, WrongUserException {
             JsonObject response = new JsonObject();
 
             String username = null; 
@@ -671,27 +626,11 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             try {
                 username = request.get("username").getAsString();
             } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username/password => malformed Json
-                ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
-                return response;
+                throw new MalformedJSONException("missing fields in json request", ex);
             }
 
-            List<User> following;
-            try { 
-                WinsomeServer.this.checkIfLogged(username, key);
-                following = WinsomeServer.this.getFollowing(username);
-            }
-            catch (NoSuchUserException ex){// if no user with the given username is registered
-                ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
-                return response;
-            }
-            catch (NoLoggedUserException ex){ // if this client is not logged in
-                ResponseCode.NO_LOGGED_USER.addResponseToJson(response);
-                return response;
-            }
-            catch (WrongUserException ex){ // if this client is not logged in with the given user
-                ResponseCode.WRONG_USER.addResponseToJson(response);
-                return response;
-            }
+            WinsomeServer.this.checkIfLogged(username, key);
+            List<User> following = WinsomeServer.this.getFollowing(username);
             
             // success!
             ResponseCode.SUCCESS.addResponseToJson(response);
@@ -701,19 +640,25 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             return response;
         }
 
-        private JsonObject followRequest(){
+        /**
+         * Fulfills a client's follow request.
+         * @return the response, formatted as a JsonObject
+         * @throws MalformedJSONException if the client request was not in a valid format
+         * @throws NoSuchUserException if the requesting user does not exist
+         * @throws NoLoggedUserException if the client is not currently logged in
+         * @throws WrongUserException if the client is logged on a different user
+         */
+        private JsonObject followRequest() throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, WrongUserException {
             JsonObject response = new JsonObject();
 
-            String username = null;
-            String toFollow = null;
+            String username, toFollow;
 
             // reading username and password from the request
              try {
                 username = request.get("username").getAsString();
                 toFollow = request.get("to-follow").getAsString();
             } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username/password => malformed Json
-                ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
-                return response;
+                throw new MalformedJSONException("missing fields in json request", ex);
             }
 
             try { 
@@ -721,18 +666,6 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 WinsomeServer.this.addFollower(username, toFollow); 
             }
             catch (RemoteException ex) { } // client does not care about RemoteException on followed
-            catch (NoSuchUserException ex){ // if no user with the given username is registered
-                ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
-                return response;
-            }
-            catch (NoLoggedUserException ex){ // if this client is not logged in
-                ResponseCode.NO_LOGGED_USER.addResponseToJson(response);
-                return response;
-            }
-            catch (WrongUserException ex){ // if this client is not logged in with the given user
-                ResponseCode.WRONG_USER.addResponseToJson(response);
-                return response;
-            }
             catch (FollowException ex){ // if 'username' already follows 'toFollow'
                 ResponseCode.ALREADY_FOLLOWED.addResponseToJson(response);
                 return response;
@@ -743,19 +676,25 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             return response;
         }
         
-        private JsonObject unfollowRequest(){
+        /**
+         * Fulfills a client's unfollow request.
+         * @return the response, formatted as a JsonObject
+         * @throws MalformedJSONException if the client request was not in a valid format
+         * @throws NoSuchUserException if the requesting user does not exist
+         * @throws NoLoggedUserException if the client is not currently logged in
+         * @throws WrongUserException if the client is logged on a different user
+         */
+        private JsonObject unfollowRequest() throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, WrongUserException {
             JsonObject response = new JsonObject();
 
-            String username = null;
-            String toUnfollow = null;
+            String username, toUnfollow;
 
             // reading username and password from the request
              try {
                 username = request.get("username").getAsString();
                 toUnfollow = request.get("to-unfollow").getAsString();
             } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username/password => malformed Json
-                ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
-                return response;
+                throw new MalformedJSONException("missing fields in json request", ex);
             }
 
             try { 
@@ -763,18 +702,6 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 WinsomeServer.this.removeFollower(username, toUnfollow); 
             }
             catch (RemoteException ex) { } // client does not care about RemoteException on followed
-            catch (NoSuchUserException ex){ // if no user with the given username is registered
-                ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
-                return response;
-            }
-            catch (NoLoggedUserException ex){ // if this client is not logged in
-                ResponseCode.NO_LOGGED_USER.addResponseToJson(response);
-                return response;
-            }
-            catch (WrongUserException ex){ // if this client is not logged in with the given user
-                ResponseCode.WRONG_USER.addResponseToJson(response);
-                return response;
-            }
             catch (FollowException ex){ // if 'username' does not follow 'toUnfollow'
                 ResponseCode.ALREADY_FOLLOWED.addResponseToJson(response);
                 return response;
@@ -785,41 +712,32 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             return response;
         }
 
-        private JsonObject blogRequest(){
+        /**
+         * Fulfills a client's blog request.
+         * @return the response, formatted as a JsonObject
+         * @throws MalformedJSONException if the client request was not in a valid format
+         * @throws NoSuchUserException if the requesting user does not exist
+         * @throws NoLoggedUserException if the client is not currently logged in
+         * @throws WrongUserException if the client is logged on a different user
+         */
+        private JsonObject blogRequest() throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, WrongUserException {
             JsonObject response = new JsonObject();
 
-            String username = null;
-            String toView = null;
+            String username, toView;
 
             // reading username from the request
              try {
                 username = request.get("username").getAsString();
                 toView = request.get("to-view").getAsString();
             } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username => malformed Json
-                ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
-                return response;
+                throw new MalformedJSONException("missing fields in json request", ex);
             }
             
-            List<Post> posts;
-            try { 
-                WinsomeServer.this.checkIfLogged(username, key);
+            WinsomeServer.this.checkIfLogged(username, key);
 
-                // check that the user can see the other user
-                if(!isVisible(username, toView)) throw new NoSuchUserException();
-                posts = getPostByAuthor(toView);
-            }
-            catch (NoSuchUserException ex){ // if no user with the given username is registered
-                ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
-                return response;
-            }
-            catch (NoLoggedUserException ex){ // if this client is not logged in
-                ResponseCode.NO_LOGGED_USER.addResponseToJson(response);
-                return response;
-            }
-            catch (WrongUserException ex){ // if this client is not logged in with the given user
-                ResponseCode.WRONG_USER.addResponseToJson(response);
-                return response;
-            }
+            // check that the user can see the other user
+            if(!isVisible(username, toView)) throw new NoSuchUserException();
+            List<Post> posts = getPostByAuthor(toView);
 
             // success!
             ResponseCode.SUCCESS.addResponseToJson(response);
@@ -833,80 +751,62 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             return response;
         }
 
-        private JsonObject postRequest(){
+        /**
+         * Fulfills a client's post request.
+         * @return the response, formatted as a JsonObject
+         * @throws MalformedJSONException if the client request was not in a valid format
+         * @throws NoSuchUserException if the requesting user does not exist
+         * @throws NoLoggedUserException if the client is not currently logged in
+         * @throws WrongUserException if the client is logged on a different user
+         */
+        private JsonObject postRequest() throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, WrongUserException {
             JsonObject response = new JsonObject();
 
-            String username = null;
-            String title = null;
-            String content = null;
+            String username, title, content;
 
             // reading username and password from the request
-             try {
+            try {
                 username = request.get("username").getAsString();
                 title = request.get("title").getAsString();
                 content = request.get("content").getAsString();
             } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username/password => malformed Json
-                ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
-                return response;
+                throw new MalformedJSONException("missing fields in json request", ex);
             }
 
-            try { 
-                WinsomeServer.this.checkIfLogged(username, key);
+            WinsomeServer.this.checkIfLogged(username, key);
 
-                Post post = new OriginalPost(username, title, content);
-                posts.put(post.getID(), post);
-                response.addProperty("id", post.getID());
-            }
-            catch (NoSuchUserException ex){ // if no user with the given username is registered
-                ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
-                return response;
-            }
-            catch (NoLoggedUserException ex){ // if this client is not logged in
-                ResponseCode.NO_LOGGED_USER.addResponseToJson(response);
-                return response;
-            }
-            catch (WrongUserException ex){ // if this client is not logged in with the given user
-                ResponseCode.WRONG_USER.addResponseToJson(response);
-                return response;
-            }
+            Post post = new OriginalPost(username, title, content);
+            posts.put(post.getID(), post);
+            response.addProperty("id", post.getID());
 
             // success!
             ResponseCode.SUCCESS.addResponseToJson(response);
             return response;
         }
 
-        private JsonObject feedRequest(){
+        /**
+         * Fulfills a client's "SHOW_FEED" request.
+         * @return the response, formatted as a JsonObject
+         * @throws MalformedJSONException if the client request was not in a valid format
+         * @throws NoSuchUserException if the requesting user does not exist
+         * @throws NoLoggedUserException if the client is not currently logged in
+         * @throws WrongUserException if the client is logged on a different user
+         */
+        private JsonObject feedRequest() throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, WrongUserException {
             JsonObject response = new JsonObject();
 
-            String username = null;
+            String username;
 
             // reading username from the request
-             try {
+            try {
                 username = request.get("username").getAsString();
             } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username => malformed Json
-                ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
-                return response;
+                throw new MalformedJSONException("missing fields in json request", ex);
             }
             
-            List<Post> posts;
-            try { 
-                WinsomeServer.this.checkIfLogged(username, key);
-
-                posts = getFeed(username);
-            }
-            catch (NoSuchUserException ex){ // if no user with the given username is registered
-                ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
-                return response;
-            }
-            catch (NoLoggedUserException ex){ // if this client is not logged in
-                ResponseCode.NO_LOGGED_USER.addResponseToJson(response);
-                return response;
-            }
-            catch (WrongUserException ex){ // if this client is not logged in with the given user
-                ResponseCode.WRONG_USER.addResponseToJson(response);
-                return response;
-            }
-
+            WinsomeServer.this.checkIfLogged(username, key);
+            List<Post> posts = getFeed(username);
+            
             // success!
             ResponseCode.SUCCESS.addResponseToJson(response);
 
@@ -919,19 +819,25 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             return response;
         }
 
-        private JsonObject showPostRequest(){
+        /**
+         * Fulfills a client's "SHOW_POST" request.
+         * @return the response, formatted as a JsonObject
+         * @throws MalformedJSONException if the client request was not in a valid format
+         * @throws NoSuchUserException if the requesting user does not exist
+         * @throws NoLoggedUserException if the client is not currently logged in
+         * @throws WrongUserException if the client is logged on a different user
+         */
+        private JsonObject showPostRequest() throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, WrongUserException {
             JsonObject response = new JsonObject();
 
-            String username = null;
-            int id;
+            String username; int id;
 
             // reading username from the request
              try {
                 username = request.get("username").getAsString();
                 id = request.get("id").getAsInt();
             } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username => malformed Json
-                ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
-                return response;
+                throw new MalformedJSONException("missing fields in json request", ex);
             }
             
             Post post;
@@ -940,18 +846,6 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
                 if((post = posts.get(id)) == null || !isPostVisible(username, post))
                     throw new NoSuchPostException();
-            }
-            catch (NoSuchUserException ex){ // if no user with the given username is registered
-                ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
-                return response;
-            }
-            catch (NoLoggedUserException ex){ // if this client is not logged in
-                ResponseCode.NO_LOGGED_USER.addResponseToJson(response);
-                return response;
-            }
-            catch (WrongUserException ex){ // if this client is not logged in with the given user
-                ResponseCode.WRONG_USER.addResponseToJson(response);
-                return response;
             }
             catch (NoSuchPostException ex){ // the given post does not exist or it isn't visible
                 ResponseCode.NO_POST.addResponseToJson(response);
@@ -965,28 +859,30 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             return response;
         }
 
-        private JsonObject deleteRequest(){
+        /**
+         * Fulfills a client's delete request.
+         * @return the response, formatted as a JsonObject
+         * @throws MalformedJSONException if the client request was not in a valid format
+         * @throws NoSuchUserException if the requesting user does not exist
+         * @throws NoLoggedUserException if the client is not currently logged in
+         * @throws WrongUserException if the client is logged on a different user
+         */
+        private JsonObject deleteRequest() throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, WrongUserException {
             JsonObject response = new JsonObject();
 
-            String username = null;
-            int id = -1;
+            String username; int id;
 
             // reading username and password from the request
-             try {
+            try {
                 username = request.get("username").getAsString();
                 id = request.get("id").getAsInt();
             } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username/password => malformed Json
-                ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
-                return response;
+                throw new MalformedJSONException("missing fields in json request", ex);
             }
 
             try { 
                 WinsomeServer.this.checkIfLogged(username, key);
                 WinsomeServer.this.deletePost(username, id);
-            }
-            catch (NoSuchUserException ex){ // if no user with the given username is registered
-                ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
-                return response;
             }
             catch (NoSuchPostException ex){ // if no post with the given id exists
                 ResponseCode.NO_POST.addResponseToJson(response);
@@ -996,42 +892,36 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 ResponseCode.NOT_POST_OWNER.addResponseToJson(response);
                 return response;
             }
-            catch (NoLoggedUserException ex){ // if this client is not logged in
-                ResponseCode.NO_LOGGED_USER.addResponseToJson(response);
-                return response;
-            }
-            catch (WrongUserException ex){ // if this client is not logged in with the given user
-                ResponseCode.WRONG_USER.addResponseToJson(response);
-                return response;
-            }
 
             // success!
             ResponseCode.SUCCESS.addResponseToJson(response);
             return response;
         }
 
-        private JsonObject rewinRequest(){
+        /**
+         * Fulfills a client's rewin request.
+         * @return the response, formatted as a JsonObject
+         * @throws MalformedJSONException if the client request was not in a valid format
+         * @throws NoSuchUserException if the requesting user does not exist
+         * @throws NoLoggedUserException if the client is not currently logged in
+         * @throws WrongUserException if the client is logged on a different user
+         */
+        private JsonObject rewinRequest() throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, WrongUserException {
             JsonObject response = new JsonObject();
 
-            String username = null;
-            int id = -1;
+            String username; int id;
 
             // reading username and password from the request
              try {
                 username = request.get("username").getAsString();
                 id = request.get("id").getAsInt();
             } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username/password => malformed Json
-                ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
-                return response;
+                throw new MalformedJSONException("missing fields in json request", ex);
             }
 
             try { 
                 WinsomeServer.this.checkIfLogged(username, key);
                 WinsomeServer.this.rewinPost(username, id);
-            }
-            catch (NoSuchUserException ex){ // if no user with the given username is registered
-                ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
-                return response;
             }
             catch (NoSuchPostException ex){ // if no post with the given id exists
                 ResponseCode.NO_POST.addResponseToJson(response);
@@ -1041,36 +931,33 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 ResponseCode.REWIN_ERR.addResponseToJson(response);
                 return response;
             }
-            catch (NoLoggedUserException ex){ // if this client is not logged in
-                ResponseCode.NO_LOGGED_USER.addResponseToJson(response);
-                return response;
-            }
-            catch (WrongUserException ex){ // if this client is not logged in with the given user
-                ResponseCode.WRONG_USER.addResponseToJson(response);
-                return response;
-            }
 
             // success!
             ResponseCode.SUCCESS.addResponseToJson(response);
             return response;
         }
 
-        private JsonObject rateRequest(){
+        /**
+         * Fulfills a client's rate request.
+         * @return the response, formatted as a JsonObject
+         * @throws MalformedJSONException if the client request was not in a valid format
+         * @throws NoSuchUserException if the requesting user does not exist
+         * @throws NoLoggedUserException if the client is not currently logged in
+         * @throws WrongUserException if the client is logged on a different user
+         */
+        private JsonObject rateRequest() throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, WrongUserException {
             JsonObject response = new JsonObject();
 
-            String username = null;
-            int id, vote;
+            String username; int id, vote;
 
             // reading username from the request
-             try {
+            try {
                 username = request.get("username").getAsString();
                 id = request.get("id").getAsInt();
                 vote = request.get("vote").getAsInt();
             } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username => malformed Json
-                ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
-                return response;
+                throw new MalformedJSONException("missing fields in json request", ex);
             }
-            
             
             try { 
                 WinsomeServer.this.checkIfLogged(username, key);
@@ -1081,18 +968,6 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 if(vote == 1) post.upvote(username);
                 else if(vote == -1) post.downvote(username);
                 else throw new WrongVoteFormatException("vote must be +1/-1"); 
-            }
-            catch (NoSuchUserException ex){ // if no user with the given username is registered
-                ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
-                return response;
-            }
-            catch (NoLoggedUserException ex){ // if this client is not logged in
-                ResponseCode.NO_LOGGED_USER.addResponseToJson(response);
-                return response;
-            }
-            catch (WrongUserException ex){ // if this client is not logged in with the given user
-                ResponseCode.WRONG_USER.addResponseToJson(response);
-                return response;
             }
             catch (NoSuchPostException ex){ // the given post does not exist or it isn't visible
                 ResponseCode.NO_POST.addResponseToJson(response);
@@ -1112,11 +987,18 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             return response;
         }
 
-        private JsonObject commentRequest(){
+        /**
+         * Fulfills a client's comment request.
+         * @return the response, formatted as a JsonObject
+         * @throws MalformedJSONException if the client request was not in a valid format
+         * @throws NoSuchUserException if the requesting user does not exist
+         * @throws NoLoggedUserException if the client is not currently logged in
+         * @throws WrongUserException if the client is logged on a different user
+         */
+        private JsonObject commentRequest() throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, WrongUserException {
             JsonObject response = new JsonObject();
 
-            String username = null;
-            int id; String contents;
+            String username, contents; int id;
 
             // reading username from the request
              try {
@@ -1124,10 +1006,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 id = request.get("id").getAsInt();
                 contents = request.get("comment").getAsString();
             } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username => malformed Json
-                ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
-                return response;
+                throw new MalformedJSONException("missing fields in json request", ex);
             }
-            
             
             try { 
                 WinsomeServer.this.checkIfLogged(username, key);
@@ -1137,18 +1017,6 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     throw new NoSuchPostException();
                 post.addComment(username, contents);
             }
-            catch (NoSuchUserException ex){ // if no user with the given username is registered
-                ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
-                return response;
-            }
-            catch (NoLoggedUserException ex){ // if this client is not logged in
-                ResponseCode.NO_LOGGED_USER.addResponseToJson(response);
-                return response;
-            }
-            catch (WrongUserException ex){ // if this client is not logged in with the given user
-                ResponseCode.WRONG_USER.addResponseToJson(response);
-                return response;
-            }
             catch (NoSuchPostException ex){ // the given post does not exist or it isn't visible
                 ResponseCode.NO_POST.addResponseToJson(response);
                 return response;
@@ -1157,104 +1025,87 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 ResponseCode.POST_OWNER.addResponseToJson(response);
                 return response;
             }
-            
 
             // success!
             ResponseCode.SUCCESS.addResponseToJson(response);
             return response;
         }
 
-        private JsonObject walletRequest(){
+        /**
+         * Fulfills a client's wallet request.
+         * @return the response, formatted as a JsonObject
+         * @throws MalformedJSONException if the client request was not in a valid format
+         * @throws NoSuchUserException if the requesting user does not exist
+         * @throws NoLoggedUserException if the client is not currently logged in
+         * @throws WrongUserException if the client is logged on a different user
+         */
+        private JsonObject walletRequest() throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, WrongUserException {
             JsonObject response = new JsonObject();
 
-            String username = null;
+            String username;
 
             // reading username from the request
-             try {
+            try {
                 username = request.get("username").getAsString();
             } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username => malformed Json
-                ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
-                return response;
+                throw new MalformedJSONException("missing fields in json request", ex);
             }
             
-            Collection<Transaction> trans;
-            try { 
-                WinsomeServer.this.checkIfLogged(username, key);
-                trans = transactions.get(username); // not null because user exists and is logged
+            WinsomeServer.this.checkIfLogged(username, key);
+            Collection<Transaction> trans = transactions.get(username); // not null because user exists and is logged
 
-                JsonArray array = new JsonArray();
-                double total = 0;
-                for(Transaction transaction : trans){
-                    JsonObject transJson = new JsonObject();
-                    transJson.addProperty("increment", transaction.increment);
-                    transJson.addProperty("timestamp", transaction.timestamp.toString());
-                    array.add(transJson);
+            JsonArray array = new JsonArray();
+            double total = 0;
+            for(Transaction transaction : trans){
+                JsonObject transJson = new JsonObject();
+                transJson.addProperty("increment", transaction.increment);
+                transJson.addProperty("timestamp", transaction.timestamp.toString());
+                array.add(transJson);
 
-                    total += transaction.increment;
-                }
-                response.addProperty("total", total);
-                response.add("transactions", array);                       
+                total += transaction.increment;
             }
-            catch (NullPointerException | NoSuchUserException ex){ // if no user with the given username is registered
-                ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
-                return response;
-            }
-            catch (NoLoggedUserException ex){ // if this client is not logged in
-                ResponseCode.NO_LOGGED_USER.addResponseToJson(response);
-                return response;
-            }
-            catch (WrongUserException ex){ // if this client is not logged in with the given user
-                ResponseCode.WRONG_USER.addResponseToJson(response);
-                return response;
-            }
+            response.addProperty("total", total);
+            response.add("transactions", array);                       
 
             // success!
             ResponseCode.SUCCESS.addResponseToJson(response);
             return response;
         }
 
-        private JsonObject walletBTCRequest(){
+        /**
+         * Fulfills a client's wallet-in-bitcoins request.
+         * @return the response, formatted as a JsonObject
+         * @throws MalformedJSONException if the client request was not in a valid format
+         * @throws NoSuchUserException if the requesting user does not exist
+         * @throws NoLoggedUserException if the client is not currently logged in
+         * @throws WrongUserException if the client is logged on a different user
+         */
+        private JsonObject walletBTCRequest() throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, WrongUserException {
             JsonObject response = new JsonObject();
 
-            String username = null;
+            String username;
 
             // reading username from the request
-             try {
+            try {
                 username = request.get("username").getAsString();
             } catch (NullPointerException | ClassCastException | IllegalStateException ex ){ // no username => malformed Json
-                ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
+                throw new MalformedJSONException("missing fields in json request", ex);
+            }
+            
+            WinsomeServer.this.checkIfLogged(username, key);
+            Collection<Transaction>  trans = transactions.get(username); // not null because user exists and is logged
+
+            double total = 0; double exchange;
+            for(Transaction transaction : trans)
+                total += transaction.increment;
+
+            try { exchange = getBTCExchangeRate(); }
+            catch (IOException | NumberFormatException ex) { // error while getting exchange rate
+                ResponseCode.EXCHANGE_RATE_ERROR.addResponseToJson(response);
                 return response;
             }
             
-            Collection<Transaction> trans;
-            try { 
-                WinsomeServer.this.checkIfLogged(username, key);
-                trans = transactions.get(username); // not null because user exists and is logged
-
-                double total = 0; double exchange;
-                for(Transaction transaction : trans)
-                    total += transaction.increment;
-
-                try { exchange = getBTCExchangeRate(); }
-                catch (IOException | NumberFormatException ex) { // error while getting exchange rate
-                    ResponseCode.EXCHANGE_RATE_ERROR.addResponseToJson(response);
-                    return response;
-                }
-                
-                response.addProperty("btc-total", total * exchange);
-            }
-            catch (NullPointerException | NoSuchUserException ex){ // if no user with the given username is registered
-                ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
-                return response;
-            }
-            catch (NoLoggedUserException ex){ // if this client is not logged in
-                ResponseCode.NO_LOGGED_USER.addResponseToJson(response);
-                return response;
-            }
-            catch (WrongUserException ex){ // if this client is not logged in with the given user
-                ResponseCode.WRONG_USER.addResponseToJson(response);
-                return response;
-            }
+            response.addProperty("btc-total", total * exchange);
 
             // success!
             ResponseCode.SUCCESS.addResponseToJson(response);
@@ -1290,6 +1141,12 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             return array;
         }
 
+        /**
+         * Converts a given Post to a JsonObject, adding only the information useful to a client.
+         * @param post the given post
+         * @param includeInfo whether or not to include the contents, votes and comments
+         * @return the serialized post
+         */
         private JsonObject postToJson(Post post, boolean includeInfo){
             JsonObject json = new JsonObject();
             json.addProperty("id", post.getID());
