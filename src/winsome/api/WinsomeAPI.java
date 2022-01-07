@@ -198,7 +198,7 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
      */
     public void register(String username, String password, Set<String> tags) 
             throws UserAlreadyExistsException, UserAlreadyLoggedException, RemoteException,
-                EmptyUsernameException, EmptyPasswordException {
+                EmptyUsernameException, EmptyPasswordException, IllegalTagException {
         if(username == null || password == null || tags == null) throw new NullPointerException("null arguments to register");
         for(String tag : tags)
             if(tag == null) throw new NullPointerException("null tag in register");

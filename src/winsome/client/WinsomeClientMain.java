@@ -169,6 +169,10 @@ public class WinsomeClientMain {
                     System.err.println(ConsoleColors.red("==> Error: ") + "password must not be empty!");
                     return;
                 }
+                catch (IllegalTagException ex) {
+                    System.err.println(ConsoleColors.red("==> Error: ") + "tags must be non-empty and they must contain only lowercase characters.");
+                    return;
+                }
 
                 System.out.println(
                     ConsoleColors.blue("==> SUCCESS: ") +

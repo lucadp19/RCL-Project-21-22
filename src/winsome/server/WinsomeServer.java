@@ -1804,10 +1804,12 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
     @Override
     public void signUp(String username, Hash password, Collection<String> tags) 
-            throws RemoteException, UserAlreadyExistsException, EmptyUsernameException, EmptyPasswordException {
+            throws RemoteException, UserAlreadyExistsException, EmptyUsernameException, EmptyPasswordException, IllegalTagException {
         if(username == null || password == null || tags == null) throw new NullPointerException("null parameters in signUp method");
-        for(String tag : tags) 
+        for(String tag : tags) {
             if(tag == null) throw new NullPointerException("null parameters in signUp method");
+            if(!tag.matches("[a-z]+")) throw new IllegalTagException("tags must not be empty and they must contain only lowercase letters");
+        }
 
         logger.fine("Signing up new user (username: "+ username + ").");
         
