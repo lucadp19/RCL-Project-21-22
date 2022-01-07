@@ -110,6 +110,7 @@ public class WinsomeClientMain {
             }
         } catch (IOException ex){ 
             System.err.println(ConsoleColors.red("==> ERROR! ") + "Some IO error occurred while connecting to the server: aborting.");
+            ex.printStackTrace();
             System.exit(1);
         }
     }
@@ -158,6 +159,14 @@ public class WinsomeClientMain {
                 }
                 catch (UserAlreadyExistsException ex) {
                     System.err.println(ConsoleColors.red("==> Error: ") + "this username is not available");
+                    return;
+                }
+                catch (EmptyUsernameException ex) {
+                    System.err.println(ConsoleColors.red("==> Error: ") + "username must not be empty!");
+                    return;
+                }
+                catch (EmptyPasswordException ex) {
+                    System.err.println(ConsoleColors.red("==> Error: ") + "password must not be empty!");
                     return;
                 }
 

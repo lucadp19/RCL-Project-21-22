@@ -4,6 +4,7 @@ import java.rmi.*;
 import java.util.*;
 
 import winsome.api.exceptions.*;
+import winsome.utils.cryptography.Hash;
 
 /**
  * An interface for a remote WINSOME server. 
@@ -12,11 +13,12 @@ public interface RemoteServer extends Remote {
     /**
      * Registers a new user of the WINSOME Social Network.
      * @param username the new user's username
-     * @param password the new user's password
+     * @param password the new user's (hashed) password
      * @param tags the new user's tags
      * @throws RemoteException
      */
-    void signUp(String username, String password, Collection<String> tags) throws RemoteException, UserAlreadyExistsException;
+    void signUp(String username, Hash password, Collection<String> tags) 
+        throws RemoteException, UserAlreadyExistsException, EmptyUsernameException, EmptyPasswordException;
 
     /**
      * Registers a remote client in the update list.

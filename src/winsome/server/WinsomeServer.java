@@ -27,6 +27,7 @@ import winsome.api.exceptions.*;
 import winsome.server.datastructs.*;
 import winsome.server.exceptions.*;
 import winsome.utils.configs.exceptions.InvalidConfigFileException;
+import winsome.utils.cryptography.Hash;
 
 /** A Server instance for the Winsome Social Network. */
 public class WinsomeServer extends RemoteObject implements RemoteServer {
@@ -1802,15 +1803,17 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
     /* **************** Remote Methods **************** */
 
     @Override
-    public void signUp(String username, String password, Collection<String> tags) throws RemoteException, UserAlreadyExistsException {
+    public void signUp(String username, Hash password, Collection<String> tags) 
+            throws RemoteException, UserAlreadyExistsException, EmptyUsernameException, EmptyPasswordException {
         if(username == null || password == null || tags == null) throw new NullPointerException("null parameters in signUp method");
         for(String tag : tags) 
             if(tag == null) throw new NullPointerException("null parameters in signUp method");
 
         logger.fine("Signing up new user (username: "+ username + ").");
         
-        // TODO: cipher passwords
-        // TODO: check for empty password
+        if(username.isEmpty()) throw new EmptyUsernameException("username cannot be empty");
+        if(password.isEmpty()) throw new EmptyPasswordException("password cannot be empty");
+        
         User newUser = new User(username, password, tags);
 
         synchronized(this){ 
@@ -1865,7 +1868,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         // if no user with the given username is registered
         if((user = users.get(username)) == null) { throw new NoSuchUserException("user is not signed up"); }
         // if the password does not match
-        if(!user.getPassword().equals(password)){ throw new WrongPasswordException("password does not match"); }
+        if(!user.getPassword().digest.equals(password)){ throw new WrongPasswordException("password does not match"); }
         // if the user or the key is already logged in
         if(attachment.isLoggedIn() || WinsomeServer.this.userSessions.putIfAbsent(username, client) != null){
             throw new UserAlreadyLoggedException("user or client is already logged in");

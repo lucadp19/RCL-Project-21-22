@@ -2,6 +2,11 @@ package winsome.utils.cryptography;
 
 import java.util.Objects;
 
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonWriter;
+
+import java.io.IOException;
+import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 
 import java.security.MessageDigest;
@@ -10,7 +15,7 @@ import java.security.NoSuchAlgorithmException;
 import winsome.utils.cryptography.exceptions.FailedHashException;
 
 /** A class representing the cryptographic hash of a string. */
-public class Hash {
+public class Hash implements Serializable {
     /** The hashed string */
     public final String digest;
 
@@ -84,4 +89,25 @@ public class Hash {
             ).substring(1);
         return builder.toString();
     }    
+
+    /**
+     * Creates a Hash object from a JSON stream.
+     * @param reader the JSON stream
+     * @return the Hash read from the stream
+     * @throws IOException if any IO error occurs while reading
+     */
+    public static Hash fromJson(JsonReader reader) throws IOException {
+        Objects.requireNonNull(reader, "json reader must not be null");
+        return new Hash(reader.nextString());
+    }
+
+    /**
+     * Writes a Hash to a JSON stream.
+     * @param writer the JSON stream
+     * @throws IOException if any IO error occurs while writing
+     */
+    public void toJson(JsonWriter writer) throws IOException {
+        Objects.requireNonNull(writer, "json writer must not be null");
+        writer.value(this.digest);
+    }
 }

@@ -24,6 +24,7 @@ import com.google.gson.*;
 import winsome.api.PostInfo.Comment;
 import winsome.api.codes.*;
 import winsome.api.exceptions.*;
+import winsome.utils.cryptography.Hash;
 
 /** The API interface to communicate with the Winsome Social Network Server. */
 public class WinsomeAPI extends RemoteObject implements RemoteClient {
@@ -191,20 +192,20 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
      * @param username the username of the new user
      * @param password the password of the new user
      * @param tags the tags the new user's interested in
-     * @throws NullPointerException if any of the arguments are null
      * @throws UserAlreadyLoggedException if this client is already logged as some user
      * @throws UserAlreadyExistsException if the given username is not available
      * @throws RemoteException
      */
     public void register(String username, String password, Set<String> tags) 
-            throws NullPointerException, UserAlreadyExistsException, UserAlreadyLoggedException, RemoteException {
+            throws UserAlreadyExistsException, UserAlreadyLoggedException, RemoteException,
+                EmptyUsernameException, EmptyPasswordException {
         if(username == null || password == null || tags == null) throw new NullPointerException("null arguments to register");
         for(String tag : tags)
             if(tag == null) throw new NullPointerException("null tag in register");
         
         if(isLogged()) throw new UserAlreadyLoggedException("a user is already logged; please log out before trying to sign up");
 
-        remoteServer.signUp(username, password, tags);
+        remoteServer.signUp(username, Hash.fromPlainText(password), tags);
     }
 
     /**
@@ -227,9 +228,12 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         // creating the request object
         JsonObject request = new JsonObject();
 
+        // hashing the password
+        Hash hash = Hash.fromPlainText(passw);
+
         RequestCode.LOGIN.addRequestToJson(request);
         request.addProperty("username", user);
-        request.addProperty("password", passw);
+        request.addProperty("password", hash.digest);
 
         // sending the request
         send(request.toString());

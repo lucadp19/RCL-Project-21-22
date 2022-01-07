@@ -3,13 +3,11 @@ package winsome.server.datastructs;
 import java.io.IOException;
 import java.util.*;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
 
 import winsome.server.exceptions.InvalidJSONFileException;
+import winsome.utils.cryptography.Hash;
 
 /**
  * A User of the Winsome Social Network.
@@ -18,19 +16,19 @@ public class User {
     /** Username of this user */
     private final String username;
     /** Password of this user */
-    private final String password;
+    private final Hash password;
     /** Tags of this user */
     private final Set<String> tags;
 
     /**
      * Creates a new instance of User.
      * @param username the username of the new user
-     * @param password the password of the new user
+     * @param password the hashed password of the new user
      * @param tags the tags the new user is interested in
      * @throws NullPointerException if username, password, tags or one of the elements of tags is null
      * @throws IllegalArgumentException if there is fewer than 1 tag or more than 5
      */
-    public User(String username, String password, Collection<String> tags){
+    public User(String username, Hash password, Collection<String> tags){
         // checking for nulls
         if(username == null || password == null || tags == null)
             throw new NullPointerException("null arguments in User constructor");
@@ -55,7 +53,7 @@ public class User {
      * Returns the password of this user.
      * @return the password of this user
      */
-    public String getPassword(){ return password; }
+    public Hash getPassword(){ return password; }
     /**
      * Returns this user's tags
      * @return the tags set by this user
@@ -80,33 +78,12 @@ public class User {
         return !Collections.disjoint(this.tags, otherTags);
     }
 
-    /**
-     * Returns a Json version of this user.
-     * @return this user in json format
-     */
-    // public JsonObject toJson(){
-    //     // creating JsonObject
-    //     JsonObject json = new JsonObject();
-
-    //     // adding username and password
-    //     json.addProperty("username", username);
-    //     json.addProperty("password", password);
-
-    //     // creating and then adding tags
-    //     JsonArray jsonTags = new JsonArray();
-    //     tags.forEach(tag -> jsonTags.add(tag));
-
-    //     json.add("tags", jsonTags);
-
-    //     return json;
-    // }
-
     public void toJson(JsonWriter writer) throws IOException {
         if(writer == null) throw new NullPointerException("null arguments");
 
         writer.beginObject();
         writer.name("username").value(this.username);
-        writer.name("password").value(this.password);
+        writer.name("password"); this.password.toJson(writer);
 
         writer.name("tags");
         writer.beginArray();
@@ -115,43 +92,6 @@ public class User {
 
         writer.endObject();
     }
-
-    /**
-     * Takes a JsonObject and creates a new User from the given information.
-     * @param json the given JsonObject
-     * @return the User created from the JsonObject
-     * @throws IllegalArgumentException whenever json does not represent a valid User
-     */
-    // public static User fromJson(JsonObject json) throws IllegalArgumentException {
-    //     // null checking
-    //     if(json == null) throw new NullPointerException("null json object");
-
-    //     // getting the relevant fields
-    //     JsonElement userJson = json.get("username");
-    //     JsonElement passJson = json.get("password");
-    //     JsonElement tagsJson = json.get("tags");
-
-    //     User user = null;
-        
-    //     try {
-    //         String username = userJson.getAsString();
-    //         String password = passJson.getAsString();
-    //         Set<String> tags = new HashSet<>();
-            
-    //         // adding tags to the set
-    //         Iterator<JsonElement> iter = tagsJson.getAsJsonArray().iterator();
-    //         while(iter.hasNext()){
-    //             JsonElement tagJson = iter.next();
-    //             tags.add(tagJson.getAsString());
-    //         }
-
-    //         user = new User(username, password, tags);
-    //     } catch (ClassCastException | IllegalStateException | NullPointerException ex) {
-    //         throw new IllegalArgumentException("parameter did not represent a valid User"); // TODO: create exception
-    //     }
-
-    //     return user;        
-    // }
  
     /**
      * Takes a JsonReader and creates a new User from the given information.
@@ -168,7 +108,7 @@ public class User {
         
         try {
             String username = null;
-            String password = null;
+            Hash password = null;
             Set<String> tags = new HashSet<>();
             
             reader.beginObject();
@@ -176,22 +116,16 @@ public class User {
                 String property = reader.nextName();
 
                 switch (property) {
-                    case "username":
-                        username = reader.nextString();
-                        break;
-                    case "password":
-                        password = reader.nextString();
-                        break;
-                    case "tags": {
+                    case "username" -> username = reader.nextString();
+                    case "password" -> password = Hash.fromJson(reader);
+                    case "tags" -> {
                         reader.beginArray();
                         while(reader.hasNext()){
                             tags.add(reader.nextString());
                         }
                         reader.endArray();
-                        break;
                     }
-                    default:
-                        throw new InvalidJSONFileException(property + ": parse error in json file");
+                    default -> throw new InvalidJSONFileException(property + ": parse error in json file");
                 }
             }
             reader.endObject();
