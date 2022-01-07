@@ -70,6 +70,13 @@ public class WinsomeClientMain {
         }
         
         System.out.println(ConsoleColors.blue("==> Connected!"));
+
+        Runtime.getRuntime().addShutdownHook(
+            new Thread( () ->
+                System.out.println("Thank you for using the " + ConsoleColors.green("Winsome Social Network") + "!") 
+            )
+        );
+
         System.out.println("\nType a command (or " + ConsoleColors.green("help") + " to print the usage message)...\n");
 
         try (
@@ -82,7 +89,7 @@ public class WinsomeClientMain {
                 line = line.trim();
                 if(line.isEmpty()) continue;
                 if(line.startsWith("quit")) {
-                    // TODO: clean termination
+                    api.close();
                     System.exit(0);
                 }
 

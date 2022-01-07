@@ -147,6 +147,19 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         worker = new WalletUpdatesWorker(mcastAddress, mcastSocket);
     }
 
+    /**
+     * Terminates this instance of the Winsome API.
+     * @throws IOException if some IO error occurs while closing connections
+     */
+    public void close() throws IOException {
+        if(socket != null) socket.close();
+        UnicastRemoteObject.unexportObject(this, true);
+        if(mcastSocket != null) { mcastSocket.leaveGroup(mcastAddress); mcastSocket.close(); }
+        if(serverMsg != null) serverMsg.cancel(true);
+        
+        return;
+    }
+
     /* *************** Callback methods *************** */
 
     @Override
