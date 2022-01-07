@@ -94,7 +94,10 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         /** 
          * Reads the persisted data from the given directory.
          * <p> 
-         * On any failure, initializes the server with empty data.  
+         * If the serialized files are not found, the Server is initialized with empty data.
+         * @throws FileNotFoundException if the serialized files are not found (Server initialized with empty data)
+         * @throws InvalidJSONFileException if the serialized files are not valid
+         * @throws IOException if some other IO error occurs
          */
         public void getPersistedData() throws FileNotFoundException, InvalidJSONFileException, IOException {
             if(isDataInit.get()) throw new IllegalStateException("data has already been initialized");
@@ -119,16 +122,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 transactions = parseTransactions(transFile, transactions);
             }
             catch (FileNotFoundException ex){ 
-                logger.log(Level.SEVERE, ex.toString(), ex);
+                logger.warning("Serialized JSON Files not found: initializing the Server with empty data.");
                 setEmptyData(); throw new FileNotFoundException(ex.getMessage()); 
-            } 
-            catch (InvalidJSONFileException ex){ 
-                logger.log(Level.SEVERE, ex.toString(), ex);
-                setEmptyData(); throw new InvalidJSONFileException(ex.getMessage(), ex); 
-            }
-            catch(IOException ex) { 
-                logger.log(Level.SEVERE, ex.toString(), ex);
-                setEmptyData(); throw new IOException(ex.getMessage(), ex); 
             }
 
             logger.log(Level.INFO, "Serialized persisted JSON files correctly parsed.");
@@ -145,7 +140,6 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             if(!isDataInit.compareAndSet(false, true))
                 throw new IllegalStateException("data has already been initialized");
 
-            logger.log(Level.INFO, "Initializing the server with empty data.");
             users = new ConcurrentHashMap<>();
             posts = new ConcurrentHashMap<>();
             following = new ConcurrentHashMap<>();
@@ -518,8 +512,13 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          */
         @Override
         public void run(){
+            Thread.currentThread().setName(
+                "WinsomeWorker-" + Thread.currentThread().getId()
+            );
+
             JsonObject response = new JsonObject();
             try {
+                logger.info("Fulfilling a client's request.");
                 try {
                     // read request code
                     RequestCode code = RequestCode.getRequestFromJson(request);
@@ -549,22 +548,54 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 catch (MalformedJSONException ex){ // failure in parsing json
                     response = new JsonObject();
                     ResponseCode.MALFORMED_JSON_REQUEST.addResponseToJson(response);
+                    logger.info(
+                        "Client request fail. Error code: " + ResponseCode.MALFORMED_JSON_REQUEST.toString() + " (" +
+                        ResponseCode.MALFORMED_JSON_REQUEST.getMessage() +
+                        ")."
+                    );
                 } 
                 catch (NoSuchUserException ex){ // if no user with the given username is registered
+                    response = new JsonObject();
                     ResponseCode.USER_NOT_REGISTERED.addResponseToJson(response);
+                    logger.info(
+                        "Client request fail. Error code: " + ResponseCode.USER_NOT_REGISTERED.toString() + " (" +
+                        ResponseCode.USER_NOT_REGISTERED.getMessage() +
+                        ")."
+                    );
                 }
                 catch (NoLoggedUserException ex){ // if this client is not logged in
+                    response = new JsonObject();
                     ResponseCode.NO_LOGGED_USER.addResponseToJson(response);
+                    logger.info(
+                        "Client request fail. Error code: " + ResponseCode.NO_LOGGED_USER.toString() + " (" +
+                        ResponseCode.NO_LOGGED_USER.getMessage() +
+                        ")."
+                    );
                 }
                 catch (WrongUserException ex){ // if this client is not logged in with the given user
+                    response = new JsonObject();
                     ResponseCode.WRONG_USER.addResponseToJson(response);
+                    logger.info(
+                        "Client request fail. Error code: " + ResponseCode.WRONG_USER.toString() + " (" +
+                        ResponseCode.WRONG_USER.getMessage() +
+                        ")."
+                    );
                 }
                 catch (UserNotVisibleException ex){ // if the given user cannot see the other user
+                    response = new JsonObject();
                     ResponseCode.USER_NOT_VISIBLE.addResponseToJson(response);
+                    logger.info(
+                        "Client request fail. Error code: " + ResponseCode.USER_NOT_VISIBLE.toString() + " (" +
+                        ResponseCode.USER_NOT_VISIBLE.getMessage() +
+                        ")."
+                    );
                 }
                 
+                logger.info("Sending response to client.");
                 send(response.toString(), key);
             } catch(IOException ex){ 
+                logger.log(Level.WARNING, "IO exception while fulfilling a client's request: " + ex.getMessage(), ex);
+                logger.warning("Removing client.");
                 endUserSession(key); // removing the user
             }
         }     
@@ -574,9 +605,13 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          * @return the response, formatted as a JsonObject
          */
         private JsonObject multicastRequest(){
+            logger.info("Fulfilling client's MULTICAST request.");
+        
             JsonObject response = new JsonObject();
             response.addProperty("multicast-addr", config.multicastAddr);
             response.addProperty("multicast-port", config.multicastPort);
+
+            logger.info("Client request fulfilled.");
             return response;
         }
         
@@ -587,6 +622,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          * @throws NoSuchUserException if the user to login into does not exist
          */
         private JsonObject loginRequest() throws MalformedJSONException, NoSuchUserException {
+            logger.info("Fulfilling client's LOGIN request.");
             JsonObject response = new JsonObject();
 
             String username, password; 
@@ -603,10 +639,16 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             try { WinsomeServer.this.login(username, password, key); }
             catch (WrongPasswordException ex){ // if the password does not match
                 ResponseCode.WRONG_PASSW.addResponseToJson(response);
+                logger.info("Client request failed with error code " + ResponseCode.WRONG_PASSW +
+                    " (" + ResponseCode.WRONG_PASSW.getMessage() + ")."
+                );
                 return response;
             }
             catch (UserAlreadyLoggedException ex){ // if the user or the key is already logged in
                 ResponseCode.ALREADY_LOGGED.addResponseToJson(response);
+                logger.info("Client request failed with error code " + ResponseCode.ALREADY_LOGGED +
+                    " (" + ResponseCode.ALREADY_LOGGED.getMessage() + ")."
+                );
                 return response;
             }
 
@@ -618,6 +660,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             // sending current follower list to user
             response.add("followers", userTagsToJson(followers));
             
+            logger.info("Client request fulfilled.");
             return response;
         }
 
@@ -630,6 +673,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          * @throws WrongUserException if the client is logged on a different user
          */
         private JsonObject logoutRequest() throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, WrongUserException {
+            logger.info("Fulfilling a client's LOGOUT request.");
             JsonObject response = new JsonObject();
 
             String username;
@@ -644,6 +688,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             WinsomeServer.this.logout(username, key); 
             
             ResponseCode.SUCCESS.addResponseToJson(response);
+            logger.info("Client request fulfilled.");
             return response;
         }
 
@@ -656,6 +701,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          * @throws WrongUserException if the client is logged on a different user
          */
         private JsonObject getUsersRequest() throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, WrongUserException {
+            logger.info("Fulfilling a client's GET_USERS request.");
             JsonObject response = new JsonObject();
 
             String username;
@@ -676,6 +722,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             // success!
             ResponseCode.SUCCESS.addResponseToJson(response);
             response.add("users", usersJson);
+            logger.info("Client request fulfilled.");
             return response;
         }
 
@@ -688,6 +735,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          * @throws WrongUserException if the client is logged on a different user
          */
         private JsonObject getFollowingRequest() throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, WrongUserException {
+            logger.info("Fulfilling a client's GET_FOLLOWING request.");
             JsonObject response = new JsonObject();
 
             String username = null; 
@@ -709,6 +757,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             // sending current followed/followers list to user
             response.add("following", userTagsToJson(following));
 
+            logger.info("Client request fulfilled.");
             return response;
         }
 
@@ -723,6 +772,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          */
         private JsonObject followRequest() throws MalformedJSONException, NoSuchUserException, 
                 NoLoggedUserException, WrongUserException, UserNotVisibleException {
+            logger.info("Fulfilling a client's FOLLOW request.");
             JsonObject response = new JsonObject();
 
             String username, toFollow;
@@ -738,18 +788,25 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             WinsomeServer.this.checkIfLogged(username, key);
 
             if(username.equals(toFollow)) {
+                logger.info("Client request failed with error code " + ResponseCode.SELF_FOLLOW +
+                    " (users cannot follow themselves)."
+                );
                 ResponseCode.SELF_FOLLOW.addResponseToJson(response); return response;
             }
 
             // adding follower
             try { WinsomeServer.this.addFollower(username, toFollow); }
             catch (AlreadyFollowingException ex){ // if 'username' already follows 'toFollow'
+                logger.info("Client request failed with error code " + ResponseCode.ALREADY_FOLLOWED +
+                    " (user already follows the other user)."
+                );
                 ResponseCode.ALREADY_FOLLOWED.addResponseToJson(response);
                 return response;
             }
 
             // success!
             ResponseCode.SUCCESS.addResponseToJson(response);
+            logger.info("Client request fulfilled.");
             return response;
         }
         
@@ -764,6 +821,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          */
         private JsonObject unfollowRequest() throws MalformedJSONException, NoSuchUserException, 
                 NoLoggedUserException, WrongUserException, UserNotVisibleException {
+            logger.info("Fulfilling a client's UNFOLLOW request.");
             JsonObject response = new JsonObject();
 
             String username, toUnfollow;
@@ -779,18 +837,25 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             WinsomeServer.this.checkIfLogged(username, key);
 
             if(username.equals(toUnfollow)) {
+                logger.info("Client request failed with error code " + ResponseCode.SELF_FOLLOW +
+                    " (users cannot unfollow themselves)."
+                );
                 ResponseCode.SELF_FOLLOW.addResponseToJson(response); return response;
             }
 
             // removing follower
             try { WinsomeServer.this.removeFollower(username, toUnfollow); }
             catch (NotFollowingException ex){ // if 'username' does not follow 'toUnfollow'
+                logger.info("Client request failed with error code " + ResponseCode.NOT_FOLLOWING +
+                    " (user does not follow the user to unfollow)."
+                );
                 ResponseCode.NOT_FOLLOWING.addResponseToJson(response);
                 return response;
             }
 
             // success!
             ResponseCode.SUCCESS.addResponseToJson(response);
+            logger.info("Client request fulfilled.");
             return response;
         }
 
@@ -804,6 +869,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          */
         private JsonObject blogRequest() 
                 throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, WrongUserException {
+            logger.info("Fulfilling a client's BLOG request.");
             JsonObject response = new JsonObject();
 
             String username, toView;
@@ -820,6 +886,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
             // check that the user can see the other user
             if(!isVisible(username, toView)) {
+                logger.info("Client request failed with error code " + ResponseCode.USER_NOT_VISIBLE +
+                    " (user cannot see the blog of the other user)."
+                );
                 ResponseCode.USER_NOT_VISIBLE.addResponseToJson(response); return response;
             }
             // getting posts
@@ -833,6 +902,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 postArray.add(postToJson(post, false));
             response.add("posts", postArray);
 
+            logger.info("Client request fulfilled.");
             return response;
         }
 
@@ -845,6 +915,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          * @throws WrongUserException if the client is logged on a different user
          */
         private JsonObject postRequest() throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, WrongUserException {
+            logger.info("Fulfilling a client's POST request.");
             JsonObject response = new JsonObject();
 
             String username, title, content;
@@ -866,11 +937,15 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 posts.put(post.getID(), post);
                 response.addProperty("id", post.getID());
             } catch (TextLengthException ex) {
+                logger.info("Client request failed with error code " + ResponseCode.TEXT_LENGTH +
+                    " (text length exceeded maximum limits)."
+                );
                 ResponseCode.TEXT_LENGTH.addResponseToJson(response); return response;
             }
 
             // success!
             ResponseCode.SUCCESS.addResponseToJson(response);
+            logger.info("Client request fulfilled.");
             return response;
         }
 
@@ -883,6 +958,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          * @throws WrongUserException if the client is logged on a different user
          */
         private JsonObject feedRequest() throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, WrongUserException {
+            logger.info("Fulfilling a client's GET_FEED request");
             JsonObject response = new JsonObject();
 
             String username;
@@ -907,6 +983,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             }
             response.add("posts", postArray);
 
+            logger.info("Client request fulfilled.");
             return response;
         }
 
@@ -919,6 +996,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          * @throws WrongUserException if the client is logged on a different user
          */
         private JsonObject showPostRequest() throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, WrongUserException {
+            logger.info("Fulfilling a client's SHOW_POST request.");
             JsonObject response = new JsonObject();
 
             String username; int id;
@@ -934,6 +1012,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             Post post;
             WinsomeServer.this.checkIfLogged(username, key);
             if((post = posts.get(id)) == null || !isPostVisible(username, post)) {
+                logger.info("Client request failed with error code " + ResponseCode.NO_POST +
+                    " (post does not exist or user cannot see post)."
+                );
                 ResponseCode.NO_POST.addResponseToJson(response); return response;
             }
 
@@ -941,6 +1022,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             ResponseCode.SUCCESS.addResponseToJson(response);
             response.add("post", postToJson(post, true));
 
+            logger.info("Client request fulfilled.");
             return response;
         }
 
@@ -953,6 +1035,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          * @throws WrongUserException if the client is logged on a different user
          */
         private JsonObject deleteRequest() throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, WrongUserException {
+            logger.info("Fulfilling a client's DELETE request.");
             JsonObject response = new JsonObject();
 
             String username; int id;
@@ -970,16 +1053,23 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             // deleting post
             try { WinsomeServer.this.deletePost(username, id); }
             catch (NoSuchPostException ex){ // if no post with the given id exists
+                logger.info("Client request failed with error code " + ResponseCode.NO_POST +
+                    " (post does not exist or user cannot see it)."
+                );
                 ResponseCode.NO_POST.addResponseToJson(response);
                 return response;
             }
             catch (NotPostOwnerException ex){ // if the user is not the creator of the post
+                logger.info("Client request failed with error code " + ResponseCode.POST_OWNER +
+                    " (user cannot delete other user's posts)."
+                );
                 ResponseCode.NOT_POST_OWNER.addResponseToJson(response);
                 return response;
             }
 
             // success!
             ResponseCode.SUCCESS.addResponseToJson(response);
+            logger.info("Client request fulfilled.");
             return response;
         }
 
@@ -992,6 +1082,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          * @throws WrongUserException if the client is logged on a different user
          */
         private JsonObject rewinRequest() throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, WrongUserException {
+            logger.info("Fulfilling a client's REWIN request.");
             JsonObject response = new JsonObject();
 
             String username; int id;
@@ -1009,18 +1100,30 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             // rewinning post
             try { WinsomeServer.this.rewinPost(username, id); }
             catch (NoSuchPostException ex){ // if no post with the given id exists
+                logger.info("Client request failed with error code " + ResponseCode.NO_POST +
+                    " (post does not exist or user cannot see it)."
+                );
                 ResponseCode.NO_POST.addResponseToJson(response);
                 return response;
             }
             catch (NotFollowingException ex){ // user does not follow the owner of the post to rewin
+                logger.info("Client request failed with error code " + ResponseCode.NOT_FOLLOWING +
+                    " (user cannot interact with not followed users)."
+                );
                 ResponseCode.NOT_FOLLOWING.addResponseToJson(response);
                 return response;
             }
             catch (PostOwnerException ex){ // if user is the author of the given post
+                logger.info("Client request failed with error code " + ResponseCode.POST_OWNER +
+                    " (user cannot rewin their own posts)."
+                );
                 ResponseCode.POST_OWNER.addResponseToJson(response);
                 return response;
             }
             catch (AlreadyRewinnedException ex){ // if user has already rewinned the given post
+                logger.info("Client request failed with error code " + ResponseCode.REWIN_ERR +
+                    " (user has already rewinned this post)."
+                );
                 ResponseCode.REWIN_ERR.addResponseToJson(response);
                 return response;
             }
@@ -1039,6 +1142,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          * @throws WrongUserException if the client is logged on a different user
          */
         private JsonObject rateRequest() throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, WrongUserException {
+            logger.info("Fulfilling a client's RATE request.");
             JsonObject response = new JsonObject();
 
             String username; int id, vote;
@@ -1056,15 +1160,24 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             
             Post post;
             if((post = posts.get(id)) == null){
+                logger.info("Client request failed with error code " + ResponseCode.NO_POST +
+                    " (post does not exist or user cannot see it)."
+                );
                 ResponseCode.NO_POST.addResponseToJson(response); return response;
             }
 
             if(post.getAuthor().equals(username)){
+                logger.info("Client request failed with error code " + ResponseCode.POST_OWNER +
+                    " (user cannot rate their own post)."
+                );
                 ResponseCode.POST_OWNER.addResponseToJson(response); return response;
             }
             
             // checking that user follows the author of the post
             if(!canInteractWith(username, post)) {
+                logger.info("Client request failed with error code " + ResponseCode.NOT_FOLLOWING +
+                    " (user cannot interact with not followed users)."
+                );
                 ResponseCode.NOT_FOLLOWING.addResponseToJson(response); return response;
             }
             
@@ -1075,16 +1188,23 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 else throw new WrongVoteFormatException("vote must be +1/-1"); 
             }
             catch (AlreadyVotedException ex){
+                logger.info("Client request failed with error code " + ResponseCode.ALREADY_VOTED +
+                    " (user had already voted the given post)."
+                );
                 ResponseCode.ALREADY_VOTED.addResponseToJson(response);
                 return response;
             }
             catch (WrongVoteFormatException ex){
+                logger.info("Client request failed with error code " + ResponseCode.WRONG_VOTE_FORMAT +
+                    " (vote was not in the correct format)."
+                );
                 ResponseCode.WRONG_VOTE_FORMAT.addResponseToJson(response);
                 return response;
             }
 
             // success!
             ResponseCode.SUCCESS.addResponseToJson(response);
+            logger.info("Client request fulfilled.");
             return response;
         }
 
@@ -1097,6 +1217,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          * @throws WrongUserException if the client is logged on a different user
          */
         private JsonObject commentRequest() throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, WrongUserException {
+            logger.info("Fulfilling a client's COMMENT request.");
             JsonObject response = new JsonObject();
 
             String username, contents; int id;
@@ -1114,23 +1235,33 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             
             Post post;
             if((post = posts.get(id)) == null){
+                logger.info("Client request failed with error code " + ResponseCode.NO_POST +
+                    " (post does not exist or user cannot see it)."
+                );
                 ResponseCode.NO_POST.addResponseToJson(response); return response;
             }
 
             // checking that user follows the author of the post
             if(!canInteractWith(username, post)) {
+                logger.info("Client request failed with error code " + ResponseCode.NOT_FOLLOWING +
+                    " (user cannot interact with not followed users)."
+                );
                 ResponseCode.NOT_FOLLOWING.addResponseToJson(response); return response;
             }
             
             // adding comment
             try { post.addComment(username, contents); }
             catch (PostOwnerException ex){ // the given user is the owner of the post
+                logger.info("Client request failed with error code " + ResponseCode.POST_OWNER +
+                    " (user cannot rate their own post)."
+                );
                 ResponseCode.POST_OWNER.addResponseToJson(response);
                 return response;
             }
 
             // success!
             ResponseCode.SUCCESS.addResponseToJson(response);
+            logger.info("Client request fulfilled.");
             return response;
         }
 
@@ -1143,6 +1274,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          * @throws WrongUserException if the client is logged on a different user
          */
         private JsonObject walletRequest() throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, WrongUserException {
+            logger.info("Fulfilling a client's WALLET request.");
             JsonObject response = new JsonObject();
 
             String username;
@@ -1174,6 +1306,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
             // success!
             ResponseCode.SUCCESS.addResponseToJson(response);
+            
+            logger.info("Client request fulfilled.");
             return response;
         }
 
@@ -1186,6 +1320,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          * @throws WrongUserException if the client is logged on a different user
          */
         private JsonObject walletBTCRequest() throws MalformedJSONException, NoSuchUserException, NoLoggedUserException, WrongUserException {
+            logger.info("Fulfilling a client's WALLET_BTC request.");
             JsonObject response = new JsonObject();
 
             String username;
@@ -1208,6 +1343,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
             try { exchange = getBTCExchangeRate(); }
             catch (IOException | NumberFormatException ex) { // error while getting exchange rate
+                logger.info("Client request failed with error code " + ResponseCode.EXCHANGE_RATE_ERROR +
+                    " (" + ResponseCode.EXCHANGE_RATE_ERROR.getMessage() + ")."
+                );
                 ResponseCode.EXCHANGE_RATE_ERROR.addResponseToJson(response);
                 return response;
             }
@@ -1216,6 +1354,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
             // success!
             ResponseCode.SUCCESS.addResponseToJson(response);
+            logger.info("Client request fulfilled.");
             return response;
         }
 
