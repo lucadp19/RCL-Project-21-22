@@ -104,6 +104,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             ConcurrentHashMap<String, Set<String>> follows = new ConcurrentHashMap<>();
             ConcurrentHashMap<String, Collection<Transaction>> transactions = new ConcurrentHashMap<>();
 
+            logger.log(Level.INFO, "Parsing JSON files containing the persisted data.");
             try {
                 users = parseUsers(usersFile); // parsing users
 
@@ -117,9 +118,20 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 follows = parseFollowers(followsFile, follows);
                 transactions = parseTransactions(transFile, transactions);
             }
-            catch (FileNotFoundException ex){ setEmptyData(); throw new FileNotFoundException(ex.getMessage()); } 
-            catch (InvalidJSONFileException ex){ setEmptyData(); throw new InvalidJSONFileException(ex.getMessage(), ex); }
-            catch(IOException ex) { setEmptyData(); throw new IOException(ex.getMessage(), ex); }
+            catch (FileNotFoundException ex){ 
+                logger.log(Level.SEVERE, ex.toString(), ex);
+                setEmptyData(); throw new FileNotFoundException(ex.getMessage()); 
+            } 
+            catch (InvalidJSONFileException ex){ 
+                logger.log(Level.SEVERE, ex.toString(), ex);
+                setEmptyData(); throw new InvalidJSONFileException(ex.getMessage(), ex); 
+            }
+            catch(IOException ex) { 
+                logger.log(Level.SEVERE, ex.toString(), ex);
+                setEmptyData(); throw new IOException(ex.getMessage(), ex); 
+            }
+
+            logger.log(Level.INFO, "Serialized persisted JSON files correctly parsed.");
 
             // initializing the WinsomeServer structures
             WinsomeServer.this.users = users;
@@ -133,6 +145,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             if(!isDataInit.compareAndSet(false, true))
                 throw new IllegalStateException("data has already been initialized");
 
+            logger.log(Level.INFO, "Initializing the server with empty data.");
             users = new ConcurrentHashMap<>();
             posts = new ConcurrentHashMap<>();
             following = new ConcurrentHashMap<>();
@@ -149,16 +162,20 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         private ConcurrentHashMap<String, User> parseUsers(File usersFile) throws InvalidJSONFileException, IOException {
             ConcurrentHashMap<String, User> users = new ConcurrentHashMap<>();
             
+            logger.log(Level.INFO, "Parsing JSON file containing serialized users.");
             try (
                 JsonReader reader = new JsonReader(new BufferedReader(new FileReader(usersFile)));
             ){
                 reader.beginArray();
                 while(reader.hasNext()){
+                    logger.log(Level.FINER, "Parsing new user.");
                     User user = User.fromJson(reader); // reading a user
                     users.put(user.getUsername(), user);
                 }
                 reader.endArray();
             }
+            logger.info("Users correctly parsed.");
+            
             return users;
         }
 
@@ -174,12 +191,14 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 throws InvalidJSONFileException, IOException {
             ConcurrentHashMap<Integer, Post> posts = new ConcurrentHashMap<>();
 
+            logger.info("Parsing JSON files containing serialized posts.");
             // reading posts
             try (
                 JsonReader reader = new JsonReader(new BufferedReader(new FileReader(originalPostsFile)));
             ) {
                 reader.beginArray();
                 while(reader.hasNext()){
+                    logger.finer("Parsing another original post.");
                     Post post = OriginalPost.fromJson(reader);
                     posts.put(post.getID(), post);
                 }
@@ -192,12 +211,16 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             ) {
                 reader.beginArray();
                 while(reader.hasNext()){
+                    logger.finer("Parsing another rewin.");
                     JsonObject rewinJson = Rewin.getDataFromJsonReader(reader);
 
                     int idOriginal = Rewin.getOriginalIDFromJson(rewinJson);
 
                     Post orig;
-                    if((orig = posts.get(idOriginal)) == null) continue; // ignoring rewins of non-existing posts
+                    if((orig = posts.get(idOriginal)) == null) { // ignoring rewins of non-existing posts
+                        logger.warning("Parsed a Rewin whose Original Post does not exist: ignoring the rewin.");
+                        continue;
+                    }
 
                     Post rewin = Rewin.getRewinFromJson(orig, rewinJson);
                     posts.put(rewin.getID(), rewin);
@@ -205,6 +228,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 reader.endArray();
             }
 
+            logger.info("Correctly parsed JSON files containing posts.");
             return posts;
         }
     
@@ -221,6 +245,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 File followsFile, ConcurrentHashMap<String, Set<String>> follows
             ) throws InvalidJSONFileException, IOException 
         {            
+            logger.info("Parsing JSON file containing serialized 'follows'.");
             try (
                 JsonReader reader = new JsonReader(new BufferedReader(new FileReader(followsFile)));
             ){
@@ -229,12 +254,18 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     reader.beginObject();
 
                     String username = reader.nextName();
+
+                    logger.finer("Reading users followed by " + username + ".");
                     Set<String> userFollows = null; 
 
                     // check that user actually exists
                     boolean skip = false;
-                    if((userFollows = follows.get(username)) == null)
+                    if((userFollows = follows.get(username)) == null){
+                        logger.warning(
+                            "Found non existent username '" + username + "' while parsing 'follows' file: ignoring this user."
+                        );
                         skip = true;
+                    }
 
                     reader.beginArray();
                     while(reader.hasNext()){
@@ -248,6 +279,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 }
                 reader.endArray();
             }
+
+            logger.info("Correctly parsed JSON file containing serialized 'follows'.");
             return follows;
         }
 
@@ -264,6 +297,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 File transactionsFile, ConcurrentHashMap<String, Collection<Transaction>> transactions
             ) throws InvalidJSONFileException, IOException 
         {
+            logger.info("Parsing JSON file containing serialized transactions.");
             try (
                 JsonReader reader = new JsonReader(new BufferedReader(new FileReader(transactionsFile)));
             ){
@@ -272,12 +306,18 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     reader.beginObject();
 
                     String username = reader.nextName();
+
+                    logger.finer("Parsing transactions pertaining to " + username + ".");
                     Collection<Transaction> userTrans = null;
 
                     // checking that user actually exists
                     boolean skip = false;
-                    if((userTrans = transactions.get(username)) == null)
+                    if((userTrans = transactions.get(username)) == null){
+                        logger.warning(
+                            "Found non existent username '" + username + "' while parsing 'transactions' file: ignoring this user."
+                        );
                         skip = true;
+                    }
 
                     reader.beginArray();
                     while(reader.hasNext()){
@@ -301,11 +341,16 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          */
         @Override
         public Void call() throws IOException {
+            Thread.currentThread().setName("persistence-algorithm");
+            logger.info("Starting persistence algorithm thread.");
+
             while(true){
-                try { TimeUnit.SECONDS.sleep(60); }
+                logger.fine("Persistence Algorithm waiting.");
+                try { TimeUnit.SECONDS.sleep(waitTime); }
                 catch (InterruptedException ex) { break; }
 
                 try { 
+                    logger.info("Starting persistence algorithm.");
                     synchronized(runningSync) { // to synchronize with server.shutdown()
                         if(Thread.interrupted()) return null;
 
@@ -315,9 +360,11 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
                         runningSync.notify();
                     }
+                    logger.info("Persistence algorithm run!");
                 }
                 catch(IOException ex){
                     selector.wakeup();
+                    logger.log(Level.SEVERE, "IO Exception while persisting data: " + ex.getMessage(), ex);
                     throw new IOException("IO exception while persisting data", ex);
                 }
             }
@@ -342,6 +389,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          * @throws IOException if some IO error occurs while writing
          */
         private void persistTransactions(File transFile) throws IOException {
+            logger.info("Persisting transactions.");
             try (
                 JsonWriter writer = new JsonWriter(new BufferedWriter(new FileWriter(transFile)));
             ) {
@@ -349,6 +397,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
                 writer.beginArray();
                 for(Entry<String, Collection<Transaction>> entry : WinsomeServer.this.transactions.entrySet()){
+                    logger.fine("Persisting transactions pertaining to user: " + entry.getKey() + ".");
                     writer.beginObject()
                         .name(entry.getKey())
                         .beginArray();
@@ -360,6 +409,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 }
                 writer.endArray();
             }
+            logger.info("Transactions persisted.");
         }
 
         /**
@@ -368,6 +418,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          * @throws IOException if some IO error occurs while writing
          */
         private void persistFollows(File followsFile) throws IOException {
+            logger.info("Persisting follows.");
             try (
                 JsonWriter writer = new JsonWriter(new BufferedWriter(new FileWriter(followsFile)));
             ) {
@@ -375,6 +426,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
                 writer.beginArray();
                 for(Entry<String, Set<String>> entry : WinsomeServer.this.following.entrySet()){
+                    logger.fine("Persisting follows of user: " + entry.getKey() + ".");
                     writer.beginObject()
                           .name(entry.getKey())
                           .beginArray();
@@ -387,6 +439,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 }
                 writer.endArray();
             }
+            logger.info("Follows persisted.");
         }
 
         /**
@@ -396,6 +449,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          * @throws IOException if some IO error occurs while writing
          */
         private void persistPosts(File origsFile, File rewinsFile) throws IOException {
+            logger.info("Persisting posts.");
             try (
                 JsonWriter origsWriter = new JsonWriter(new BufferedWriter(new FileWriter(origsFile)));
                 JsonWriter rewinsWriter = new JsonWriter(new BufferedWriter(new FileWriter(rewinsFile)));
@@ -405,11 +459,18 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
                 origsWriter.beginArray(); rewinsWriter.beginArray();
                 for(Post post : WinsomeServer.this.posts.values()){
-                    if(post.isRewin()) post.toJson(rewinsWriter);
-                    else post.toJson(origsWriter);
+                    if(post.isRewin()) { 
+                        logger.finer("Persisting rewin with id " + post.getID() + "."); 
+                        post.toJson(rewinsWriter); 
+                    }
+                    else { 
+                        logger.finer("Persisting original post with id " + post.getID() + "."); 
+                        post.toJson(origsWriter); 
+                    }
                 }
                 origsWriter.endArray(); rewinsWriter.endArray();
             }
+            logger.info("Posts persisted.");
         }
 
         /**
@@ -418,14 +479,17 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          * @throws IOException if some IO error occurs while writing
          */
         private void persistUsers(File userFile) throws IOException {
+            logger.info("Persisting users.");
             try (
                 JsonWriter writer = new JsonWriter(new BufferedWriter(new FileWriter(usersFile)));
             ) {
                 writer.setIndent("    ");
 
                 writer.beginArray();
-                for(User user : users.values())
+                for(User user : users.values()){
+                    logger.finer("Persisting user " + user.getUsername() + ".");
                     user.toJson(writer);
+                }
 
                 writer.endArray();
             }
@@ -1288,6 +1352,9 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             }
         }
     }
+
+    /** The server logger */
+    Logger logger = Logger.getLogger("Winsome-Server");
 
     /** Boolean flag representing whether the Server data has been loaded yet or not. */
     private AtomicBoolean isDataInit = new AtomicBoolean(false);
