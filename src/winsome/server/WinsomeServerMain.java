@@ -88,11 +88,24 @@ public class WinsomeServerMain {
         WinsomeServer server;
         logger.log(Level.INFO, "Creating instance of WinsomeServer and reading configuration file.");
         try { server = new WinsomeServer(args.configPath); }
+        catch (FileNotFoundException ex){
+            System.err.println(ConsoleColors.red("==> ERROR!") + " Config file does not exist.");
+            logger.log(Level.SEVERE, "Config file does not exist: " + ex.getMessage(), ex);
+            System.exit(1);
+            return;
+        }
         catch (InvalidConfigFileException | IOException ex){
-            System.err.println("Error! " + ex.getMessage());
-            System.err.println("Aborting."); 
+            System.err.println(ConsoleColors.red("==> ERROR!") + " Could not read config file.");
+            logger.log(Level.SEVERE, "Could not read config file: " + ex.getMessage(), ex);
             System.exit(1);
             return; // otherwise java complains about uninitialized variables
+        }
+        catch (Throwable ex){
+            System.err.println(ConsoleColors.red("==> Unexpected error!"));
+            ex.printStackTrace();
+            logger.log(Level.SEVERE, "Unexpected error: " + ex.getMessage(), ex);
+            System.exit(1);
+            return;
         }
 
         // initializing server data
@@ -101,14 +114,25 @@ public class WinsomeServerMain {
             server.init();
             System.out.println(ConsoleColors.blue("==> Server initialized!\n"));
         } catch (FileNotFoundException ex){
-            System.out.println(ConsoleColors.blue("==> ") + "Persisted data missing: initialized server with empty data.\n");
+            System.out.println(ConsoleColors.yellow("==> ") + "Persisted data missing: initialized server with empty data.\n");
+            logger.log(Level.WARNING, "Persisted data missing: initialized server with empty data: " + ex.getMessage(), ex);
         } catch (InvalidJSONFileException ex){
-            System.err.println(ConsoleColors.red("==> ERROR:") + "Persisted data was in an invalid format: initialized server with empty data.\n");
+            System.err.println(ConsoleColors.red("==> ERROR! ") + "Persisted data was in an invalid format: aborting.\n");
+            logger.log(Level.SEVERE, "Persisted data was in an invalid format: " + ex.getMessage(), ex);
+            System.exit(1);
         } catch (InvalidDirectoryException ex){
-            System.err.println(ConsoleColors.red("==> ERROR:") + "Persisted data directory does not exist: aborting.");
+            System.err.println(ConsoleColors.red("==> ERROR! ") + "Persisted data directory does not exist: aborting.");
+            logger.log(Level.SEVERE, "Persisted data directory does not exist: " + ex.getMessage(), ex);
             System.exit(1);
         } catch (IOException ex){
-            System.err.println(ConsoleColors.red("==> ERROR:") + "Some IO error occurred while reading persisted data: aborting.");
+            System.err.println(ConsoleColors.red("==> ERROR! ") + "Some IO error occurred while reading persisted data: aborting.");
+            logger.log(Level.SEVERE, "Some IO error occurred while reading persisted data: " + ex.getMessage(), ex);
+            System.exit(1);
+        }
+        catch (Throwable ex){
+            System.err.println(ConsoleColors.red("==> Unexpected error!"));
+            ex.printStackTrace();
+            logger.log(Level.SEVERE, "Unexpected error: " + ex.getMessage(), ex);
             System.exit(1);
         }
         
@@ -118,7 +142,14 @@ public class WinsomeServerMain {
             server.start();
             System.out.println(ConsoleColors.blue("==> Server started!\n"));
         } catch (IOException ex){
-            System.err.println(ConsoleColors.red("==> ERROR:") + "Some IO error occurred while reading persisted data: aborting.");
+            System.err.println(ConsoleColors.red("==> ERROR! ") + "Some IO error occurred while starting the server: aborting.");
+            logger.log(Level.SEVERE, "Some IO error occurred while starting the server: " + ex.getMessage(), ex);
+            System.exit(1);
+        }
+        catch (Throwable ex){
+            System.err.println(ConsoleColors.red("==> Unexpected error!"));
+            ex.printStackTrace();
+            logger.log(Level.SEVERE, "Unexpected error: " + ex.getMessage(), ex);
             System.exit(1);
         }
         
@@ -128,8 +159,15 @@ public class WinsomeServerMain {
             Thread.currentThread().setName("server-main");
             try { server.run(); }
             catch(IOException ex){ 
-                System.err.println("Error: some IO exception occurred while server was running. Aborting immediately."); 
+                System.err.println(ConsoleColors.red("==> ERROR! ") + "Some IO error occurred while the server was running: aborting."); 
+                logger.log(Level.SEVERE, "Some IO error occurred while the server was running: " + ex.getMessage(), ex);
                 System.exit(1); 
+            }
+            catch (Throwable ex){
+                System.err.println(ConsoleColors.red("==> Unexpected error!"));
+                ex.printStackTrace();
+                logger.log(Level.SEVERE, "Unexpected error: " + ex.getMessage(), ex);
+                System.exit(1);
             }
         });
 
@@ -139,7 +177,16 @@ public class WinsomeServerMain {
             System.out.print(ConsoleColors.green("-> ") + "Press ENTER to quit: ");
             in.readLine();
         } 
-        catch (IOException ex) { System.err.println("Some IO error occurred while reading from standard input."); } 
+        catch (IOException ex) { 
+            System.err.println(ConsoleColors.red("==> ERROR! ") + "Some IO error occurred while waiting for stdin input: aborting."); 
+            logger.log(Level.SEVERE, "Some IO error occurred while waiting for stdin input: " + ex.getMessage(), ex);
+        } 
+        catch (Throwable ex){
+            System.err.println(ConsoleColors.red("==> Unexpected error!"));
+            ex.printStackTrace();
+            logger.log(Level.SEVERE, "Unexpected error: " + ex.getMessage(), ex);
+            System.exit(1);
+        }
         finally { server.close(); }
 
         System.out.println(ConsoleColors.blue("\n-> ") + "Started server shutdown...");
@@ -148,6 +195,12 @@ public class WinsomeServerMain {
             if(!main.awaitTermination(3, TimeUnit.SECONDS))
                 main.shutdownNow();
         } catch (InterruptedException ex) { main.shutdownNow(); }
+        catch (Throwable ex){
+            System.err.println(ConsoleColors.red("==> Unexpected error!"));
+            ex.printStackTrace();
+            logger.log(Level.SEVERE, "Unexpected error: " + ex.getMessage(), ex);
+            System.exit(1);
+        }
         System.out.println(ConsoleColors.blue("==> Shutdown complete!"));
     }
 

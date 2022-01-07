@@ -1,23 +1,33 @@
 package winsome.client;
 
 import java.io.*;
+
+import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
+
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+
 import java.util.*;
 import java.util.Map.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import winsome.api.PostInfo;
+import winsome.api.PostInfo.Comment;
 import winsome.api.TransactionInfo;
 import winsome.api.Wallet;
 import winsome.api.WinsomeAPI;
-import winsome.api.PostInfo.Comment;
 import winsome.api.exceptions.*;
+
 import winsome.client.ClientConfig;
 import winsome.client.exceptions.UnknownCommandException;
+
 import winsome.utils.ConsoleColors;
+import winsome.utils.configs.exceptions.InvalidConfigFileException;
 
 public class WinsomeClientMain {
+    /** Default config path */
     private static String DEFAULT_CONFIG_PATH = "./configs/client-config.yaml";
 
     public static void main(String[] args) {
@@ -25,28 +35,41 @@ public class WinsomeClientMain {
 
         System.out.println("Welcome to the Winsome Social Network!\n");
 
-        ClientConfig config = null;
-        WinsomeAPI api = null;
+        ClientConfig config;
         try {
             System.out.println(ConsoleColors.blue("-> ") + "Reading config...");
-            config = ClientConfig.fromConfigFile(DEFAULT_CONFIG_PATH); // TODO: catch exceptions
+            config = ClientConfig.fromConfigFile(DEFAULT_CONFIG_PATH);
             System.out.println(ConsoleColors.blue("==> Config read!"));
-
-            // creating API interface
-            System.out.println(ConsoleColors.blue("-> ") + "Connecting to server...");
-            api = new WinsomeAPI(
-                config.serverAddr,
-                config.portTCP,
-                config.regHost,
-                config.regPort
-            );
-            api.connect(); 
-            System.out.println(ConsoleColors.blue("==> Connected!"));
-        } catch(Exception ex){ 
-            ex.printStackTrace(); 
-            System.exit(1);
+        } 
+        catch (FileNotFoundException ex){
+            System.err.println(ConsoleColors.red("==> ERROR!") + " Config file does not exist.");
+            System.exit(1); return;
+        }
+        catch (InvalidConfigFileException | IOException ex){
+            System.err.println(ConsoleColors.red("==> ERROR!") + " Could not read config file.");
+            System.exit(1); return;
         }
 
+        System.out.println(ConsoleColors.blue("-> ") + "Connecting to server...");
+        // creating API interface
+        WinsomeAPI api = new WinsomeAPI(
+            config.serverAddr,
+            config.portTCP,
+            config.regHost,
+            config.regPort
+        );
+
+        try {
+            api.connect(); 
+        } catch(IOException ex){ 
+            System.err.println(ConsoleColors.red("==> ERROR! ") + "Some IO error occurred while connecting to the server: aborting.");
+            System.exit(1); return;
+        } catch(NotBoundException ex){ 
+            System.err.println(ConsoleColors.red("==> ERROR! ") + "Could not bind to the server's registry: aborting.");
+            System.exit(1); return;
+        }
+        
+        System.out.println(ConsoleColors.blue("==> Connected!"));
         System.out.println("\nType a command (or " + ConsoleColors.green("help") + " to print the usage message)...\n");
 
         try (
@@ -55,7 +78,8 @@ public class WinsomeClientMain {
             String line;
 
             System.out.print(ConsoleColors.green("-> "));
-            while((line = input.readLine().trim()) != null){
+            while((line = input.readLine()) != null){
+                line = line.trim();
                 if(line.isEmpty()) continue;
                 if(line.startsWith("quit")) {
                     // TODO: clean termination
@@ -84,13 +108,17 @@ public class WinsomeClientMain {
                 
                 System.out.print(ConsoleColors.green("\n-> "));
             }
-        } catch(IOException ex){ ex.printStackTrace(); }
+        } catch (IOException ex){ 
+            System.err.println(ConsoleColors.red("==> ERROR! ") + "Some IO error occurred while connecting to the server: aborting.");
+            System.exit(1);
+        }
     }
 
     private static void executeCommand(WinsomeAPI api, String line)
             throws IOException, MalformedJSONException, NoLoggedUserException, UnexpectedServerResponseException {
         Command cmd;
 
+        // getting command
         try { cmd = Command.fromString(line); }
         catch(UnknownCommandException ex){
             printError(ex.getMessage() + "\n");
@@ -106,8 +134,7 @@ public class WinsomeClientMain {
                 try { 
                     cmd1 = Command.fromString(argStr); 
                     System.out.println("\n" + cmd1.getHelpString());
-                } catch(UnknownCommandException ex){ System.out.println("\n" + Command.help()); }
-                break;
+                } catch(UnknownCommandException ex){ System.out.println("\n" + Command.help() + "\n"); }
             }
 
             case REGISTER -> {
@@ -116,7 +143,7 @@ public class WinsomeClientMain {
                 // checking argument number
                 if(args.length < 3 || args.length > 7){
                     printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
-                    System.err.println(cmd.getHelpString());
+                    System.err.println(cmd.getHelpString() + "\n");
                     return;
                 }
 
@@ -138,7 +165,6 @@ public class WinsomeClientMain {
                     ConsoleColors.blue("==> SUCCESS: ") +
                     ConsoleColors.blue(args[0]) + " has been registered in the Social Network!"
                 );
-                break;
             }
             case LOGIN -> {
                 String[] args = argStr.split("\\s+"); // splitting on space
@@ -146,7 +172,7 @@ public class WinsomeClientMain {
                 // checking argument number
                 if(args.length != 2){
                     printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
-                    System.err.println(cmd.getHelpString());
+                    System.err.println(cmd.getHelpString() + "\n");
                     return;
                 }
 
@@ -175,21 +201,21 @@ public class WinsomeClientMain {
                 // checking argument number
                 if(!argStr.isEmpty()){
                     printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
-                    System.err.println(cmd.getHelpString());
+                    System.err.println(cmd.getHelpString() + "\n");
                     return;
                 }
 
                 System.out.println(ConsoleColors.blue("-> ") + "Attempting to log out...");
                 api.logout();
 
-                System.out.println(ConsoleColors.blue("==> SUCCESS!"));
+                System.out.println(ConsoleColors.blue("==> ") + "User successfully logged out!");
             }
 
             case LIST_USERS -> {
                 // checking argument number
                 if(!argStr.isEmpty()){
                     printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
-                    System.err.println(cmd.getHelpString());
+                    System.err.println(cmd.getHelpString() + "\n");
                     return;
                 }
 
@@ -210,18 +236,21 @@ public class WinsomeClientMain {
                 // checking argument number
                 if(!argStr.isEmpty()){
                     printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
-                    System.err.println(cmd.getHelpString());
+                    System.err.println(cmd.getHelpString() + "\n");
                     return;
                 }
                 
                  
                 System.out.println(ConsoleColors.blue("-> ") + "Listing followers...");
                 Map<String, List<String>> followers = api.listFollowers();
-
+                
+                String msg = (followers.size() == 0) ?
+                    "Currently no user is following you." :
+                    "You are currently being followed by " + followers.size() + " user" +
+                        (followers.size() == 1 ? ".\n" : "s.\n");
+                
                 System.out.println(
-                    ConsoleColors.blue("==> SUCCESS! ") + 
-                    "You are currently being followed by " + followers.size() + " user"
-                    + (followers.size() == 1 ? ".\n" : "s.\n")
+                    ConsoleColors.blue("==> SUCCESS! ") + msg
                 );
                 printUsers(followers);
             }
@@ -230,20 +259,22 @@ public class WinsomeClientMain {
                 // checking argument number
                 if(!argStr.isEmpty()){
                     printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
-                    System.err.println(cmd.getHelpString());
+                    System.err.println(cmd.getHelpString() + "\n");
                     return;
                 }
 
                 System.out.println(ConsoleColors.blue("-> ") + "Listing followed users...");
                 Map<String, List<String>> followed = api.listFollowing();
 
+                String msg = (followed.size() == 0) ?
+                    "Currently you are not following any users." :
+                    "You are currently following " + followed.size() + " user" +
+                        (followed.size() == 1 ? ".\n" : "s.\n");
+                
                 System.out.println(
-                    ConsoleColors.blue("==> SUCCESS! ") + 
-                    "You are following " + followed.size() + " user" 
-                    + (followed.size() == 1 ? ".\n" : "s.\n") 
+                    ConsoleColors.blue("==> SUCCESS! ") + msg
                 );
                 printUsers(followed);
-                break;
             }
 
             case FOLLOW -> {
@@ -252,7 +283,7 @@ public class WinsomeClientMain {
                 // checking argument number
                 if(args.length != 1){
                     printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
-                    System.err.println(cmd.getHelpString());
+                    System.err.println(cmd.getHelpString() + "\n");
                     return;
                 }
 
@@ -272,7 +303,6 @@ public class WinsomeClientMain {
                 }
 
                 System.out.println(ConsoleColors.blue("==> SUCCESS! ") + "You are now following " + ConsoleColors.blue(args[0]) + "!");
-                break;
             }
             
             case UNFOLLOW -> {
@@ -281,7 +311,7 @@ public class WinsomeClientMain {
                 // checking argument number
                 if(args.length != 1){
                     printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
-                    System.err.println(cmd.getHelpString());
+                    System.err.println(cmd.getHelpString() + "\n");
                     return;
                 }
 
@@ -301,7 +331,6 @@ public class WinsomeClientMain {
                 }
 
                 System.out.println(ConsoleColors.blue("==> SUCCESS! ") + "You have stopped following " + ConsoleColors.blue(args[0]) + "!");
-                break;
             }
 
             case BLOG -> {
@@ -313,7 +342,7 @@ public class WinsomeClientMain {
                     args = argStr.split("\\s+");
                     if(args.length != 1) {
                         printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
-                        System.err.println(cmd.getHelpString());
+                        System.err.println(cmd.getHelpString() + "\n");
                         return;
                     }  
                 }
@@ -329,12 +358,14 @@ public class WinsomeClientMain {
                     return;
                 }
 
+                String msg = (args.length == 0 ? "You have" : ConsoleColors.blue(args[0]) + " has") +
+                    " published " + ConsoleColors.blue(Integer.toString(posts.size())) + " post" +
+                    ((posts.size() == 1) ? ".\n" : "s.\n");
+
                 System.out.println(
-                    ConsoleColors.blue("==> SUCCESS! ") + (args.length == 0 ? "You have" : ConsoleColors.blue(args[0]) + " has") 
-                    + " published " + ConsoleColors.blue(Integer.toString(posts.size())) + " posts!\n"
+                    ConsoleColors.blue("==> SUCCESS! ") + msg
                 );
                 for(PostInfo post : posts) printPost(post, false);
-                break;
             }
 
             case POST -> {
@@ -343,7 +374,7 @@ public class WinsomeClientMain {
                 // checking argument number
                 if(args.size() != 2){
                     printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
-                    System.err.println(cmd.getHelpString());
+                    System.err.println(cmd.getHelpString() + "\n");
                     return;
                 }
 
@@ -352,7 +383,7 @@ public class WinsomeClientMain {
                 try { id = api.createPost(args.get(0), args.get(1)); }
                 catch (TextLengthException ex){
                     printError("Title and content of post exceeded limits.");
-                    System.err.println(cmd.getHelpString());
+                    System.err.println(cmd.getHelpString() + "\n");
                     return;
                 }
 
@@ -366,7 +397,7 @@ public class WinsomeClientMain {
                 // checking argument number
                 if(!argStr.isEmpty()){
                     printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
-                    System.err.println(cmd.getHelpString());
+                    System.err.println(cmd.getHelpString() + "\n");
                     return;
                 }
 
@@ -378,7 +409,6 @@ public class WinsomeClientMain {
                     ConsoleColors.blue(Integer.toString(posts.size())) + " posts in your feed!\n"
                 );
                 for(PostInfo post : posts) printPost(post, false);
-                break;
             }
 
             case SHOW_POST -> {
@@ -387,7 +417,7 @@ public class WinsomeClientMain {
                 // checking argument number
                 if(args.length != 1){
                     printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
-                    System.err.println(cmd.getHelpString());
+                    System.err.println(cmd.getHelpString() + "\n");
                     return;
                 }
 
@@ -398,7 +428,7 @@ public class WinsomeClientMain {
                         ConsoleColors.red("==> ERROR! ") + 
                         "The given post ID is not a positive integer.\n"
                     );
-                    System.err.println(cmd.getHelpString());
+                    System.err.println(cmd.getHelpString() + "\n");
                     return;
                 }
 
@@ -412,7 +442,6 @@ public class WinsomeClientMain {
 
                 System.out.println(ConsoleColors.blue("==> SUCCESS!\n"));
                 printPost(post, true);
-                break;
             }
 
             
@@ -422,7 +451,7 @@ public class WinsomeClientMain {
                 // checking argument number
                 if(args.length != 1){
                     printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
-                    System.err.println(cmd.getHelpString());
+                    System.err.println(cmd.getHelpString() + "\n");
                     return;
                 }
 
@@ -433,7 +462,7 @@ public class WinsomeClientMain {
                         ConsoleColors.red("==> ERROR! ") + 
                         "The given post ID is not a positive integer.\n"
                     );
-                    System.err.println(cmd.getHelpString());
+                    System.err.println(cmd.getHelpString() + "\n");
                     return;
                 }
 
@@ -449,7 +478,6 @@ public class WinsomeClientMain {
                 }
                 
                 System.out.println(ConsoleColors.blue("==> SUCCESS!"));
-                break;
             }
 
             case REWIN -> {
@@ -458,7 +486,7 @@ public class WinsomeClientMain {
                 // checking argument number
                 if(args.length != 1){
                     printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
-                    System.err.println(cmd.getHelpString());
+                    System.err.println(cmd.getHelpString() + "\n");
                     return;
                 }
 
@@ -469,7 +497,7 @@ public class WinsomeClientMain {
                         ConsoleColors.red("==> ERROR! ") + 
                         "The given post ID is not a positive integer.\n"
                     );
-                    System.err.println(cmd.getHelpString());
+                    System.err.println(cmd.getHelpString() + "\n");
                     return;
                 }
 
@@ -493,7 +521,6 @@ public class WinsomeClientMain {
                 }
 
                 System.out.println(ConsoleColors.blue("==> SUCCESS!"));
-                break;
             }
 
             case RATE -> {
@@ -502,7 +529,7 @@ public class WinsomeClientMain {
                 // checking argument number
                 if(args.length != 2){
                     printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
-                    System.err.println(cmd.getHelpString());
+                    System.err.println(cmd.getHelpString() + "\n");
                     return;
                 }
 
@@ -511,7 +538,7 @@ public class WinsomeClientMain {
                 try { id = Integer.parseInt(args[0]); }
                 catch(NumberFormatException ex){
                     printError("The given post ID is not a positive integer.\n");
-                    System.err.println(cmd.getHelpString());
+                    System.err.println(cmd.getHelpString() + "\n");
                     return;
                 }
 
@@ -521,7 +548,7 @@ public class WinsomeClientMain {
                 }
                 catch(NumberFormatException ex){
                     printError("The given vote is neither +1 nor -1.\n");
-                    System.err.println(cmd.getHelpString());
+                    System.err.println(cmd.getHelpString() + "\n");
                     return;
                 }
 
@@ -561,7 +588,7 @@ public class WinsomeClientMain {
                 // checking argument number
                 if(args.size() != 2){
                     printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
-                    System.err.println(cmd.getHelpString());
+                    System.err.println(cmd.getHelpString() + "\n");
                     return;
                 }
 
@@ -569,7 +596,7 @@ public class WinsomeClientMain {
                 try { id = Integer.parseInt(args.get(0)); }
                 catch(NumberFormatException ex){
                     printError("The given post ID is not a positive integer.\n");
-                    System.err.println(cmd.getHelpString());
+                    System.err.println(cmd.getHelpString() + "\n");
                     return;
                 }
 
@@ -598,7 +625,7 @@ public class WinsomeClientMain {
                 // checking argument number
                 if(!argStr.isEmpty()){
                     printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
-                    System.err.println(cmd.getHelpString());
+                    System.err.println(cmd.getHelpString() + "\n");
                     return;
                 }
 
@@ -613,7 +640,7 @@ public class WinsomeClientMain {
                 // checking argument number
                 if(!argStr.isEmpty()){
                     printError("Wrong number of arguments to " + ConsoleColors.red(cmd.name) + ".\n");
-                    System.err.println(cmd.getHelpString());
+                    System.err.println(cmd.getHelpString() + "\n");
                     return;
                 }
 
@@ -635,10 +662,12 @@ public class WinsomeClientMain {
 
     }
 
+    /** Prints an error message */
     private static void printError(String msg){
         System.err.println(ConsoleColors.red("==> Error! ") + msg);
     }
 
+    /** Splits a string on single words or quoted sentences */
     private static List<String> splitQuotes(String str){
         List<String> result = new ArrayList<>();
 
@@ -648,6 +677,11 @@ public class WinsomeClientMain {
         return result;
     }
 
+    /**
+     * Pretty-prints a post.
+     * @param post the given post
+     * @param includeInfo whether to include content, votes and comments
+     */
     private static void printPost(PostInfo post, boolean includeInfo){
         String str = 
             ConsoleColors.blue("- ID: ") + post.id + "\n"
@@ -675,6 +709,7 @@ public class WinsomeClientMain {
         System.out.print(str);
     }
 
+    /** Pretty-prints a user */
     private static void printUsers(Map<String, List<String>> users){
         for(Entry<String, List<String>> userTags : users.entrySet()){
             System.out.println(ConsoleColors.yellow("--> Username: ") + userTags.getKey());
@@ -685,6 +720,10 @@ public class WinsomeClientMain {
         }
     }
 
+    /**
+     * Pretty-prints a wallet.
+     * @param wallet the given wallet
+     */
     private static void printWallet(Wallet wallet){
         System.out.printf(ConsoleColors.yellow("- Total: ") + "%.4f\n", wallet.total);
         System.out.println(
@@ -694,7 +733,10 @@ public class WinsomeClientMain {
         );
         for(TransactionInfo transaction : wallet.getTransactions()){
             System.out.printf(ConsoleColors.yellow("    - Amount: ") + "%.4f", transaction.amount);
-            System.out.println(ConsoleColors.yellow("      Timestamp: ") + transaction.timestamp);
+            System.out.println(
+                ConsoleColors.yellow("      Timestamp: ") + 
+                ZonedDateTime.ofInstant(transaction.timestamp, ZoneId.systemDefault())
+            );
         }
     }
 }
