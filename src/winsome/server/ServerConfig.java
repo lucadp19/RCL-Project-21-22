@@ -48,8 +48,9 @@ public class ServerConfig extends AbstractConfig {
          * Creates a SCField object from the key name.
          * @param key the key name
          * @return the SCField object with the given key
+         * @throws UnknownKeyException if no key with the given name is known
          */
-        static SCField fromKey(String key){
+        static SCField fromKey(String key) throws UnknownKeyException {
             return switch (key) {
                 case "tcp-port" ->          PORT_TCP;
                 case "udp-port" ->          PORT_UDP;
@@ -162,12 +163,12 @@ public class ServerConfig extends AbstractConfig {
                     case PORT_TCP ->{
                         if(portTCP != null) throw new DuplicateKeyException(key.key);
                         try { portTCP = Integer.parseInt(entry.value); }
-                        catch(NumberFormatException ex){ throw new NumberFormatException("argument of \"" + key.key + "\" must be an integer"); }
+                        catch(NumberFormatException ex){ throw new EntryValueFormatException("argument of \"" + key.key + "\" must be an integer"); }
                     }
                     case PORT_UDP -> {
                         if(portUDP != null) throw new DuplicateKeyException(key.key);
                         try { portUDP = Integer.parseInt(entry.value); }
-                        catch(NumberFormatException ex){ throw new NumberFormatException("argument of \"" + key.key + "\" must be an integer"); }
+                        catch(NumberFormatException ex){ throw new EntryValueFormatException("argument of \"" + key.key + "\" must be an integer"); }
                     }
                     case MCAST_ADDR -> {
                         if(multicastAddr != null) throw new DuplicateKeyException(key.key);
@@ -176,7 +177,7 @@ public class ServerConfig extends AbstractConfig {
                     case MCAST_PORT -> {
                         if(multicastPort != null) throw new DuplicateKeyException(key.key);
                         try { multicastPort = Integer.parseInt(entry.value); }
-                        catch(NumberFormatException ex){ throw new NumberFormatException("argument of \"" + key.key + "\" must be an integer"); }
+                        catch(NumberFormatException ex){ throw new EntryValueFormatException("argument of \"" + key.key + "\" must be an integer"); }
                     }
                     case REG_HOST -> {
                         if(regHost != null) throw new DuplicateKeyException(key.key);
@@ -185,12 +186,12 @@ public class ServerConfig extends AbstractConfig {
                     case REG_PORT -> {
                         if(regPort != null) throw new DuplicateKeyException(key.key);
                         try { regPort = Integer.parseInt(entry.value); }
-                        catch(NumberFormatException ex){ throw new NumberFormatException("argument of \"" + key.key + "\" must be an integer"); }
+                        catch(NumberFormatException ex){ throw new EntryValueFormatException("argument of \"" + key.key + "\" must be an integer"); }
                     }
                     case REWARD_INT -> {
                         if(rewardInterval != null) throw new DuplicateKeyException(key.key);
                         try { rewardInterval = Long.parseLong(entry.value); }
-                        catch(NumberFormatException ex){ throw new NumberFormatException("argument of \"" + key.key + "\" must be an integer"); }
+                        catch(NumberFormatException ex){ throw new EntryValueFormatException("argument of \"" + key.key + "\" must be an integer"); }
                     }
                     case REWARD_PERC -> {
                         if(percentage != null) throw new DuplicateKeyException(key.key);
@@ -198,7 +199,7 @@ public class ServerConfig extends AbstractConfig {
                             double authorReward = Double.parseDouble(entry.value);
                             percentage = RewardsPercentage.fromAuthor(authorReward / 100);
                         }
-                        catch(NumberFormatException ex){ throw new NumberFormatException("argument of \"" + key.key + "\" must be a double between 0 and 100"); }
+                        catch(NumberFormatException ex){ throw new EntryValueFormatException("argument of \"" + key.key + "\" must be a double between 0 and 100"); }
                     }
                     case PERSIST_DIR -> {
                         if(persistenceDir != null) throw new DuplicateKeyException(key.key);
@@ -207,27 +208,27 @@ public class ServerConfig extends AbstractConfig {
                     case PERSIST_INT -> {
                         if(persistenceInterval != null) throw new DuplicateKeyException(key.key);
                         try { persistenceInterval = Long.parseLong(entry.value); }
-                        catch(NumberFormatException ex){ throw new NumberFormatException("argument of \"" + key.key + "\" must be an integer"); }
+                        catch(NumberFormatException ex){ throw new EntryValueFormatException("argument of \"" + key.key + "\" must be an integer"); }
                     }
                     case KEEP_ALIVE -> {
                         if(keepAlive != null) throw new DuplicateKeyException(key.key);
                         try { keepAlive = Long.parseLong(entry.value); }
-                        catch(NumberFormatException ex){ throw new NumberFormatException("argument of \"" + key.key + "\" must be an integer"); }
+                        catch(NumberFormatException ex){ throw new EntryValueFormatException("argument of \"" + key.key + "\" must be an integer"); }
                     }
                     case MIN_THREADS -> {
                         if(minThreads != null) throw new DuplicateKeyException(key.key);
                         try { minThreads = Integer.parseInt(entry.value); }
-                        catch(NumberFormatException ex){ throw new NumberFormatException("argument of \"" + key.key + "\" must be an integer"); }
+                        catch(NumberFormatException ex){ throw new EntryValueFormatException("argument of \"" + key.key + "\" must be an integer"); }
                     }
                     case MAX_THREADS -> {
                         if(maxThreads != null) throw new DuplicateKeyException(key.key);
                         try { maxThreads = Integer.parseInt(entry.value); }
-                        catch(NumberFormatException ex){ throw new NumberFormatException("argument of \"" + key.key + "\" must be an integer"); }
+                        catch(NumberFormatException ex){ throw new EntryValueFormatException("argument of \"" + key.key + "\" must be an integer"); }
                     }
                     case POOL_TIMEOUT -> {
                         if(poolTimeout != null) throw new DuplicateKeyException(key.key);
                         try { poolTimeout = Long.parseLong(entry.value); }
-                        catch(NumberFormatException ex){ throw new NumberFormatException("argument of \"" + key.key + "\" must be an integer"); }
+                        catch(NumberFormatException ex){ throw new EntryValueFormatException("argument of \"" + key.key + "\" must be an integer"); }
                     }
                 };
             }

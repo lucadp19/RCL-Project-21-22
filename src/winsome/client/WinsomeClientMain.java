@@ -29,16 +29,16 @@ public class WinsomeClientMain {
         WinsomeAPI api = null;
         try {
             System.out.println(ConsoleColors.blue("-> ") + "Reading config...");
-            config = new ClientConfig(DEFAULT_CONFIG_PATH); // TODO: catch exceptions
+            config = ClientConfig.fromConfigFile(DEFAULT_CONFIG_PATH); // TODO: catch exceptions
             System.out.println(ConsoleColors.blue("==> Config read!"));
 
             // creating API interface
             System.out.println(ConsoleColors.blue("-> ") + "Connecting to server...");
             api = new WinsomeAPI(
-                config.getServerAddr(),
-                config.getTCPPort(),
-                config.getRegHost(),
-                config.getRegPort()
+                config.serverAddr,
+                config.portTCP,
+                config.regHost,
+                config.regPort
             );
             api.connect(); 
             System.out.println(ConsoleColors.blue("==> Connected!"));
