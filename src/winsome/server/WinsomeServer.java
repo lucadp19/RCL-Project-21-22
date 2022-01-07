@@ -175,7 +175,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 reader.endArray();
             }
             logger.info("Users correctly parsed.");
-            
+
             return users;
         }
 
@@ -1308,34 +1308,43 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
          */
         @Override
         public Void call() throws IOException {
+            Thread.currentThread().setName("rewards-algorithm");
+            logger.info("Starting Rewards Algorithm thread.");
+
             while(true) {
                 if(Thread.interrupted()) return null;
 
+                logger.fine("Rewards Algorithm waiting");
                 try { TimeUnit.SECONDS.sleep(waitTime); }
                 catch (InterruptedException ex) {
                     return null;
                 }
 
                 // computing rewards
+                logger.info("Rewards Algorithm running.");
                 for(Post post : posts.values()){
                     if(post.isRewin()) continue;
 
                     PostRewards rewards = ((OriginalPost) post).reapRewards();
+                    logger.fine("Rewards of post with ID " + post.getID() + " is " + rewards.reward + ".");
                     if(rewards.reward == 0) continue;
                     
                     // adding transaction for author
                     String author = post.getAuthor();
+                    logger.fine("Adding transaction for author of post with ID " + post.getID() + ".");
                     transactions.get(author).add(
                         new Transaction(author, rewards.authorReward(percentage))
                     );
 
                     // adding transactions for curators
                     for(String curator : rewards.getCurators()){
+                        logger.fine("Adding transaction for curator " + curator + " of post with ID " + post.getID() + ".");
                         transactions.get(curator).add(
                             new Transaction(curator, rewards.curatorReward(percentage))
                         );
                     }
                 }
+                logger.info("Computed rewards for every post. Sending notification through Multicast.");
 
                 // notifying clients
                 byte[] data = "Updated rewards!".getBytes();
@@ -1345,8 +1354,14 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
                     DatagramPacket packet = new DatagramPacket(data, data.length, addr, port);
                     multicastSocket.send(packet);
+                    logger.info("Notification sent.");
                 } catch (IOException ex){
                     selector.wakeup();
+                    logger.log(
+                        Level.SEVERE,
+                        "IO error while sending notification through multicast: " + ex.getMessage(),
+                        ex
+                    );
                     throw new IOException("IO error while sending 'Updated rewards!' message through multicast", ex);
                 }
             }
