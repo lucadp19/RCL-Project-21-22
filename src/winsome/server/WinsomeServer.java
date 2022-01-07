@@ -487,6 +487,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
 
                 writer.endArray();
             }
+            logger.info("Users persisted.");
         }
     }
 
@@ -1583,9 +1584,12 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
      * @throws IOException if there are errors in reading config files/persisted data
      */
     public void init() throws InvalidDirectoryException, FileNotFoundException, InvalidJSONFileException, IOException {
+        logger.info("Initializing data.");
+        
         persistenceWorker = new ServerPersistence(config.persistenceDir, config.persistenceInterval);
         try { persistenceWorker.getPersistedData(); }
         finally {
+            logger.info("Getting max post ID.");
             // getting max ID
             int maxPostID = 
                 posts.values().stream()
@@ -1593,6 +1597,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                     .max().orElse(-1);
             
             // initializing the ID generator for posts
+            logger.info("Initializing post ID Generator at " + (maxPostID + 1) + ".");
             Post.initIDGenerator(maxPostID + 1);
         }
     }
@@ -1606,6 +1611,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
      */
     public void start() throws IOException {
         // initializing socket and selector
+        logger.info("Opening TCP socket on port " + config.portTCP);
         InetSocketAddress sockAddress = new InetSocketAddress(config.portTCP);
         selector = Selector.open();
         socketChannel = ServerSocketChannel.open();
@@ -1615,20 +1621,24 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         socketChannel.register(selector, SelectionKey.OP_ACCEPT);
 
         // initializing multicast socket
+        logger.info("Opening multicast socket on port " + config.portUDP);
         multicastSocket = new DatagramSocket(config.portUDP);
         
         // RMI startup
+        logger.info("Starting up RMI Registry.");
         RemoteServer stub = (RemoteServer) UnicastRemoteObject.exportObject(this, 0);
         LocateRegistry.createRegistry(config.regPort);
         Registry reg = LocateRegistry.getRegistry(config.regPort);
         reg.rebind(config.regHost, stub);
 
         // starting threads
+        logger.info("Starting Persistence/Rewards Algorithms.");
         persistenceResult = persistenceThread.submit(persistenceWorker);
         rewardsResult = rewardsThread.submit(
             new RewardsAlgorithm(config.percentage, config.rewardInterval)
         );
 
+        logger.info("Starting Worker pool.");
         pool = new ThreadPoolExecutor(
             config.minThreads, config.maxThreads, 
             config.keepAlive, TimeUnit.SECONDS, new LinkedBlockingQueue<>()
@@ -1652,9 +1662,11 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
      * @throws IOException
      */
     public void run() throws IOException {
+        logger.info("Running main server loop.");
         isRunning.set(true);
         while(true){
             // wait for client to wake up the server
+            logger.info("Waiting on select.");
             try { selector.select(); }
             catch(IOException ex){ throw new IOException("IO Error in select", ex); }
 
@@ -1662,6 +1674,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 shutdown(); return;
             } 
 
+            logger.info("Server woken up by a new request.");
             // get the selected keys
             Set<SelectionKey> keys = selector.selectedKeys();
             Iterator<SelectionKey> iter = keys.iterator();
@@ -1675,19 +1688,25 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                         SocketChannel client = socketChannel.accept();
                         client.configureBlocking(false);
                         client.register(selector, SelectionKey.OP_READ, new KeyAttachment()); 
+                        logger.info("Accepted new client.");
                     } 
                     if(key.isReadable() && key.isValid()){ // request from already connected client
+                        logger.info("Got new request from client.");
+
                         // reading new request from client and parsing as a Json Object
                         JsonObject request;
 
                         try { request = getJsonRequest(key); }
                         catch (MalformedJSONException ex){ // parsing failed
+                            logger.info("Could not parse client request.");
+
                             JsonObject response = new JsonObject();
                             response.addProperty("code", ResponseCode.MALFORMED_JSON_REQUEST.toString());
                             send(response.toString(), key);
                             continue;
                         }
                         catch (EOFException ex){ // user closed its endpoint
+                            logger.info("User closed their endpoint: removing them.");
                             endUserSession(key);
                             continue;
                         }
@@ -1696,6 +1715,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                         pool.execute(new Worker(request, key));
                     }
                 } catch(IOException ex){ // fatal IO Exception
+                    logger.log(Level.WARNING, "IO exception while communicating with client: " + ex.getMessage(), ex);
+                    logger.warning("Closing connection with client.");
                     endUserSession(key);
                 }
             }
@@ -1718,7 +1739,10 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         try {
             rewardsResult.get(1, TimeUnit.MILLISECONDS);
             persistenceResult.get(1, TimeUnit.MILLISECONDS);
-        } catch (InterruptedException | ExecutionException ex) { return true; }
+        } catch (InterruptedException | ExecutionException ex) { 
+            logger.log(Level.SEVERE, "Exception in Rewards/Persistence Algorithm: " + ex.getMessage(), ex);
+            return true; 
+        }
         catch (TimeoutException ex) { }
 
         if(!isRunning.get()) return true;
@@ -1731,37 +1755,48 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
      * @throws IOException if some IOException occurs while shutting the server down
      */
     private void shutdown() throws IOException {
+        logger.info("Beginning server shutdown.");
         selector.wakeup();
 
+        logger.fine("Unexporting Remote Object.");
         try { UnicastRemoteObject.unexportObject(this, true); }
-        catch(NoSuchObjectException ex){ } // won't happen: server was exported in startServer
+        catch(NoSuchObjectException ex){  // won't happen: server was exported in startServer
+            logger.log(Level.SEVERE, "Unexpected exception: " + ex.getMessage(), ex);
+        }
 
         // shutting down thread pool
+        logger.fine("Shutting down server pool.");
         pool.shutdown();
         try {
-            if(!pool.awaitTermination(config.poolTimeout, TimeUnit.MILLISECONDS)) // TODO: config
+            if(!pool.awaitTermination(config.poolTimeout, TimeUnit.MILLISECONDS))
                 pool.shutdownNow();
         } catch (InterruptedException ex) { pool.shutdownNow(); }
 
         // removing all clients
+        logger.fine("Removing clients.");
         Iterator<SelectionKey> iter = selector.keys().iterator();
         while(iter.hasNext()){ iter.next().cancel(); }
 
         // closing sockets
+        logger.fine("Closing sockets.");
         selector.close();
         multicastSocket.close();
         
         // shutting down Rewards Algorithm and Persistence
+        logger.fine("Shutting down Rewards/Persistence Threads.");
         rewardsThread.shutdownNow();
         try {
             synchronized(persistenceWorker.runningSync){
                 while(persistenceWorker.isRunning())
                     persistenceWorker.wait();
                 
+                logger.info("Running Persistence Algorithm to save all data.");
                 persistenceWorker.persistData(); 
                 persistenceThread.shutdownNow();
             }
         } catch (InterruptedException ex){ persistenceThread.shutdownNow(); }
+
+        logger.info("Server shutdown complete.");
     }
 
     /* **************** Remote Methods **************** */
@@ -1771,6 +1806,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         if(username == null || password == null || tags == null) throw new NullPointerException("null parameters in signUp method");
         for(String tag : tags) 
             if(tag == null) throw new NullPointerException("null parameters in signUp method");
+
+        logger.fine("Signing up new user (username: "+ username + ").");
         
         // TODO: cipher passwords
         // TODO: check for empty password
@@ -1783,6 +1820,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             if(users.putIfAbsent(username, newUser) != null)
                 throw new UserAlreadyExistsException("\"" + username + "\" is not available as a new username");
         }
+        logger.fine("User with username " + username + " signed up.");
     }
 
     @Override
@@ -1791,6 +1829,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         if(!users.containsKey(username)) throw new NoSuchUserException();
 
         registeredToCallbacks.putIfAbsent(username, client);
+        logger.fine("Registered client to callback service.");
     }
 
     @Override
@@ -1799,6 +1838,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         if(!users.containsKey(username)) return false;
 
         registeredToCallbacks.remove(username);
+        logger.fine("Unregistered client from callback service.");
         return true;
     }
 
@@ -1817,6 +1857,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             throws NullPointerException, NoSuchUserException, WrongPasswordException, UserAlreadyLoggedException {
         if(username == null || password == null || client == null) throw new NullPointerException("null parameters in login");
 
+        logger.fine("Logging in user with username " + username + ".");
+
         KeyAttachment attachment = (KeyAttachment) client.attachment();
         User user;
 
@@ -1830,6 +1872,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         } 
 
         attachment.login(username);
+        logger.fine("User with username " + username + " succesfully logged in.");
     }
 
     /**
@@ -1841,12 +1884,14 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
      * @throws WrongUserException if the client is logged in with another user
      */
     public void logout(String username, SelectionKey client) throws NullPointerException, NoSuchUserException, NoLoggedUserException, WrongUserException {
+        logger.fine("Logging out client with username: " + username + ".");
         checkIfLogged(username, client); // asserting that the client is actually logged in
 
         KeyAttachment attachment = (KeyAttachment) client.attachment();
         
         userSessions.remove(username, client);
         attachment.logout();
+        logger.fine("Client with username " + username + " succesfully logged out.");
     }
 
     /**
@@ -1861,6 +1906,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         // checking for nulls
         if(username == null || client == null) throw new NullPointerException("null parameters in logout");
 
+        logger.finer("Asserting that a client is logged in.");
+
         // checking that the user exists
         if(!users.containsKey(username)) throw new NoSuchUserException("user is not registered");
 
@@ -1869,6 +1916,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             throw new NoLoggedUserException("no user is currently logged in the given client");
         if(!attachment.loggedUser().equals(username)) // the client is not logged in with the given user
             throw new WrongUserException("user to logout does not correspond to the given client");
+        
+        logger.finer("Assertion successful.");
     }
 
     /**
@@ -1889,6 +1938,7 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         } 
 
         key.cancel();
+        logger.info("User session successfully ended.");
     }
 
     /**
@@ -1985,6 +2035,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
             throws NullPointerException, NoSuchUserException, UserNotVisibleException, AlreadyFollowingException {
         if(username == null || toFollow == null) throw new NullPointerException("null arguments");
 
+        logger.fine("Adding '" + toFollow + "' to the list of users followed by '" + username + "'.");
+
         Set<String> followedSet;
         User user, userToFollow;
         if((followedSet = following.get(username)) == null  // gets users followed by 'username'
@@ -2005,10 +2057,15 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         if((followedClient = registeredToCallbacks.get(toFollow)) != null){
             try { followedClient.addFollower(username, user.getTags()); }
             catch (RemoteException ex) { // remote error -> removing client
+                logger.log(
+                    Level.WARNING, 
+                    "RemoteException thrown while adding follower remotely to user '" + toFollow + "':" + ex.getMessage(),
+                    ex
+                );
+                logger.warning("Ending session of user '" + toFollow + "'.");
                 endUserSession(toFollow);
             }
         }
-            
     }
     
     /**
@@ -2023,6 +2080,8 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
     private void removeFollower(String username, String toUnfollow) 
             throws NullPointerException, NoSuchUserException, UserNotVisibleException, NotFollowingException {
         if(username == null || toUnfollow == null) throw new NullPointerException("null arguments");
+
+        logger.fine("Removing '" + toUnfollow + "' to the list of users followed by '" + username + "'.");
 
         Set<String> followedSet;
         User user, userToUnfollow;
@@ -2044,6 +2103,12 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
         if((unfollowedClient = registeredToCallbacks.get(toUnfollow)) != null){
             try { unfollowedClient.removeFollower(username); }
             catch (RemoteException ex){ // remote error -> removing client
+                logger.log(
+                    Level.WARNING, 
+                    "RemoteException thrown while adding follower remotely to user '" + toUnfollow + "':" + ex.getMessage(),
+                    ex
+                );
+                logger.warning("Ending session of user '" + toUnfollow + "'.");
                 endUserSession(toUnfollow);
             }
         }
