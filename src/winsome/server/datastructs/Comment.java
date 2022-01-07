@@ -1,16 +1,14 @@
 package winsome.server.datastructs;
 
-import com.google.gson.JsonObject;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
 
 import winsome.server.exceptions.InvalidJSONFileException;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import com.google.gson.JsonElement;
-    
 /** A Comment on a Post in the Winsome Social Network */
 public class Comment {
     /** Author of this comment */
@@ -52,56 +50,28 @@ public class Comment {
     public boolean visit(){ return visited.compareAndSet(false, true); }
 
     /**
-     * Returns this comment formatted as a JsonObject.
-     * @return this comment formatted as a JsonObject
+     * Writes this comment onto a JSON stream.
+     * @param writer the given JSON stream
+     * @throws IOException if some IO error occurs while writing
      */
-    // public JsonObject toJson(){
-    //     JsonObject json = new JsonObject();
-
-    //     json.addProperty("author", author);
-    //     json.addProperty("contents", contents);
-    //     json.addProperty("read", read);
-
-    //     return json;
-    // }
-
     public void toJson(JsonWriter writer) throws IOException {
-        if(writer == null) throw new NullPointerException("null arguments");
-
-        writer.beginObject();
-        writer.name("author").value(author);
-        writer.name("contents").value(contents);
-        writer.name("visited").value(visited.get());
-        writer.endObject();
+        Objects.requireNonNull(writer, "json writer must not be null")
+            .beginObject()
+            .name("author").value(author)
+            .name("contents").value(contents)
+            .name("visited").value(visited.get())
+            .endObject();
     }
 
     /**
-     * Parses a new Comment from a JsonObject.
-     * @param json the given JsonObject
-     * @return a new Comment, obtained from the given json
-     * @throws IllegalArgumentException if json does not represent a valid Comment
-     */
-    // public static Comment fromJson(JsonObject json){
-    //     try {
-    //         String author   = json.get("author").getAsString();
-    //         String contents = json.get("contents").getAsString();
-    //         boolean visited = json.get("visited").getAsBoolean();
-
-    //         return new Comment(author, contents, visited);
-    //     } catch(NullPointerException | ClassCastException | IllegalStateException ex){
-    //         throw new IllegalArgumentException("parameter does not represent a valid Comment");
-    //     }
-    // }
-
-    /**
-     * Parses a new Comment from a JsonReader.
+     * Parses a new Comment from a JSON stream.
      * @param reader the given JsonReader
      * @return a new Comment, obtained from the given json
      * @throws InvalidJSONFileException if reader does not read a valid Comment
      * @throws IOException if an IO error occurs
      */
     public static Comment fromJson(JsonReader reader) throws InvalidJSONFileException, IOException {
-        if(reader == null) throw new NullPointerException("null parameter");
+        Objects.requireNonNull(reader, "json reader must not be null");
         
         try {
             String author   = null;
@@ -113,17 +83,10 @@ public class Comment {
                 String property = reader.nextName();
                 
                 switch (property) {
-                    case "author":
-                        author = reader.nextString();
-                        break;
-                    case "contents":
-                        contents = reader.nextString();
-                        break;
-                    case "visited":
-                        visited = reader.nextBoolean();
-                        break;
-                    default:
-                        throw new InvalidJSONFileException("parse error in json file");
+                    case "author"   -> author = reader.nextString();
+                    case "contents" -> contents = reader.nextString();
+                    case "visited"  -> visited = reader.nextBoolean();
+                    default -> throw new InvalidJSONFileException("parse error in json file");
                 }
             }
             reader.endObject();

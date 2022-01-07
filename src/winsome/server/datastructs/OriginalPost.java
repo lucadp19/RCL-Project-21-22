@@ -7,9 +7,6 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
 
@@ -23,17 +20,34 @@ import winsome.server.exceptions.InvalidJSONFileException;
  * An Original Post in the Winsome Social Network.
  */
 public class OriginalPost extends Post {
+    /** A Vote on a Post */
     public static enum Vote {
-        UP, DOWN;
+        /** Upvote */
+        UP, 
+        /** Downvote */
+        DOWN;
 
+        /** Whether or not this vote has been counted by the Rewards Algorithm */
         private AtomicBoolean visited;
+
         private Vote(){ visited = new AtomicBoolean(false); }
         private Vote(boolean visited){ this.visited = new AtomicBoolean(visited); }
 
+        /**
+         * Used by the Rewards Algorithm to mark this vote, if it hadn't already been marked.
+         * @return true if and only if this vote hadn't already been marked
+         */
         public boolean visit(){ return visited.compareAndSet(false, true); }
 
+        /**
+         * Deserializes a Vote from a JSON stream.
+         * @param reader the given JSON stream
+         * @return the parsed Vote
+         * @throws IOException if some IO error occurs
+         * @throws InvalidJSONFileException if the stream did not contain a valid Vote
+         */
         public static Vote fromJson(JsonReader reader) throws IOException, InvalidJSONFileException {
-            if(reader == null) throw new NullPointerException("null argument");
+            Objects.requireNonNull(reader, "json reader must not be null");
             try { 
                 String vote = null; 
                 Boolean visited = false;
@@ -43,33 +57,32 @@ public class OriginalPost extends Post {
                     String property = reader.nextName();
 
                     switch (property) {
-                        case "vote":
-                            vote = reader.nextString();
-                            break;
-                        case "visited":
-                            visited = reader.nextBoolean();
-                            break;
-                        default:
-                            throw new InvalidJSONFileException("error while parsing vote in json file");
+                        case "vote"     -> vote = reader.nextString();
+                        case "visited"  -> visited = reader.nextBoolean();
+                        default -> throw new InvalidJSONFileException("error while parsing vote in json file");
                     }
                 }
                 reader.endObject();
 
                 Vote ans = Vote.valueOf(vote);
-                if(visited) ans.visit();
+                if(visited) ans.visit(); // setting the vote as visited
 
                 return ans;
             }
             catch(IllegalArgumentException | NullPointerException ex){ throw new InvalidJSONFileException("invalid vote"); }
         }
 
+        /**
+         * Serializes this vote through a JSON stream.
+         * @param writer the given JSON stream
+         * @throws IOException if some IO error occurs
+         */
         public void toJson(JsonWriter writer) throws IOException {
-            if(writer == null) throw new NullPointerException("null writer");
-
-            writer.beginObject()
-                  .name("vote").value(this.toString())
-                  .name("visited").value(this.visited.get())
-                  .endObject();
+            Objects.requireNonNull(writer, "json writer must not be null")
+                .beginObject()
+                .name("vote").value(this.toString())
+                .name("visited").value(this.visited.get())
+                .endObject();
         }
     }
     
@@ -97,10 +110,9 @@ public class OriginalPost extends Post {
      * @param author author of this post
      * @param title title of this post (maximum 50 characters)
      * @param contents contents of this post (maximum 500 characters)
-     * @throws IllegalStateException if the ID Generator has not been initialized
      * @throws TextLengthException if title or contents exceed limits
      */
-    public OriginalPost(String author, String title, String contents) throws IllegalStateException, TextLengthException {
+    public OriginalPost(String author, String title, String contents) throws TextLengthException {
         if(author == null || title == null || contents == null) 
             throw new NullPointerException("null parameters in Post creation");
         if(title.length() > 50 || contents.length() > 500) throw new TextLengthException("title or contents of post exceed limits");
@@ -128,7 +140,6 @@ public class OriginalPost extends Post {
      * @param votes map with users who have voted this post as keys, and votes as values
      * @param comments queue of comments of the post
      * @param iterations number of iterations at the latest iteration of the Reward Algorithm
-     * @throws NullPointerException if any argument is null
      */
     private OriginalPost(
         int id, String author, String title, String contents, 
@@ -257,109 +268,53 @@ public class OriginalPost extends Post {
 
     // ------------------- To/From JSON ------------------- //
 
-    // @Override
-    // public JsonObject toJson(){
-    //     JsonObject json = new JsonObject();
-    //     // adding standard properties
-    //     json.addProperty("id", id);
-    //     json.addProperty("author", author);
-    //     json.addProperty("title", title);
-    //     json.addProperty("contents", contents);
-
-    //     // adding votes
-    //     JsonArray jsonVotes = new JsonArray();
-    //     for(Entry<String, Vote> vote : votes.entrySet()){
-    //         JsonObject jsonVote = new JsonObject();
-
-    //         jsonVote.addProperty("voter", vote.getKey());
-    //         jsonVote.addProperty("vote", vote.getValue().toString());
-
-    //         jsonVotes.add(jsonVote);
-    //     }
-    //     json.add("votes", jsonVotes);
-
-    //     // adding comments
-    //     JsonArray jsonComments = new JsonArray();
-    //     for(Comment comment : comments){ jsonComments.add(comment.toJson()); }
-    //     json.add("comments", jsonComments);
-
-    //     // adding counters
-    //     json.addProperty("oldUpvoteNumber", oldUpvoteNumber);
-    //     json.addProperty("iterations", iterations);
-
-    //     return json;
-    // }
-
     @Override
     public void toJson(JsonWriter writer) throws IOException {
-        if(writer == null) throw new NullPointerException();
+        Objects.requireNonNull(writer, "json writer must not be null")
+            .beginObject()
+            .name("id").value(this.id)
+            .name("author").value(this.author)
+            .name("title").value(this.title)
+            .name("contents").value(this.contents);
 
-        writer.beginObject();
 
-        writer.name("id").value(this.id);
-        writer.name("author").value(this.author);
-        writer.name("title").value(this.title);
-        writer.name("contents").value(this.contents);
-
-        writer.name("votes").beginArray();
+        // serializing votes
+        writer.name("votes")
+            .beginArray();
         for(Entry<String, Vote> vote : votes.entrySet()){
-            writer.beginObject()
-                  .name("voter").value(vote.getKey())
-                  .name("vote");
-            vote.getValue().toJson(writer);
+            writer.beginObject();
+
+            writer.name("voter").value(vote.getKey())
+                .name("vote");
+            vote.getValue()
+                .toJson(writer);
+
             writer.endObject();
         }
         writer.endArray();
 
-        writer.name("comments").beginArray();
-        for(Comment comment : comments)
-            comment.toJson(writer);
+        // serializing comments
+        writer.name("comments")
+            .beginArray();
+        for(Comment comment : comments) comment.toJson(writer);
         writer.endArray();
 
-        writer.name("iterations").value(iterations.get());
+        // serializing iterations
+        writer.name("iterations")
+            .value(iterations.get());
 
         writer.endObject();
     }
 
-    // public static OriginalPost fromJson(JsonObject json) throws IllegalArgumentException {
-    //     if(json == null) throw new NullPointerException("null parameters");
-
-    //     try {
-    //         int id = json.get("id").getAsInt();
-    //         String author = json.get("author").getAsString();
-    //         String title = json.get("title").getAsString();
-    //         String contents = json.get("contents").getAsString();
-
-    //         JsonArray jsonVotes = json.get("votes").getAsJsonArray();
-    //         Iterator<JsonElement> iterVotes = jsonVotes.iterator();
-    //         ConcurrentHashMap<String, Vote> votes = new ConcurrentHashMap<>();
-    //         while(iterVotes.hasNext()){
-    //             JsonObject jsonVote = iterVotes.next().getAsJsonObject();
-    //             votes.put(
-    //                 jsonVote.get("voter").getAsString(), 
-    //                 Vote.valueOf(jsonVote.get("vote").getAsString())
-    //             );
-    //         }
-
-    //         JsonArray jsonComments = json.get("comments").getAsJsonArray();
-    //         Iterator<JsonElement> iterComments = jsonComments.iterator();
-    //         ConcurrentLinkedQueue<Comment> comments = new ConcurrentLinkedQueue<>();
-    //         while(iterComments.hasNext()){
-    //             JsonObject jsonComment = iterComments.next().getAsJsonObject();
-    //             comments.add(Comment.fromJson(jsonComment));
-    //         }
-
-    //         int oldUpvoteNumber = json.get("oldUpvoteNumber").getAsInt();
-    //         int noIterations = json.get("iterations").getAsInt();
-
-    //         return new OriginalPost(id, author, title, contents, votes, oldUpvoteNumber, comments, noIterations);
-    //     } catch (ClassCastException | IllegalStateException | NullPointerException | IllegalArgumentException ex){
-    //         throw new IllegalArgumentException("parameter does not represent a valid OriginalPost", ex);
-    //     }
-    // }
-
+    /**
+     * Deserializes an OriginalPost from a JSON stream.
+     * @param reader the given JSON stream
+     * @return the deserialized OriginalPost
+     * @throws InvalidJSONFileException if the given stream did not contain a valid OriginalPost
+     * @throws IOException if some IO error occurs
+     */
     public static OriginalPost fromJson(JsonReader reader) throws InvalidJSONFileException, IOException {
-        if(reader == null) throw new NullPointerException("null parameters");
+        Objects.requireNonNull(reader, "json reader must not be null");
 
         try {
             Integer id      = null;
@@ -377,19 +332,11 @@ public class OriginalPost extends Post {
                 String property = reader.nextName();
 
                 switch (property) {
-                    case "id":
-                        id = reader.nextInt();
-                        break;
-                    case "author":
-                        author = reader.nextString();
-                        break;
-                    case "title":
-                        title = reader.nextString();
-                        break;
-                    case "contents":
-                        contents = reader.nextString();
-                        break;
-                    case "votes": {
+                    case "id"       -> id = reader.nextInt();
+                    case "author"   -> author = reader.nextString();
+                    case "title"    -> title = reader.nextString();
+                    case "contents" -> contents = reader.nextString();
+                    case "votes" -> {
                         // opening array of votes
                         reader.beginArray();
                         while(reader.hasNext()){
@@ -401,16 +348,10 @@ public class OriginalPost extends Post {
                             while(reader.hasNext()){
                                 String innerProperty = reader.nextName();
 
-                                
                                 switch (innerProperty) {
-                                    case "voter":
-                                        voter = reader.nextString();
-                                        break;
-                                    case "vote":
-                                        vote = Vote.fromJson(reader);
-                                        break;
-                                    default:
-                                        throw new InvalidJSONFileException("parameter does not represent a valid OriginalPost");
+                                    case "voter" -> voter = reader.nextString();
+                                    case "vote" -> vote = Vote.fromJson(reader);
+                                    default -> throw new InvalidJSONFileException("parameter does not represent a valid OriginalPost");
                                 }
                             }
                             reader.endObject();
@@ -418,25 +359,17 @@ public class OriginalPost extends Post {
 
                             votes.put(voter, vote);
                         }
-
                         reader.endArray();
                         // closing array of votes
-                        break;
                     }
-                    case "comments": {
+                    case "comments" -> {
                         reader.beginArray();
-                        while(reader.hasNext()){
-                            // reading comment
-                            comments.add(Comment.fromJson(reader));
-                        }
+                        while(reader.hasNext())
+                            comments.add(Comment.fromJson(reader)); // reading comment
                         reader.endArray();
-                        break;
                     }
-                    case "iterations":
-                        iterations = reader.nextInt();
-                        break;
-                    default:
-                        throw new InvalidJSONFileException("json reader does not represent a valid Post");
+                    case "iterations" -> iterations = reader.nextInt();
+                    default -> throw new InvalidJSONFileException("json reader does not represent a valid Post");
                 }
             }
             reader.endObject();
@@ -447,12 +380,14 @@ public class OriginalPost extends Post {
         }
     }
 
-
-    // TODO: change the logic of all this last section
-
+    /**
+     * Computes the rewards generated by this post and updates its status.
+     * @return the rewards generated by this post
+     */
     public PostRewards reapRewards(){
         Set<String> curators = new HashSet<>();
 
+        // getting upvoters
         int newVotes = 0;
         for(Entry<String, Vote> entry : votes.entrySet()){
             Vote vote = entry.getValue();
@@ -462,6 +397,7 @@ public class OriginalPost extends Post {
             }
         }
 
+        // getting commenters
         Map<String, Integer> commentFreq = new HashMap<>();
         for(Comment comment : comments){
             if(comment.visit()){
@@ -474,6 +410,7 @@ public class OriginalPost extends Post {
             }
         }
 
+        // computing reward
         double reward = Math.log(Math.max(newVotes, 0) + 1);
         double commentReward = 0;
         for(int freq : commentFreq.values())

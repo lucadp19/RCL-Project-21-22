@@ -78,12 +78,16 @@ public class User {
         return !Collections.disjoint(this.tags, otherTags);
     }
 
+    /**
+     * Serializes this User through a JSON stream.
+     * @param writer the given JSON stream
+     * @throws IOException if some IO error occurs
+     */
     public void toJson(JsonWriter writer) throws IOException {
-        if(writer == null) throw new NullPointerException("null arguments");
-
-        writer.beginObject();
-        writer.name("username").value(this.username);
-        writer.name("password"); this.password.toJson(writer);
+        Objects.requireNonNull(writer, "json writer must not be null")
+            .beginObject()
+            .name("username").value(this.username)
+            .name("password"); this.password.toJson(writer);
 
         writer.name("tags");
         writer.beginArray();
@@ -94,18 +98,15 @@ public class User {
     }
  
     /**
-     * Takes a JsonReader and creates a new User from the given information.
-     * @param reader the given JsonReader
-     * @return the User created from the JsonObject
-     * @throws InvalidJSONFileException whenever the reader does not read a valid User
-     * @throws IOException whenever there is an IO error
+     * Deserializes a User from a given JSON stream.
+     * @param reader the given JSON stream
+     * @return the deserialized user
+     * @throws InvalidJSONFileException if the reader does not read a valid User
+     * @throws IOException if some IO error occurs
      */
     public static User fromJson(JsonReader reader) throws InvalidJSONFileException, IOException {
-        // null checking
-        if(reader == null) throw new NullPointerException("null json reader");
+        Objects.requireNonNull(reader, "json reader must not be null");
 
-        User user = null;
-        
         try {
             String username = null;
             Hash password = null;
@@ -130,11 +131,9 @@ public class User {
             }
             reader.endObject();
 
-            user = new User(username, password, tags);
+            return new User(username, password, tags);
         } catch (ClassCastException | IllegalStateException | NullPointerException ex) {
             throw new InvalidJSONFileException("parameter did not represent a valid User", ex);
-        }
-
-        return user;        
+        }       
     }
 }

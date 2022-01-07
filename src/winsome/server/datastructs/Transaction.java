@@ -1,10 +1,9 @@
 package winsome.server.datastructs;
 
 import java.io.IOException;
-import java.security.Timestamp;
 import java.time.Instant;
+import java.util.Objects;
 
-import com.google.gson.JsonObject;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
 
@@ -47,55 +46,26 @@ public class Transaction {
         this.increment = increment;
         this.timestamp = timestamp;
     }
-
-    /**
-     * Serializes this transaction into a JsonObject.
-     * @return a JsonObject representing this transaction
-     */
-    // public JsonObject toJson(){
-    //     JsonObject json = new JsonObject();
-    //     json.addProperty("user", user);
-    //     json.addProperty("increment", increment);
-    //     json.addProperty("timestamp", timestamp.toString());
-
-    //     return json;
-    // }
-
-    /**
-     * Deserializes a JsonObject representing a transaction.
-     * @param json the given json
-     * @return the transaction obtained from the given json
-     * @throws IllegalArgumentException if the given json does not represent a valid Transaction
-     */
-    // public static Transaction fromJson(JsonObject json) throws IllegalArgumentException {
-    //     if(json == null) throw new NullPointerException("null parameter");
-
-    //     try {
-    //         String user = json.get("user").getAsString();
-    //         double increment = json.get("increment").getAsDouble();
-    //         Instant timestamp = Instant.parse(json.get("timestamp").getAsString());
-
-    //         return new Transaction(user, increment, timestamp);
-    //     } catch (ClassCastException | IllegalStateException | NullPointerException ex){
-    //         throw new IllegalArgumentException("parameter does not represent a valid OriginalPost", ex);
-    //     }
-    // }
     
+    /**
+     * Serializes this transaction through a JSON stream.
+     * @param writer the given JSON stream
+     * @throws IOException if some IO error occurs
+     */
     public void toJson(JsonWriter writer) throws IOException {
-        if(writer == null) throw new NullPointerException("null parameter");
-
-        writer.beginObject();
-        writer.name("user").value(this.user);
-        writer.name("increment").value(this.increment);
-        writer.name("timestamp").value(this.timestamp.toString());
-        writer.endObject();
+        Objects.requireNonNull(writer, "json writer must not be null")
+            .beginObject()
+            .name("user").value(this.user)
+            .name("increment").value(this.increment)
+            .name("timestamp").value(this.timestamp.toString())
+            .endObject();
     }
 
     /**
-     * Deserializes a JSON File representing a transaction through a JsonReader
-     * @param reader the given json reader
-     * @return the transaction obtained from the given json
-     * @throws InvalidJSONFileException if the given json reader does not read a valid Transaction
+     * Deserializes a JSON File representing a transaction through a JSON stream.
+     * @param reader the given JSON stream
+     * @return the transaction obtained from the given JSON
+     * @throws InvalidJSONFileException if the given JSON stream does not read a valid Transaction
      * @throws IOException whenever there is an IO error
      */
     public static Transaction fromJson(JsonReader reader) throws InvalidJSONFileException, IOException {
@@ -111,24 +81,17 @@ public class Transaction {
                 String property = reader.nextName();
 
                 switch (property) {
-                    case "user":
-                        user = reader.nextString();
-                        break;
-                    case "increment":
-                        increment = reader.nextDouble();
-                        break;
-                    case "timestamp":
-                        timestamp = Instant.parse(reader.nextString());
-                        break;
-                    default:
-                        throw new InvalidJSONFileException("parse error in json file");
+                    case "user"      -> user = reader.nextString();
+                    case "increment" -> increment = reader.nextDouble();
+                    case "timestamp" -> timestamp = Instant.parse(reader.nextString());
+                    default -> throw new InvalidJSONFileException("parse error in json file");
                 }
             }
             reader.endObject();
 
             return new Transaction(user, increment, timestamp);
         } catch (ClassCastException | IllegalStateException | NullPointerException | NumberFormatException ex){
-            throw new InvalidJSONFileException("parameter does not represent a valid OriginalPost", ex);
+            throw new InvalidJSONFileException("parameter does not represent a valid Transaction", ex);
         }
     }
 }

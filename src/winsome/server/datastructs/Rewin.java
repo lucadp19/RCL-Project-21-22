@@ -2,31 +2,50 @@ package winsome.server.datastructs;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import com.google.gson.JsonObject;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
 
+import winsome.api.exceptions.AlreadyRewinnedException;
 import winsome.api.exceptions.AlreadyVotedException;
 import winsome.api.exceptions.PostOwnerException;
 import winsome.server.exceptions.InvalidJSONFileException;
 
+/** A Rewin in the Winsome Social Network */
 public class Rewin extends Post {
+    /** Identifier of this post */
     public final int id;
+    /** Rewinned post */
     private Post rewinnedPost;
+    /** User who created this rewin */
     private String rewinner;
 
-    public Rewin(Post post, String rewinner) throws IllegalStateException { 
+    /**
+     * Creates a new rewin from a given post.
+     * @param post the post to rewin
+     * @param rewinner the username of the rewinner
+     * @throws AlreadyRewinnedException if the rewinner had already rewinned the given post
+     */
+    public Rewin(Post post, String rewinner) throws AlreadyRewinnedException { 
         id = getNextID();
-        rewinnedPost = post.getOriginalPost();
-        rewinnedPost.addRewinner(rewinner);
-        this.rewinner = rewinner;
+
+        rewinnedPost = Objects
+            .requireNonNull(post, "the post to rewin must not be null")
+            .getOriginalPost();
+        if(!rewinnedPost.addRewinner(rewinner))
+            throw new AlreadyRewinnedException("user had already rewinned this post");
+
+        this.rewinner = Objects.requireNonNull(rewinner, "the rewinner username must not be null");
     }
 
     private Rewin(int id, Post post, String rewinner) {
         this.id = id;
-        rewinnedPost = post.getOriginalPost();
-        this.rewinner = rewinner;
+        rewinnedPost = Objects
+            .requireNonNull(post, "the post to rewin must not be null")
+            .getOriginalPost();
+        this.rewinner = Objects.requireNonNull(rewinner, "the rewinner username must not be null");
     }
 
     @Override
@@ -92,27 +111,17 @@ public class Rewin extends Post {
     // -------------- Serialization -------------- //
 
     /**
-     * Returns a JsonObject containing a serialized version of this post.
-     * @return a JsonObject containing a serialized version of this post
+     * Serializes this post through a JSON stream.
+     * @param writer the given JSON stream
+     * @throws IOException if some IO error occurs
      */
-    // public JsonObject toJson(){
-    //     JsonObject json = new JsonObject();
-
-    //     json.addProperty("id", id);
-    //     json.addProperty("original-id", this.getOriginalID());
-    //     json.addProperty("rewinner", this.rewinner);
-
-    //     return json;
-    // }
-
     public void toJson(JsonWriter writer) throws IOException {
-        if(writer == null) throw new NullPointerException("null arguments");
-
-        writer.beginObject();
-        writer.name("id").value(this.id);
-        writer.name("original-id").value(this.getOriginalID());
-        writer.name("rewinner").value(this.rewinner);
-        writer.endObject();
+        Objects.requireNonNull(writer, "json writer must not be null")
+            .beginObject()
+            .name("id").value(this.id)
+            .name("original-id").value(this.getOriginalID())
+            .name("rewinner").value(this.rewinner)
+            .endObject();
     }
     
     /**
@@ -121,7 +130,8 @@ public class Rewin extends Post {
      * @return true if and only if json is a valid Rewin
      */
     public static boolean isRewinJson(JsonObject json){
-        if(json == null) throw new NullPointerException("null parameter");
+        Objects.requireNonNull(json, "the serialized json must not be null");
+
         return (json.get("id") != null && json.get("original-id") != null && json.get("rewinner") != null);
     }
 
@@ -132,6 +142,8 @@ public class Rewin extends Post {
      * @throws IllegalArgumentException if the given json is not a valid serialization of a Rewin 
      */
     public static int getOriginalIDFromJson(JsonObject json){
+        Objects.requireNonNull(json, "the serialized json must not be null");
+
         if(!isRewinJson(json)) throw new IllegalArgumentException("the given json is not a valid Rewin");
         return json.get("original-id").getAsInt();
     }
@@ -143,6 +155,8 @@ public class Rewin extends Post {
      * @throws IllegalArgumentException if the given json is not a valid serialization of a Rewin 
      */
     private static String getRewinnerFromJson(JsonObject json){
+        Objects.requireNonNull(json, "the serialized json must not be null");
+
         if(!isRewinJson(json)) throw new IllegalArgumentException("the given json is not a valid Rewin");
         return json.get("rewinner").getAsString();        
     }
@@ -154,6 +168,8 @@ public class Rewin extends Post {
      * @throws IllegalArgumentException if the given json is not a valid serialization of a Rewin 
      */
     private static int getIDFromJson(JsonObject json){
+        Objects.requireNonNull(json, "the serialized json must not be null");
+
         if(!isRewinJson(json)) throw new IllegalArgumentException("the given json is not a valid Rewin");
         return json.get("id").getAsInt();        
     }
@@ -167,20 +183,23 @@ public class Rewin extends Post {
      *      or if the given json and the given Post's original IDs do not correspond 
      */
     public static Rewin getRewinFromJson(Post post, JsonObject json){
+        Objects.requireNonNull(post, "the post to rewin must not be null");
+        Objects.requireNonNull(json, "the serialized json must not be null");
+
         if(post.getOriginalID() != getOriginalIDFromJson(json))
             throw new IllegalArgumentException("the given Post and Json have different Post IDs");
         return new Rewin(getIDFromJson(json), post.getOriginalPost(), getRewinnerFromJson(json));
     }
 
     /**
-     * Reads the data of a Rewin from a JsonReader.
-     * @param reader the given json reader
-     * @return
-     * @throws IOException
-     * @throws InvalidJSONFileException
+     * Reads the data of a Rewin from a JSON stream.
+     * @param reader the given JSON stream
+     * @return a JSON Object containing the rewin's data
+     * @throws IOException if some IO error occurs
+     * @throws InvalidJSONFileException if the given JSON stream does not contain a valid Rewin
      */
     public static JsonObject getDataFromJsonReader(JsonReader reader) throws IOException, InvalidJSONFileException {
-        if(reader == null) throw new NullPointerException();
+        Objects.requireNonNull(reader, "json reader must not be null");
 
         JsonObject json = new JsonObject();
         try {
@@ -190,20 +209,14 @@ public class Rewin extends Post {
                 String property = reader.nextName();
 
                 switch (property) {
-                    case "original-id":
-                        json.addProperty(property, reader.nextInt());
-                        break;
-                    case "id":
-                        json.addProperty(property, reader.nextInt());
-                        break;
-                    case "rewinner":
-                        json.addProperty(property, reader.nextString());
-                        break;
-                    default:
-                        throw new InvalidJSONFileException();
+                    case "id"           -> json.addProperty(property, reader.nextInt());
+                    case "original-id"  -> json.addProperty(property, reader.nextInt());
+                    case "rewinner"     -> json.addProperty(property, reader.nextString());
+                    default -> throw new InvalidJSONFileException();
                 }
             }
             reader.endObject();
+            
             return json;
         } catch (ClassCastException | IllegalStateException | NullPointerException | NumberFormatException ex){
             throw new InvalidJSONFileException("json reader does not read a valid Rewin");

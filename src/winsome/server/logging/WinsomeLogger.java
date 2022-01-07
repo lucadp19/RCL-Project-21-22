@@ -10,7 +10,15 @@ import java.util.Optional;
 import java.util.logging.Formatter;
 import java.util.logging.LogRecord;
 
+/** Utility class for logging purposes. 
+ * <p>
+ * Taken from: https://stackoverflow.com/a/55880722
+*/
 public class WinsomeLogger  {
+    /**
+     * Creates and returns a custom formatter with instant time, thread name and other things.
+     * @return the custom formatter
+     */
     public static Formatter getCustomFormatter(){
         return new Formatter() {
             @Override
@@ -36,12 +44,22 @@ public class WinsomeLogger  {
         };
     }
 
+    /**
+     * Returns a thread given the corresponding thread ID.
+     * @param threadID the given thread ID
+     * @return the thread corresponding to the given thread ID, if any
+     */
     private static Optional<Thread> getThread(long threadID){
         return Thread.getAllStackTraces().keySet().stream()
             .filter(thread -> thread.getId() == threadID)
             .findFirst();
     }
 
+    /**
+     * Prints the stack trace found on a LogRecord to a String.
+     * @param record the given LogRecord
+     * @return the stack trace
+     */
     private static String stackTraceToString(LogRecord record){
         if(record.getThrown() != null){
             StringWriter strWriter = new StringWriter();

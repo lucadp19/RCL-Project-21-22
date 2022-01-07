@@ -23,8 +23,11 @@ import winsome.utils.ConsoleColors;
 import winsome.utils.configs.exceptions.InvalidConfigFileException;
 
 public class WinsomeServerMain {
+    /** Command Line Args to this application */
     private static class CLArgs {
+        /** Path to the config file */
         public final String configPath;
+        /** Path to the log directory */
         public final String logPath;
 
         public CLArgs(String configPath, String logPath){ 
@@ -41,6 +44,7 @@ public class WinsomeServerMain {
     public static void main(String[] strArgs) {
         System.out.println(ConsoleColors.green("\t\tWinsome Social Network Server\n"));
 
+        // reading arguments from command line
         CLArgs args;
         try { args = getCLArgs(strArgs); }
         catch (IllegalArgumentException ex){
@@ -57,6 +61,7 @@ public class WinsomeServerMain {
             System.exit(1); return;
         }
 
+        // checking that loggin directory exists
         System.out.println(ConsoleColors.blue("-> ") + "Setting up logging...");
         File logDir = new File(args.logPath);
         if(!logDir.exists() || !logDir.isDirectory()){
@@ -128,8 +133,7 @@ public class WinsomeServerMain {
             System.err.println(ConsoleColors.red("==> ERROR! ") + "Some IO error occurred while reading persisted data: aborting.");
             logger.log(Level.SEVERE, "Some IO error occurred while reading persisted data: " + ex.getMessage(), ex);
             System.exit(1);
-        }
-        catch (Throwable ex){
+        } catch (Throwable ex){
             System.err.println(ConsoleColors.red("==> Unexpected error!"));
             ex.printStackTrace();
             logger.log(Level.SEVERE, "Unexpected error: " + ex.getMessage(), ex);
@@ -145,8 +149,7 @@ public class WinsomeServerMain {
             System.err.println(ConsoleColors.red("==> ERROR! ") + "Some IO error occurred while starting the server: aborting.");
             logger.log(Level.SEVERE, "Some IO error occurred while starting the server: " + ex.getMessage(), ex);
             System.exit(1);
-        }
-        catch (Throwable ex){
+        } catch (Throwable ex){
             System.err.println(ConsoleColors.red("==> Unexpected error!"));
             ex.printStackTrace();
             logger.log(Level.SEVERE, "Unexpected error: " + ex.getMessage(), ex);
@@ -162,8 +165,7 @@ public class WinsomeServerMain {
                 System.err.println(ConsoleColors.red("==> ERROR! ") + "Some IO error occurred while the server was running: aborting."); 
                 logger.log(Level.SEVERE, "Some IO error occurred while the server was running: " + ex.getMessage(), ex);
                 System.exit(1); 
-            }
-            catch (Throwable ex){
+            } catch (Throwable ex){
                 System.err.println(ConsoleColors.red("==> Unexpected error!"));
                 ex.printStackTrace();
                 logger.log(Level.SEVERE, "Unexpected error: " + ex.getMessage(), ex);
@@ -176,19 +178,17 @@ public class WinsomeServerMain {
         try ( BufferedReader in = new BufferedReader(new InputStreamReader(System.in)); ){
             System.out.print(ConsoleColors.green("-> ") + "Press ENTER to quit: ");
             in.readLine();
-        } 
-        catch (IOException ex) { 
+        } catch (IOException ex) { 
             System.err.println(ConsoleColors.red("==> ERROR! ") + "Some IO error occurred while waiting for stdin input: aborting."); 
             logger.log(Level.SEVERE, "Some IO error occurred while waiting for stdin input: " + ex.getMessage(), ex);
-        } 
-        catch (Throwable ex){
+        } catch (Throwable ex){
             System.err.println(ConsoleColors.red("==> Unexpected error!"));
             ex.printStackTrace();
             logger.log(Level.SEVERE, "Unexpected error: " + ex.getMessage(), ex);
             System.exit(1);
-        }
-        finally { server.close(); }
+        } finally { server.close(); } // closing server
 
+        // shutting down server thread
         System.out.println(ConsoleColors.blue("\n-> ") + "Started server shutdown...");
         main.shutdown();
         try {
@@ -204,6 +204,11 @@ public class WinsomeServerMain {
         System.out.println(ConsoleColors.blue("==> Shutdown complete!"));
     }
 
+    /**
+     * Parses the command line arguments.
+     * @param args the command line arguments
+     * @return the parsed command line arguments
+     */
     private static CLArgs getCLArgs(String[] args){
         if(args.length > 2) throw new IllegalArgumentException("args must be either 0, 1 or 2");
 

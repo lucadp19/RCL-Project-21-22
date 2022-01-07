@@ -29,6 +29,7 @@ public abstract class Post {
     public static final void initIDGenerator() throws IllegalStateException { 
         initIDGenerator(0);
     }
+
     /**
      * Initializes the ID Generator.
      * @param init the initial value of the ID Generator
@@ -39,6 +40,11 @@ public abstract class Post {
         idGenerator = new AtomicInteger(init);
     }
 
+    /**
+     * Gets the next Post ID from the ID Generator.
+     * @return the next post ID
+     * @throws IllegalStateException if the generator has not been initialized yet
+     */
     protected static final int getNextID() throws IllegalStateException {
         if(!isIDGeneratorInit()) throw new IllegalStateException("ID Generator has not been initialized yet");
         return idGenerator.getAndIncrement();
@@ -162,10 +168,9 @@ public abstract class Post {
     public abstract void addComment(String author, String contents) throws PostOwnerException;
 
     /**
-     * Returns a JsonObject containing a serialized version of this post.
-     * @return a JsonObject containing a serialized version of this post
+     * Serializes a Post through a JSON stream.
+     * @param writer the given JSON stream
+     * @throws IOException if some IO exception occurs
      */
-    // public abstract JsonObject toJson();
-
     public abstract void toJson(JsonWriter writer) throws IOException;
 }
