@@ -125,6 +125,7 @@ public class WinsomeServerMain {
         // running main loop
         ExecutorService main = Executors.newSingleThreadExecutor();
         main.execute( () -> {
+            Thread.currentThread().setName("server-main");
             try { server.run(); }
             catch(IOException ex){ 
                 System.err.println("Error: some IO exception occurred while server was running. Aborting immediately."); 
