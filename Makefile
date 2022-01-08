@@ -9,6 +9,7 @@ SRC_DIR = ./src
 OUT_DIR = ./out
 LIB_DIR = ./lib
 BIN_DIR = ./bin
+SCR_DIR = ./scripts
 
 # GSON jar file
 GSON_LIB = $(LIB_DIR)/gson-2.8.6.jar
@@ -22,19 +23,27 @@ SERVER_MAIN_SRC = $(SRC_DIR)/winsome/server/WinsomeServerMain.java
 CLIENT_MAIN_SRC = $(SRC_DIR)/winsome/client/WinsomeClientMain.java
 
 # Default target
-.DEFAULT_GOAL:= default
-default: title compile server client
+.DEFAULT_GOAL := default
+default: title dirs compile server client
+
+# Creates the necessary directories using the script
+.PHONY: dirs
+dirs:
+	@bash $(SCR_DIR)/dirs.sh
 
 # Just prints a title
+.PHONY: title
 title:
 	@echo -e "\t\t$(GREEN)Winsome Makefile$(RESET)\n"
 
+# -------------- COMPILING -------------- #
+
 # Compiles all files
+.PHONY: compile
 compile:
 	@echo -e "$(BLUE)-> $(RESET)Compiling project..."
 	@javac -d $(OUT_DIR) -cp $(SRC_CP) $(SERVER_MAIN_SRC)
 	@javac -d $(OUT_DIR) -cp $(SRC_CP) $(CLIENT_MAIN_SRC)
-	@javac -d $(OUT_DIR) -cp $(SRC_CP) $(SRC_FILES)
 	@echo -e "$(BLUE)==> Project compiled!$(RESET)\n"
 
 # Server JAR creation
@@ -43,6 +52,7 @@ SERVER_MAIN=winsome.server.WinsomeServerMain
 SERVER_JAR=$(BIN_DIR)/winsome-server.jar
 SERVER_CP=$(SERVER_JAR):$(GSON_LIB):.
 
+.PHONY: server
 server:
 	@echo -e "$(BLUE)-> $(RESET)Creating Server .jar file..."
 	@jar -cevf $(SERVER_MAIN) $(SERVER_JAR) \
@@ -57,6 +67,7 @@ CLIENT_MAIN=winsome.client.WinsomeClientMain
 CLIENT_JAR=$(BIN_DIR)/winsome-client.jar
 CLIENT_CP=$(CLIENT_JAR):$(GSON_LIB):.
 
+.PHONY: client
 client:
 	@echo -e "$(BLUE)-> $(RESET)Creating Client .jar file..."
 	@jar -cevf $(CLIENT_MAIN) $(CLIENT_JAR) \
@@ -67,14 +78,15 @@ client:
 
 # -------------- CLEAN -------------- #
 
-.PHONY: clean run-server run-client
-
+.PHONY: clean
 clean: title
 	@echo -e "$(BLUE)-> $(RESET)Cleaning object files and executables..."
 	@rm -rf $(OUT_DIR)/* $(BIN_DIR)/*
 	@echo -e "$(BLUE)==> Done!$(RESET)"
 
 # -------------- RUN -------------- #
+
+.PHONY: run-server run-client
 
 run-server:
 	@java -cp $(SERVER_CP) $(SERVER_MAIN)
