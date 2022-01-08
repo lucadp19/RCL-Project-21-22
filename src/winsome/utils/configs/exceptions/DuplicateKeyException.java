@@ -1,5 +1,6 @@
 package winsome.utils.configs.exceptions;
 
+/** Thrown whenever a key was defined multiple times in the config file */
 public class DuplicateKeyException extends InvalidConfigFileException {
     public DuplicateKeyException(){ super(); }
     public DuplicateKeyException(String key){ super(DuplicateKeyException.msg(key)); }

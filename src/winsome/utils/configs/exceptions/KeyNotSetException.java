@@ -1,5 +1,6 @@
 package winsome.utils.configs.exceptions;
 
+/** Thrown whenever a key has not been set in the configuration file */
 public class KeyNotSetException extends InvalidConfigFileException {
     public KeyNotSetException(){ super(); }
     public KeyNotSetException(String msg){ super(msg); }

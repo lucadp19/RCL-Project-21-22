@@ -1,6 +1,9 @@
 package winsome.utils;
 
-// Taken from https://stackoverflow.com/a/45444716
+/** A utility class for pretty console output.
+ * <p>
+ * Taken from https://stackoverflow.com/a/45444716
+ */
 public class ConsoleColors {
     // Reset
     public static final String RESET = "\033[0m";  // Text Reset
@@ -75,12 +78,51 @@ public class ConsoleColors {
     public static final String CYAN_BACKGROUND_BRIGHT = "\033[0;106m";  // CYAN
     public static final String WHITE_BACKGROUND_BRIGHT = "\033[0;107m";   // WHITE
 
+    /**
+     * Formats the string as black-bold.
+     * @param txt the given string
+     * @return the black-bold string
+     */
     public static String black(String txt) { return ConsoleColors.BLACK_BOLD  + txt + ConsoleColors.RESET; }
+    /**
+     * Formats the string as red-bold.
+     * @param txt the given string
+     * @return the red-bold string
+     */
     public static String red(String txt)   { return ConsoleColors.RED_BOLD    + txt + ConsoleColors.RESET; }
+    /**
+     * Formats the string as green-bold.
+     * @param txt the given string
+     * @return the green-bold string
+     */
     public static String green(String txt) { return ConsoleColors.GREEN_BOLD  + txt + ConsoleColors.RESET; }
+    /**
+     * Formats the string as yellow-bold.
+     * @param txt the given string
+     * @return the yellow-bold string
+     */
     public static String yellow(String txt){ return ConsoleColors.YELLOW_BOLD + txt + ConsoleColors.RESET; }
+    /**
+     * Formats the string as blue-bold.
+     * @param txt the given string
+     * @return the blue-bold string
+     */
     public static String blue(String txt)  { return ConsoleColors.BLUE_BOLD   + txt + ConsoleColors.RESET; }
+    /**
+     * Formats the string as purple-bold.
+     * @param txt the given string
+     * @return the purple-bold string
+     */
     public static String purple(String txt){ return ConsoleColors.PURPLE_BOLD + txt + ConsoleColors.RESET; }
+    /**
+     * Formats the string as cyan-bold.
+     * @param txt the given string
+     * @return the cyan-bold string
+     */
     public static String cyan(String txt)  { return ConsoleColors.CYAN_BOLD   + txt + ConsoleColors.RESET; }
-    public static String white(String txt) { return ConsoleColors.WHITE_BOLD  + txt + ConsoleColors.RESET; }
+    /**
+     * Formats the string as white-bold.
+     * @param txt the given string
+     * @return the white-bold string
+     */public static String white(String txt) { return ConsoleColors.WHITE_BOLD  + txt + ConsoleColors.RESET; }
 }
