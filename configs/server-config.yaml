@@ -1,4 +1,4 @@
-# Server config
+# Server configuration file
 
 # Server TCP port
 tcp-port: 6666
@@ -33,11 +33,11 @@ persistence-interval: 60
 # Keep alive time (in seconds) for worker threads
 keep-alive: 60
 
-# Minimum number of always active threads
+# Minimum number of always active worker threads
 min-threads: 4
 
-# Maximum number of simultaneously active threads
+# Maximum number of simultaneously active worker threads
 max-threads: 12
 
 # Timeout (in milliseconds) before forcefully shutting down the thread pool
-pool-timeout: 30
+pool-timeout: 1500

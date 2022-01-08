@@ -1,4 +1,4 @@
-# Server config
+# Client configuration file
 
 # Server address
 server-addr: localhost
@@ -12,5 +12,5 @@ registry-host: localhost
 # RMI Registry port
 registry-port: 7777
 
-# Socket timeout 
-socket-timeout: 100000 # comments may be written after values
+# Socket timeout (in milliseconds)
+socket-timeout: 10000 # comments may be written after values
