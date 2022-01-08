@@ -1,0 +1,66 @@
+\documentclass[
+    oneside,
+    10pt,
+    language=italian,
+    a4paper,
+    article
+]{notes}
+\usepackage{code}
+\usepackage{minted}
+\usemintedstyle{manni}
+
+\renewcommand{\thesection}{\arabic{section}}
+
+\definecolor{bg}{rgb}{0.97,0.97,0.97}
+
+\setminted{
+    bgcolor=bg,
+    fontsize=\small,
+    breaklines=true,
+    escapeinside=||,
+    mathescape=true,
+}
+\setmintedinline{
+    fontsize=\normalsize
+}
+\newmintinline[injava]{java}{}
+\newmintinline[make]{text}{}
+\newmintinline[shell]{text}{}
+
+\author{Luca De Paulis}
+\title{Relazione sul Progetto di Reti di Calcolatori e Laboratorio \\
+    \large A.A. 2021/2022 }
+
+\begin{document}
+\maketitle
+
+\section{Introduzione e informazioni generali}
+Il progetto di Reti di Calcolatori e Laboratorio dell'Anno Accademico 2021/2022
+consiste nella realizzazione di un Social Network chiamato \sstrong{Winsome}.
+Il Social Network è basato su un'architettura di tipo \emph{client-server}:
+le due parti comunicano attraverso la rete grazie ad un'\emph{API}, che permette
+al client di interfacciarsi con l'applicativo del server.
+
+Il progetto è stato realizzato in Java, versione 17.
+
+\section{Compilazione ed esecuzione}
+Il progetto è interamente compilabile ed eseguibile attraverso l'uso dei comandi
+\shell{javac} e \shell{java}; tuttavia, per semplificare il processo, è stato
+incluso un \shell{Makefile} contenente alcune semplici regole.
+\begin{description}
+    \item[\make{make}] La regola di default compila il progetto: in particolare 
+        crea le directory necessarie al corretto funzionamento degli applicativi,
+        compila il codice sorgente e ne crea due file \shell{.jar}, che vengono
+        salvati nella directory \shell{bin/}.
+    \item[\make{make run-default-server}] Questa regola, se lanciata dopo la
+        compilazione, esegue il server usando come parametri (ovvero come 
+        \emph{path} del file di configurazione e della directory di logging, 
+        cf. \Cref{sec:server}) i valori di default.
+    \item[\make{make run-default-client}] Analogamente, esegue il client usando
+        i parametri di default (in questo caso solamente il \emph{path} del
+        file di configurazione, cf. \Cref{sec:client}).  
+    \item[\make{make clean}] Rimuove i file \shell{.class}, i file \shell{.jar}
+        e i file di log del server contenuti nella directory \shell{logs/}. 
+\end{description}
+
+\end{document}
