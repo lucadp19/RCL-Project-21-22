@@ -27,9 +27,36 @@ public class WinsomeServerMain {
         /** Path to the log directory */
         public final String logPath;
 
-        public CLArgs(String configPath, String logPath){ 
+        private CLArgs(String configPath, String logPath){ 
             this.configPath = Objects.requireNonNull(configPath, "config path is null");
             this.logPath    = Objects.requireNonNull(logPath, "log path is null");
+        }
+
+        /**
+         * Parses the command line arguments.
+         * @param args the command line arguments
+         * @return the parsed command line arguments
+         */
+        private static CLArgs parse(String[] args){
+            if(args.length > 3) throw new IllegalArgumentException("too many arguments");
+
+            String configPath = DEFAULT_CONFIG_PATH;
+            String logPath = DEFAULT_LOG_PATH;
+
+            for(String arg : args){
+                if(arg.startsWith("--help")) { 
+                    System.out.println("\tServer for the Winsome Social Network\n");
+                    System.out.println(getHelpString());
+                    System.exit(0);
+                }
+                else if(arg.startsWith("--config="))
+                    configPath = arg.substring("--config=".length());
+                else if(arg.startsWith("--logs="))
+                    logPath = arg.substring("--logs=".length());
+                else throw new IllegalArgumentException("unknown option");
+            }
+
+            return new CLArgs(configPath, logPath);
         }
     }
 
@@ -38,15 +65,15 @@ public class WinsomeServerMain {
 
     private static final Logger logger = Logger.getLogger("Winsome-Server");
 
-    public static void main(String[] strArgs) {
+    public static void main(String[] args) {
         System.out.println(ConsoleColors.green("\t\tWinsome Social Network Server\n"));
 
         // reading arguments from command line
-        CLArgs args;
-        try { args = getCLArgs(strArgs); }
+        CLArgs clArgs;
+        try { clArgs = CLArgs.parse(args); }
         catch (IllegalArgumentException ex){
             System.err.println(
-                ConsoleColors.red("==> ERROR! ") + "Too many arguments!"
+                ConsoleColors.red("==> Error while parsing command line arguments: ") + ex.getMessage()
             );
             System.err.println(getHelpString());
             System.exit(1); return;
@@ -54,10 +81,10 @@ public class WinsomeServerMain {
 
         // checking that loggin directory exists
         System.out.println(ConsoleColors.blue("-> ") + "Setting up logging...");
-        File logDir = new File(args.logPath);
+        File logDir = new File(clArgs.logPath);
         if(!logDir.exists() || !logDir.isDirectory()){
             System.err.println(
-                ConsoleColors.red("==> ERROR! ") + "Log directory (" + args.logPath + ") does not exist: create it before running the Server."
+                ConsoleColors.red("==> ERROR! ") + "Log directory (" + clArgs.logPath + ") does not exist: create it before running the Server."
             ); System.exit(1);
         }
         File logFile = new File(logDir, "WinsomeServerLog-" + Instant.now().toString() + ".log");
@@ -83,7 +110,7 @@ public class WinsomeServerMain {
 
         WinsomeServer server;
         logger.log(Level.INFO, "Creating instance of WinsomeServer and reading configuration file.");
-        try { server = new WinsomeServer(args.configPath); }
+        try { server = new WinsomeServer(clArgs.configPath); }
         catch (FileNotFoundException ex){
             System.err.println(ConsoleColors.red("==> ERROR!") + " Config file does not exist.");
             logger.log(Level.SEVERE, "Config file does not exist: " + ex.getMessage(), ex);
@@ -196,36 +223,11 @@ public class WinsomeServerMain {
     }
 
     /**
-     * Parses the command line arguments.
-     * @param args the command line arguments
-     * @return the parsed command line arguments
-     */
-    private static CLArgs getCLArgs(String[] args){
-        if(args.length > 2) throw new IllegalArgumentException("args must be either 0, 1 or 2");
-
-        String configPath = DEFAULT_CONFIG_PATH;
-        String logPath = DEFAULT_LOG_PATH;
-
-        for(String arg : args){
-            if(arg.startsWith("--help")) { 
-                System.out.println(getHelpString());
-                System.exit(0);
-            }
-            else if(arg.startsWith("--config="))
-                configPath = arg.substring("--config=".length());
-            else if(arg.startsWith("--logs="))
-                logPath = arg.substring("--logs=".length());
-        }
-
-        return new CLArgs(configPath, logPath);
-    }
-
-    /**
      * Returns the help string for the Command Line Interface.
      * @return the help string
      */
     private static String getHelpString(){
-        return "\tServer for the Winsome Social Network\n\n" +
+        return 
             ConsoleColors.yellow("Available options\n" + "-----------------\n") + 
             ConsoleColors.yellow("--help   ") + "                   " +
                 "prints this help message\n" +

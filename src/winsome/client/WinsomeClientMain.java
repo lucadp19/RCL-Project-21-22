@@ -25,11 +25,56 @@ import winsome.utils.ConsoleColors;
 import winsome.utils.configs.exceptions.InvalidConfigFileException;
 
 public class WinsomeClientMain {
+    /** Command Line Args to this application */
+    private static class CLArgs {
+        /** Path to the config file */
+        public final String configPath;
+
+        private CLArgs(String configPath){ 
+            this.configPath = Objects.requireNonNull(configPath, "config path is null");
+        }
+
+        /**
+         * Parses the command line arguments.
+         * @param args the command line arguments
+         * @return the parsed command line arguments
+         */
+        private static CLArgs parse(String[] args){
+            if(args.length > 2) throw new IllegalArgumentException("too many arguments");
+
+            String configPath = DEFAULT_CONFIG_PATH;
+
+            for(String arg : args){
+                if(arg.startsWith("--help")) { 
+                    System.out.println("\tClient for the Winsome Social Network\n");
+                    System.out.println(getHelpString());
+                    System.exit(0);
+                }
+                else if(arg.startsWith("--config="))
+                    configPath = arg.substring("--config=".length());
+                else throw new IllegalArgumentException("unknown option");
+            }
+
+            return new CLArgs(configPath);
+        }
+    }
+    
     /** Default config path */
     private static String DEFAULT_CONFIG_PATH = "./configs/client-config.yaml";
 
     public static void main(String[] args) {
         System.out.println(ConsoleColors.green("\t\tWinsome Social Network\n"));
+
+        // parsing command line arguments
+        CLArgs clArgs;
+        try { clArgs = CLArgs.parse(args); }
+        catch (IllegalArgumentException ex) {
+           System.err.println(
+                ConsoleColors.red("==> Error while parsing command line arguments: ") + ex.getMessage()
+            );
+            System.err.println(getHelpString());
+            System.exit(1); return; 
+        }
 
         System.out.println("Welcome to the Winsome Social Network!\n");
 
@@ -37,7 +82,7 @@ public class WinsomeClientMain {
         ClientConfig config;
         try {
             System.out.println(ConsoleColors.blue("-> ") + "Reading config...");
-            config = ClientConfig.fromConfigFile(DEFAULT_CONFIG_PATH);
+            config = ClientConfig.fromConfigFile(clArgs.configPath);
             System.out.println(ConsoleColors.blue("==> Config read!"));
         } 
         catch (FileNotFoundException ex){
@@ -775,5 +820,18 @@ public class WinsomeClientMain {
                 ZonedDateTime.ofInstant(transaction.timestamp, ZoneId.systemDefault())
             );
         }
+    }
+
+    /**
+     * Returns the help string for the Command Line Interface.
+     * @return the help string
+     */
+    private static String getHelpString(){
+        return
+            ConsoleColors.yellow("Available options\n" + "-----------------\n") + 
+            ConsoleColors.yellow("--help   ") + "                   " +
+                "prints this help message\n" +
+            ConsoleColors.yellow("--config=") + "<config-path>      " +
+                "optional path to the config file (default: " + DEFAULT_CONFIG_PATH + ")\n";
     }
 }
