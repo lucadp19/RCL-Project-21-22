@@ -20,6 +20,8 @@ import java.rmi.*;
 import java.rmi.registry.*;
 import java.rmi.server.RemoteObject;
 import java.rmi.server.UnicastRemoteObject;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 import winsome.api.codes.*;
 import winsome.api.exceptions.*;
@@ -1488,8 +1490,11 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 }
                 logger.info("Computed rewards for every post. Sending notification through Multicast.");
 
+                // getting current date/time
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
                 // notifying clients
-                byte[] data = "Updated rewards!".getBytes();
+                byte[] data = ("Updated rewards! (" + formatter.format(LocalDateTime.now()) + ")").getBytes();
                 try {
                     InetAddress addr = InetAddress.getByName(config.multicastAddr);
                     int port = config.multicastPort;
