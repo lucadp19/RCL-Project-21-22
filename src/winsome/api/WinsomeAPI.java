@@ -698,6 +698,8 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
 
     public boolean isLogged(){ return loggedUser != null; }
 
+    public Optional<String> getLoggedUser() { return Optional.ofNullable(loggedUser); }
+
     private JsonObject getJsonResponse() throws IOException, MalformedJSONException {
         try { return JsonParser.parseString(receive()).getAsJsonObject(); }
         catch (JsonParseException | IllegalStateException ex){ throw new MalformedJSONException("received malformed JSON"); }

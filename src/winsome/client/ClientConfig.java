@@ -8,6 +8,7 @@ import winsome.utils.configs.AbstractConfig;
 import winsome.utils.configs.ConfigEntry;
 import winsome.utils.configs.exceptions.*;
 
+/** The Client configuration */
 public class ClientConfig extends AbstractConfig {
     /** A Field in the Client Config */
     private enum CCField {

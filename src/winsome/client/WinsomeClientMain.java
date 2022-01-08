@@ -3,7 +3,6 @@ package winsome.client;
 import java.io.*;
 
 import java.rmi.NotBoundException;
-import java.rmi.RemoteException;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -20,7 +19,6 @@ import winsome.api.Wallet;
 import winsome.api.WinsomeAPI;
 import winsome.api.exceptions.*;
 
-import winsome.client.ClientConfig;
 import winsome.client.exceptions.UnknownCommandException;
 
 import winsome.utils.ConsoleColors;
@@ -35,6 +33,7 @@ public class WinsomeClientMain {
 
         System.out.println("Welcome to the Winsome Social Network!\n");
 
+        // parsing config
         ClientConfig config;
         try {
             System.out.println(ConsoleColors.blue("-> ") + "Reading config...");
@@ -42,11 +41,11 @@ public class WinsomeClientMain {
             System.out.println(ConsoleColors.blue("==> Config read!"));
         } 
         catch (FileNotFoundException ex){
-            System.err.println(ConsoleColors.red("==> ERROR!") + " Config file does not exist.");
+            System.err.println(ConsoleColors.red("==> ERROR!") + " Config file does not exist: aborting.");
             System.exit(1); return;
         }
         catch (InvalidConfigFileException | IOException ex){
-            System.err.println(ConsoleColors.red("==> ERROR!") + " Could not read config file.");
+            System.err.println(ConsoleColors.red("==> ERROR!") + " Could not read config file: aborting.");
             System.exit(1); return;
         }
 
@@ -82,17 +81,14 @@ public class WinsomeClientMain {
         try (
             BufferedReader input = new BufferedReader(new InputStreamReader(System.in));
         ){
-            String line;
-
             System.out.print(ConsoleColors.green("-> "));
+            
+            String line;
             while((line = input.readLine()) != null){
                 line = line.trim();
                 if(line.isEmpty()) continue;
-                if(line.startsWith("quit")) {
-                    api.close();
-                    System.exit(0);
-                }
 
+                // tries to execute the command
                 try { executeCommand(api, line); }
                 catch (MalformedJSONException ex){
                     System.err.println(
@@ -101,7 +97,6 @@ public class WinsomeClientMain {
                 }
                 catch (NoLoggedUserException ex){
                     printError("No user is currently logged: please log in.");
-                    return;
                 }
                 catch (UnexpectedServerResponseException ex){
                     System.err.println(
@@ -109,11 +104,17 @@ public class WinsomeClientMain {
                     );
                 }
 
+                // getting server "Updated rewards!" message if present
                 Optional<String> serverMsg = api.getServerMsg();
                 if(serverMsg.isPresent())
                     System.out.println(ConsoleColors.yellow("\n==> SERVER MESSAGE: ") + serverMsg.get());
                 
                 System.out.print(ConsoleColors.green("\n-> "));
+
+                // printing logged user next to arrow if present
+                Optional<String> loggedUser = api.getLoggedUser();
+                if(loggedUser.isPresent())
+                    System.out.print("[" + ConsoleColors.green(loggedUser.get()) + "] ");
             }
         } catch (IOException ex){ 
             System.err.println(ConsoleColors.red("==> ERROR! ") + "Some IO error occurred while connecting to the server: aborting.");
@@ -122,27 +123,43 @@ public class WinsomeClientMain {
         }
     }
 
+    /**
+     * Executes a command.
+     * @param api the Winsome API instance
+     * @param line the string containing the command
+     * @throws IOException if some IO exception occurs
+     * @throws MalformedJSONException if the server sends a malformed JSON response
+     * @throws NoLoggedUserException if no user is currently logged
+     * @throws UnexpectedServerResponseException if the server sent an unexpected error
+     */
     private static void executeCommand(WinsomeAPI api, String line)
             throws IOException, MalformedJSONException, NoLoggedUserException, UnexpectedServerResponseException {
         Command cmd;
 
         // getting command
         try { cmd = Command.fromString(line); }
-        catch(UnknownCommandException ex){
+        catch(UnknownCommandException ex){ // line is not a valid command
             printError(ex.getMessage() + "\n");
             System.out.print(Command.help());
             return;
         }
 
+        // gets the args
         String argStr = line.substring(cmd.name.length()).trim();
 
         switch (cmd) {
+            case QUIT -> { // closes the api and quits
+                api.close();
+                System.exit(0);
+            }
+
             case HELP -> {
-                Command cmd1 = null;
-                try { 
-                    cmd1 = Command.fromString(argStr); 
+                try { // if the command is "help <cmd>" prints <cmd>'s help message
+                    Command cmd1 = Command.fromString(argStr); 
                     System.out.println("\n" + cmd1.getHelpString());
-                } catch(UnknownCommandException ex){ System.out.println("\n" + Command.help() + "\n"); }
+                } catch(UnknownCommandException ex){ // otherwise it simply prints the general help message
+                    System.out.println("\n" + Command.help() + "\n"); 
+                }
             }
 
             case REGISTER -> {
@@ -186,6 +203,7 @@ public class WinsomeClientMain {
                     ConsoleColors.blue(args[0]) + " has been registered in the Social Network!"
                 );
             }
+
             case LOGIN -> {
                 String[] args = argStr.split("\\s+"); // splitting on space
 
@@ -260,7 +278,6 @@ public class WinsomeClientMain {
                     return;
                 }
                 
-                 
                 System.out.println(ConsoleColors.blue("-> ") + "Listing followers...");
                 Map<String, List<String>> followers = api.listFollowers();
                 
@@ -679,7 +696,6 @@ public class WinsomeClientMain {
                 );
             }
         }
-
     }
 
     /** Prints an error message */
@@ -704,19 +720,19 @@ public class WinsomeClientMain {
      */
     private static void printPost(PostInfo post, boolean includeInfo){
         String str = 
-            ConsoleColors.blue("- ID: ") + post.id + "\n"
-            + ConsoleColors.blue("  Author: ") + post.author + "\n"
-            + ConsoleColors.blue("  Title: ") + post.title + "\n";
+            ConsoleColors.yellow("- ID: ") + post.id + "\n"
+            + ConsoleColors.yellow("  Author: ") + post.author + "\n"
+            + ConsoleColors.yellow("  Title: ") + post.title + "\n";
 
         if(post.isRewin())
-            str += ConsoleColors.blue("  Rewinner: ") + post.rewinner.get() + "\n";
+            str += ConsoleColors.yellow("  Rewinner: ") + post.rewinner.get() + "\n";
             
         if(includeInfo){
-            str += ConsoleColors.blue("  Contents: ") + post.contents + "\n"
-                +  ConsoleColors.blue("  Votes: ") + 
+            str += ConsoleColors.yellow("  Contents: ") + post.contents + "\n"
+                +  ConsoleColors.yellow("  Votes: ") + 
                     post.upvotes + " upvotes, " + post.downvotes + " downvotes\n";
 
-            str += ConsoleColors.blue("  Comments: ") + "there ";
+            str += ConsoleColors.yellow("  Comments: ") + "there ";
             List<Comment> comments = post.getComments();
 
             if(comments.size() == 0) str += "are no comments.\n";
