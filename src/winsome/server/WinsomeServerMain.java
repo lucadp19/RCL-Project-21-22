@@ -1,12 +1,9 @@
 package winsome.server;
 
-import java.io.BufferedReader;
-import java.io.Console;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
+
 import java.time.Instant;
+
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -16,9 +13,9 @@ import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import winsome.server.exceptions.InvalidDirectoryException;
-import winsome.server.exceptions.InvalidJSONFileException;
+import winsome.server.exceptions.*;
 import winsome.server.logging.WinsomeLogger;
+
 import winsome.utils.ConsoleColors;
 import winsome.utils.configs.exceptions.InvalidConfigFileException;
 
@@ -51,13 +48,7 @@ public class WinsomeServerMain {
             System.err.println(
                 ConsoleColors.red("==> ERROR! ") + "Too many arguments!"
             );
-            System.err.println(
-                ConsoleColors.yellow("Arguments\n" + "----------\n") + 
-                ConsoleColors.yellow("--config=") + "<config-path>      " +
-                    "optional path to the config file (default: " + DEFAULT_CONFIG_PATH + ")\n" +
-                ConsoleColors.yellow("--logs=")   + "<log-path>         " +
-                    "optional path to the log directory (default: " + DEFAULT_LOG_PATH + ")\n"
-            );
+            System.err.println(getHelpString());
             System.exit(1); return;
         }
 
@@ -216,12 +207,31 @@ public class WinsomeServerMain {
         String logPath = DEFAULT_LOG_PATH;
 
         for(String arg : args){
-            if(arg.startsWith("--config="))
+            if(arg.startsWith("--help")) { 
+                System.out.println(getHelpString());
+                System.exit(0);
+            }
+            else if(arg.startsWith("--config="))
                 configPath = arg.substring("--config=".length());
             else if(arg.startsWith("--logs="))
                 logPath = arg.substring("--logs=".length());
         }
 
         return new CLArgs(configPath, logPath);
+    }
+
+    /**
+     * Returns the help string for the Command Line Interface.
+     * @return the help string
+     */
+    private static String getHelpString(){
+        return "\tServer for the Winsome Social Network\n\n" +
+            ConsoleColors.yellow("Available options\n" + "-----------------\n") + 
+            ConsoleColors.yellow("--help   ") + "                   " +
+                "prints this help message\n" +
+            ConsoleColors.yellow("--config=") + "<config-path>      " +
+                "optional path to the config file (default: " + DEFAULT_CONFIG_PATH + ")\n" +
+            ConsoleColors.yellow("--logs=")   + "<log-path>           " +
+                "optional path to the log directory (default: " + DEFAULT_LOG_PATH + ")\n";
     }
 }
