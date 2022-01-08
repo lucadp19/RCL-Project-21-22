@@ -64,7 +64,8 @@ public enum ResponseCode {
      * @throws NullPointerException if either json or code are null
      */
     public static void addResponseToJson(JsonObject json, ResponseCode code){
-        if(json == null || code == null) throw new NullPointerException();
+        Objects.requireNonNull(json, "the given json object must not be null");
+        Objects.requireNonNull(code, "the request code to add must not be null");
 
         json.addProperty(responseFieldName, code.toString());
     }
@@ -75,6 +76,7 @@ public enum ResponseCode {
      * @throws NullPointerException if either json or code are null
      */
     public void addResponseToJson(JsonObject json){
+        Objects.requireNonNull(json, "the given json object must not be null");
         ResponseCode.addResponseToJson(json, this);
     }
 
@@ -85,7 +87,7 @@ public enum ResponseCode {
      * @throws MalformedJSONException if the given Json does not contain a valid response code 
      */
     public static ResponseCode getResponseFromJson(JsonObject json) throws MalformedJSONException {
-        if(json == null) throw new NullPointerException();
+        Objects.requireNonNull(json, "the given json object must not be null");
 
         try { return ResponseCode.valueOf(json.get(responseFieldName).getAsString()); }
         catch(ClassCastException | IllegalStateException | NullPointerException | IllegalArgumentException ex){ 

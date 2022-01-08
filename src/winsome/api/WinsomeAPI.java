@@ -3,43 +3,106 @@ package winsome.api;
 import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
+
 import java.rmi.*;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
-import java.rmi.server.*;
+import java.rmi.server.RemoteObject;
+import java.rmi.server.UnicastRemoteObject;
 import java.time.Instant;
+
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import com.google.gson.*;
 
-import winsome.api.PostInfo.Comment;
 import winsome.api.codes.*;
 import winsome.api.exceptions.*;
+import winsome.api.remote.*;
+import winsome.api.userstructs.*;
+import winsome.api.userstructs.PostInfo.Comment;
+
 import winsome.utils.cryptography.Hash;
 
 /** The API interface to communicate with the Winsome Social Network Server. */
 public class WinsomeAPI extends RemoteObject implements RemoteClient {
-    private class WalletUpdatesWorker implements Callable<String> {
+    /** Reads and registers the server updates on the Multicast Socket */
+    private  class WalletUpdatesWorker implements Callable<Void> {
+        /** The multicast socket */
         private MulticastSocket mcastSocket;
+        /** The multicast address */
+        private InetAddress mcastAddress;
+        /** A blocking queue containing the server messages */
+        private BlockingQueue<String> messages;
 
-        WalletUpdatesWorker(InetAddress addr, MulticastSocket sock) {
-            mcastAddress = addr; mcastSocket = sock;
+        /**
+         * Initializes this worker.
+         * @param addr the multicast address
+         * @param sock the multicast socket
+         */
+        public WalletUpdatesWorker(InetAddress addr, MulticastSocket sock) {
+            mcastAddress = addr;
+            mcastSocket = sock;
+            messages = new LinkedBlockingQueue<>();
         }
 
-        public String call() throws IOException {
-            byte[] buf = new byte[2048];
-            DatagramPacket packet = new DatagramPacket(buf, buf.length);
-            mcastSocket.receive(packet);
-            return new String(packet.getData(), StandardCharsets.UTF_8);
+        /**
+         * Starts this worker by joining the multicast group.
+         * @throws IOException if some IO error occurs
+         */
+        public void start() throws IOException {
+            mcastSocket.joinGroup(mcastAddress);
+        }
+
+        /**
+         * Stops this worker by leaving the multicast group and emptying the message queue.
+         * @throws IOException if some IO error occurs
+         */
+        public void stop() throws IOException {
+            mcastSocket.leaveGroup(mcastAddress);
+            messages.clear();
+        }
+
+        /** Receives server messages and saves them. */
+        @Override
+        public Void call() throws IOException {
+            while(true) {
+                byte[] buf = new byte[2048];
+                DatagramPacket packet = new DatagramPacket(buf, buf.length);
+                mcastSocket.receive(packet);
+                // adds the message to the queue
+                messages.offer(
+                    new String(packet.getData(), StandardCharsets.UTF_8)
+                );
+            }
+        }
+
+        /**
+         * Returns all the messages sent by the server until now.
+         * @return the server messages
+         */
+        public Collection<String> getMessages(){
+            return getMessages(new ArrayList<>());
+        }
+
+        /**
+         * Adds the server messages to a collection.
+         * @param buffer the given collection
+         * @return the filled up buffer
+         */
+        public Collection<String> getMessages(Collection<String> buffer){
+            messages.drainTo(buffer);
+            return buffer;
         }
     }
 
@@ -60,14 +123,19 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
     private MulticastSocket mcastSocket = null;
     /** The address of the Multicast Group */
     private InetAddress mcastAddress = null;
-    private ExecutorService thread = Executors.newSingleThreadExecutor();
-    private Future<String> serverMsg = null;
+
+    /** The Wallet Updates Worker */
     private WalletUpdatesWorker worker = null;
+    /** The thread pool running the Wallet Update Worker */
+    private ExecutorService thread = Executors.newSingleThreadExecutor();
+    /** Result of the Wallet Updates Worker thread (useful to check it hasn't thrown) */
+    private Future<Void> mcastFuture = null;
+
     /** The Remote Server instance */
     private RemoteServer remoteServer = null;
 
     /** The username of the currently logged user */
-    private String loggedUser = null;
+    private Optional<String> loggedUser = Optional.empty();
     /** The followers of the currently logged user */
     private Map<String, List<String>> followers = null;
 
@@ -130,10 +198,13 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         Remote remoteObj = reg.lookup(registryAddr);
         remoteServer = (RemoteServer) remoteObj;
 
-        RemoteClient remoteClient = (RemoteClient) UnicastRemoteObject.exportObject(this, 0);
-        // System.out.println("Connected to registry!");
+        UnicastRemoteObject.exportObject(this, 0);
     }
 
+    /**
+     * Requests the Multicast Socket's coordinates to the server and initializes it.
+     * @throws IOException if some IO error occurs
+     */
     private void getMulticastSocket() throws IOException {
         JsonObject request = new JsonObject();
         RequestCode.MULTICAST.addRequestToJson(request);
@@ -146,7 +217,7 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
             addr = response.get("multicast-addr").getAsString();
             port = response.get("multicast-port").getAsInt();
         } catch (MalformedJSONException | NullPointerException | ClassCastException | IllegalStateException ex) {
-            throw new IOException();
+            throw new IOException("could not obtain coordinates of multicast socket");
         }
 
         mcastAddress = InetAddress.getByName(addr);
@@ -162,16 +233,14 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         if(socket != null) socket.close();
         UnicastRemoteObject.unexportObject(this, true);
         if(mcastSocket != null) { mcastSocket.leaveGroup(mcastAddress); mcastSocket.close(); }
-        if(serverMsg != null) serverMsg.cancel(true);
-        
-        return;
+        if(mcastFuture != null) mcastFuture.cancel(true);
     }
 
     /* *************** Callback methods *************** */
 
     @Override
     public void addFollower(String user, Collection<String> tags) throws RemoteException {
-        if(loggedUser == null) return;
+        if(!isLogged()) return;
         if(user == null || tags == null) throw new NullPointerException("null parameters while adding new follower");
         for(String tag : tags) 
             if(tag == null) throw new NullPointerException("null parameters while adding new follower");
@@ -181,31 +250,37 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
 
     @Override
     public void removeFollower(String user) throws RemoteException {
-        if(loggedUser == null) throw new IllegalStateException(); // TODO: make new exception
+        if(!isLogged()) return;
         if(user == null) throw new NullPointerException("null parameter while removing follower");
 
         followers.remove(user);
     }
 
-    /* *************** Test command: echo *************** */
-    public String echoMsg(String msg) throws IOException {
-        send(msg);
-        return receive();
+    // --------------- Server Messages ----------------- //
+
+    /**
+     * Reads and returns any message the server might have sent.
+     * @return {@link java.util.Optional#empty()} if no client is actually logged,
+     *      a collection of messages wrapped in {@link java.util.Optional#of(Object)} otherwise 
+     * @throws IOException if some IO error occurs
+     */
+    public Optional<Collection<String>> getServerMsg() throws IOException  {
+        // check that this client is actually logged
+        if(!isLogged() || mcastFuture == null) return Optional.empty();
+
+        try { mcastFuture.get(1, TimeUnit.MICROSECONDS); }
+        // request timed out because thread is still working => ok!
+        catch (TimeoutException | InterruptedException ex) { }
+        catch (ExecutionException ex) {
+            throw new IOException("exception while waiting for server messages", ex); 
+        }
+
+        // get server messages
+        Collection<String> messages = new ArrayList<>();
+        return Optional.of(worker.getMessages(messages));
     }
 
-    public Optional<String> getServerMsg() throws IOException  {
-        if(!isLogged() || serverMsg == null) return Optional.empty();
-
-        Optional<String> msg;
-        try { msg = Optional.of(serverMsg.get(200, TimeUnit.MILLISECONDS)); }
-        catch (TimeoutException | InterruptedException ex){ return Optional.empty(); }
-        catch (ExecutionException ex){ throw new IOException(); }
-
-        serverMsg = thread.submit(worker);
-        return msg;
-    }
-
-    /* *************** Stubs for TCP Methods *************** */
+    /* *************** TCP methods *************** */
 
     /**
      * Tries to register a new user into the Social Network.
@@ -214,7 +289,7 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
      * @param tags the tags the new user's interested in
      * @throws UserAlreadyLoggedException if this client is already logged as some user
      * @throws UserAlreadyExistsException if the given username is not available
-     * @throws RemoteException
+     * @throws RemoteException if some IO error occurs while calling this method
      */
     public void register(String username, String password, Set<String> tags) 
             throws UserAlreadyExistsException, UserAlreadyLoggedException, RemoteException,
@@ -262,8 +337,8 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         JsonObject response = getJsonResponse();
         ResponseCode responseCode = ResponseCode.getResponseFromJson(response);
         switch (responseCode) {
-            case SUCCESS: // successful login
-                loggedUser = user;
+            case SUCCESS -> { // successful login
+                loggedUser = Optional.of(user);
                 followers = new ConcurrentHashMap<>();
                 remoteServer.registerForUpdates(user, this);
 
@@ -272,69 +347,81 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
                     addUsersAndTags(response.get("followers").getAsJsonArray(), followers);
                 } catch (NullPointerException | IllegalStateException ex) { } // leave everything empty
 
-                mcastSocket.joinGroup(mcastAddress);
-                serverMsg = thread.submit(worker);
-
-                return;
-            case USER_NOT_REGISTERED: throw new NoSuchUserException("\"" + user + "\" does not exist");
-            case WRONG_PASSW: throw new WrongPasswordException("password does not match");
-            case ALREADY_LOGGED: throw new UserAlreadyLoggedException("user is already logged in");
-            default: throw new UnexpectedServerResponseException(responseCode.getMessage());
+                worker.start();
+                mcastFuture = thread.submit(worker);
+            }
+            case USER_NOT_REGISTERED -> throw new NoSuchUserException("\"" + user + "\" does not exist");
+            case WRONG_PASSW -> throw new WrongPasswordException("password does not match");
+            case ALREADY_LOGGED -> throw new UserAlreadyLoggedException("user is already logged in");
+            default -> throw new UnexpectedServerResponseException(responseCode.getMessage());
         }
     }
 
     /**
      * Logout of the current user.
      * @throws IOException if some IO error occurs
-     * @throws IllegalStateException if an unexpected error is thrown
      * @throws MalformedJSONException if the response is a malformed JSON
      * @throws NoLoggedUserException if this client is not currently logged in as any user
      * @throws UnexpectedServerResponse if the server sent an unexpected response
      */
-    public void logout() 
-            throws IOException, IllegalStateException, MalformedJSONException, 
+    public void logout() throws IOException, MalformedJSONException, 
                 NoLoggedUserException, UnexpectedServerResponseException {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
 
         JsonObject request = new JsonObject();
         RequestCode.LOGOUT.addRequestToJson(request);
-        request.addProperty("username", loggedUser);
+        request.addProperty("username", loggedUser.get());
         
         send(request.toString());
 
+        // getting response
         JsonObject response = getJsonResponse();
         ResponseCode responseCode = ResponseCode.getResponseFromJson(response);
         switch (responseCode) {
-            case SUCCESS:
-                remoteServer.unregisterForUpdates(loggedUser);
+            case SUCCESS -> {
+                remoteServer.unregisterForUpdates(loggedUser.get());
                 loggedUser = null;
-                mcastSocket.leaveGroup(mcastAddress);
-                serverMsg.cancel(true);
-                serverMsg = null;
-                break;
-            default: throw new UnexpectedServerResponseException(responseCode.getMessage());
+
+                mcastFuture.cancel(true);
+                mcastFuture = null;
+                worker.stop();
+            }
+            default -> throw new UnexpectedServerResponseException(responseCode.getMessage());
         }
     }
 
+    /**
+     * Lists the users of this Social Network who have common interests with the currently logged user.
+     * @return the users of this SN
+     * @throws IOException if some IO error occurs
+     * @throws NoLoggedUserException if no user is currently logged
+     * @throws MalformedJSONException if the server sent a malformed response
+     * @throws UnexpectedServerResponseException if server sent an unexpected response
+     */
     public Map<String, List<String>> listUsers() 
             throws IOException, NoLoggedUserException, MalformedJSONException, UnexpectedServerResponseException {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
 
         JsonObject request = new JsonObject();
         RequestCode.GET_USERS.addRequestToJson(request);
-        request.addProperty("username", loggedUser);
+        request.addProperty("username", loggedUser.get());
         
         send(request.toString());
 
         JsonObject response = getJsonResponse();
         ResponseCode responseCode = ResponseCode.getResponseFromJson(response);
-        switch (responseCode) {
-            case SUCCESS: return getUsersAndTags(response, "users");
-            // there should not be any errors on list_users
-            default: throw new UnexpectedServerResponseException(responseCode.getMessage());
-        }
+
+        return switch (responseCode) {
+            case SUCCESS -> getUsersAndTags(response, "users");
+            default -> throw new UnexpectedServerResponseException(responseCode.getMessage());
+        };
     }
 
+    /**
+     * Lists the followers of the currently logged user.
+     * @return this user's followers
+     * @throws NoLoggedUserException if no user is currently logged
+     */
     public Map<String, List<String>> listFollowers() throws NoLoggedUserException {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
 
@@ -345,13 +432,21 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         return ans;
     }
 
+    /**
+     * Lists the users followed by the current user
+     * @return the users followed by the current user
+     * @throws IOException if some IO error occurs
+     * @throws NoLoggedUserException if no user is currently logged
+     * @throws MalformedJSONException if the server sent a malformed response
+     * @throws UnexpectedServerResponseException if server sent an unexpected response
+     */
     public Map<String, List<String>> listFollowing() 
             throws IOException, NoLoggedUserException, MalformedJSONException, UnexpectedServerResponseException {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
 
         JsonObject request = new JsonObject();
         RequestCode.GET_FOLLOWING.addRequestToJson(request);
-        request.addProperty("username", loggedUser);
+        request.addProperty("username", loggedUser.get());
         
         send(request.toString());
 
@@ -363,6 +458,17 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         }
     }
 
+    /**
+     * Follows a user.
+     * @param toFollow username of the user to follow
+     * @throws IOException if some IO error occurs
+     * @throws NoLoggedUserException if no user is currently logged
+     * @throws MalformedJSONException if the server sent a malformed response
+     * @throws SelfFollowException if the current user is trying to follow themselves
+     * @throws UserNotVisibleException if the user to follow has no common interests with the logged user
+     * @throws AlreadyFollowingException if the logged user already follows toFollow
+     * @throws UnexpectedServerResponseException if server sent an unexpected response
+     */
     public void followUser(String toFollow) 
             throws IOException, MalformedJSONException, NoLoggedUserException, SelfFollowException,
                     UserNotVisibleException, AlreadyFollowingException, UnexpectedServerResponseException {
@@ -370,7 +476,7 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
 
         JsonObject request = new JsonObject();
         RequestCode.FOLLOW.addRequestToJson(request);
-        request.addProperty("username", loggedUser);
+        request.addProperty("username", loggedUser.get());
         request.addProperty("to-follow", toFollow);
         
         send(request.toString());
@@ -386,6 +492,18 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         }
     }
 
+
+    /**
+     * Unfollows a user.
+     * @param toUnfollow username of the user to follow
+     * @throws IOException if some IO error occurs
+     * @throws NoLoggedUserException if no user is currently logged
+     * @throws MalformedJSONException if the server sent a malformed response
+     * @throws SelfFollowException if the current user is trying to unfollow themselves
+     * @throws UserNotVisibleException if the user to unfollow has no common interests with the logged user
+     * @throws NotFollowingException if the logged user does not follow toUnfollow
+     * @throws UnexpectedServerResponseException if server sent an unexpected response
+     */
     public void unfollowUser(String toUnfollow) 
             throws IOException, MalformedJSONException, NoLoggedUserException, SelfFollowException,
                 UserNotVisibleException, NotFollowingException, UnexpectedServerResponseException {
@@ -393,7 +511,7 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
 
         JsonObject request = new JsonObject();
         RequestCode.UNFOLLOW.addRequestToJson(request);
-        request.addProperty("username", loggedUser);
+        request.addProperty("username", loggedUser.get());
         request.addProperty("to-unfollow", toUnfollow);
         
         send(request.toString());
@@ -409,14 +527,29 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         }
     }
 
-    public List<PostInfo> viewBlog() 
-        throws IOException, NoLoggedUserException, MalformedJSONException, 
-            UserNotVisibleException, UnexpectedServerResponseException  {
+    /**
+     * Shows the blog of the current user
+     * @throws IOException if some IO error occurs
+     * @throws NoLoggedUserException if no user is currently logged
+     * @throws MalformedJSONException if the server sent a malformed response
+     * @throws UnexpectedServerResponseException if server sent an unexpected response
+     */
+    public List<PostInfo> viewBlog() throws IOException, NoLoggedUserException, MalformedJSONException, UnexpectedServerResponseException  {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
 
-        return viewBlog(loggedUser);
+        try { return viewBlog(loggedUser.get()); }
+        catch (UserNotVisibleException ex) { throw new InternalError("impossible error: user has no common tags with themselves"); }
     }
 
+    /**
+     * Shows the blog of a given user.
+     * @param otherUser username of the user to show
+     * @throws IOException if some IO error occurs
+     * @throws NoLoggedUserException if no user is currently logged
+     * @throws MalformedJSONException if the server sent a malformed response
+     * @throws UserNotVisibleException if the current user has no common interest with otherUser
+     * @throws UnexpectedServerResponseException if server sent an unexpected response
+     */
     public List<PostInfo> viewBlog(String otherUser) 
             throws IOException, NoLoggedUserException, MalformedJSONException, 
                 UserNotVisibleException, UnexpectedServerResponseException  {
@@ -425,7 +558,7 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         JsonObject request = new JsonObject();
 
         RequestCode.BLOG.addRequestToJson(request);
-        request.addProperty("username", loggedUser);
+        request.addProperty("username", loggedUser.get());
         request.addProperty("to-view", otherUser);
         
         send(request.toString());
@@ -452,6 +585,17 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         }
     }
 
+    /**
+     * Creates a new post.
+     * @param title the post's title
+     * @param content the post's contents
+     * @return the id of the newly created post
+     * @throws IOException if some IO error occurs
+     * @throws NoLoggedUserException if no user is currently logged
+     * @throws MalformedJSONException if the server sent a malformed response
+     * @throws TextLengthException if title or content are either empty or exceed maximum length
+     * @throws UnexpectedServerResponseException if server sent an unexpected response
+     */
     public int createPost(String title, String content) 
             throws IOException, MalformedJSONException, NoLoggedUserException, 
                 TextLengthException, UnexpectedServerResponseException {
@@ -462,7 +606,7 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
 
         JsonObject request = new JsonObject();
         RequestCode.POST.addRequestToJson(request);
-        request.addProperty("username", loggedUser);
+        request.addProperty("username", loggedUser.get());
         request.addProperty("title", title);
         request.addProperty("content", content);
         
@@ -479,13 +623,20 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
             default: throw new UnexpectedServerResponseException(responseCode.getMessage());
         }
     }
-    
+
+    /**
+     * Shows the current user's feed.
+     * @throws IOException if some IO error occurs
+     * @throws NoLoggedUserException if no user is currently logged
+     * @throws MalformedJSONException if the server sent a malformed response
+     * @throws UnexpectedServerResponseException if server sent an unexpected response
+     */
     public List<PostInfo> showFeed() throws IOException, NoLoggedUserException, MalformedJSONException, UnexpectedServerResponseException  {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
 
         JsonObject request = new JsonObject();
         RequestCode.FEED.addRequestToJson(request);
-        request.addProperty("username", loggedUser);
+        request.addProperty("username", loggedUser.get());
         
         send(request.toString());
 
@@ -510,6 +661,16 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         }
     }
 
+    /**
+     * Shows the post with the given ID.
+     * @param idPost the given ID
+     * @return the information of the post with the given ID
+     * @throws IOException if some IO error occurs
+     * @throws NoLoggedUserException if no user is currently logged
+     * @throws MalformedJSONException if the server sent a malformed response
+     * @throws NoSuchPostException if no post with the given ID exists
+     * @throws UnexpectedServerResponseException if server sent an unexpected response
+     */
     public PostInfo showPost(int idPost) 
             throws IOException, MalformedJSONException, NoLoggedUserException, 
                 NoSuchPostException, UnexpectedServerResponseException {
@@ -517,7 +678,7 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
 
         JsonObject request = new JsonObject();
         RequestCode.SHOW_POST.addRequestToJson(request);
-        request.addProperty("username", loggedUser);
+        request.addProperty("username", loggedUser.get());
         request.addProperty("id", idPost);
         
         send(request.toString());
@@ -535,6 +696,17 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         }
     }
 
+
+    /**
+     * Deletes the post with the given ID.
+     * @param idPost the given ID
+     * @throws IOException if some IO error occurs
+     * @throws NoLoggedUserException if no user is currently logged
+     * @throws MalformedJSONException if the server sent a malformed response
+     * @throws NoSuchPostException if no post with the given ID exists
+     * @throws NotPostOwnerException if the current user is not the owner of the post
+     * @throws UnexpectedServerResponseException if server sent an unexpected response
+     */
     public void deletePost(int idPost) 
             throws IOException, NoLoggedUserException, MalformedJSONException, 
                 NoSuchPostException, NotPostOwnerException, UnexpectedServerResponseException {
@@ -542,7 +714,7 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
 
         JsonObject request = new JsonObject();
         RequestCode.DELETE_POST.addRequestToJson(request);
-        request.addProperty("username", loggedUser);
+        request.addProperty("username", loggedUser.get());
         request.addProperty("id", idPost);
         
         send(request.toString());
@@ -557,6 +729,19 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         }
     }
 
+
+    /**
+     * Rewins the post with the given ID.
+     * @param idPost the given ID
+     * @throws IOException if some IO error occurs
+     * @throws NoLoggedUserException if no user is currently logged
+     * @throws MalformedJSONException if the server sent a malformed response
+     * @throws NoSuchPostException if no post with the given ID exists     
+     * @throws AlreadyRewinnedException if the current user has already rewinned the given post
+     * @throws NotFollowingException if the current user does not follow the author of the given post
+     * @throws PostOwnerException if the current user is the owner of the post
+     * @throws UnexpectedServerResponseException if server sent an unexpected response
+     */
     public void rewinPost(int idPost) 
             throws IOException, NoLoggedUserException, MalformedJSONException, NoSuchPostException, 
                 AlreadyRewinnedException, NotFollowingException, PostOwnerException, UnexpectedServerResponseException {
@@ -564,7 +749,7 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
 
         JsonObject request = new JsonObject();
         RequestCode.REWIN_POST.addRequestToJson(request);
-        request.addProperty("username", loggedUser);
+        request.addProperty("username", loggedUser.get());
         request.addProperty("id", idPost);
         
         send(request.toString());
@@ -581,6 +766,20 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         }
     }
 
+    /**
+     * Rates the post with the given ID.
+     * @param idPost the given ID
+     * @param vote the given vote (+1 for upvotes, -1 for downvotes)
+     * @throws IOException if some IO error occurs
+     * @throws NoLoggedUserException if no user is currently logged
+     * @throws MalformedJSONException if the server sent a malformed response
+     * @throws NoSuchPostException if no post with the given ID exists     
+     * @throws AlreadyVotedException if the current user has already voted the given post
+     * @throws NotFollowingException if the current user does not follow the author of the given post
+     * @throws WrongVoteFormatException if the vote is not +1/-1
+     * @throws PostOwnerException if the current user is the owner of the post
+     * @throws UnexpectedServerResponseException if server sent an unexpected response
+     */
     public void ratePost(int idPost, int vote) 
             throws IOException, NoLoggedUserException, MalformedJSONException, 
                 NoSuchPostException, AlreadyVotedException, WrongVoteFormatException, 
@@ -590,7 +789,7 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
 
         JsonObject request = new JsonObject();
         RequestCode.RATE_POST.addRequestToJson(request);
-        request.addProperty("username", loggedUser);
+        request.addProperty("username", loggedUser.get());
         request.addProperty("id", idPost);
         request.addProperty("vote", vote);
         
@@ -608,6 +807,18 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         }
     }
 
+    /**
+     * Adds a comment to the post with the given ID.
+     * @param idPost the given ID
+     * @param comment the cmment
+     * @throws IOException if some IO error occurs
+     * @throws NoLoggedUserException if no user is currently logged
+     * @throws MalformedJSONException if the server sent a malformed response
+     * @throws NoSuchPostException if no post with the given ID exists
+     * @throws NotFollowingException if the current user does not follow the author of the given post
+     * @throws PostOwnerException if the current user is the owner of the post
+     * @throws UnexpectedServerResponseException if server sent an unexpected response
+     */
     public void addComment(int idPost, String comment) 
             throws IOException, NoLoggedUserException, MalformedJSONException, 
                 NoSuchPostException, PostOwnerException, NotFollowingException, UnexpectedServerResponseException {
@@ -615,7 +826,7 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
 
         JsonObject request = new JsonObject();
         RequestCode.COMMENT.addRequestToJson(request);
-        request.addProperty("username", loggedUser);
+        request.addProperty("username", loggedUser.get());
         request.addProperty("id", idPost);
         request.addProperty("comment", comment);
         
@@ -632,12 +843,20 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         }
     }
 
+    /**
+     * Returns the wallet of the current user.
+     * @return the wallet of the current user
+     * @throws IOException if some IO error occurs
+     * @throws NoLoggedUserException if no user is currently logged
+     * @throws MalformedJSONException if the server sent a malformed response
+     * @throws UnexpectedServerResponseException if server sent an unexpected response
+     */
     public Wallet getWallet() throws IOException, NoLoggedUserException, MalformedJSONException, UnexpectedServerResponseException {
         if(!isLogged()) throw new NoLoggedUserException("no user is currently logged; please log in first.");
 
         JsonObject request = new JsonObject();
         RequestCode.WALLET.addRequestToJson(request);
-        request.addProperty("username", loggedUser);
+        request.addProperty("username", loggedUser.get());
         
         send(request.toString());
 
@@ -653,6 +872,15 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         }
     }
     
+    /**
+     * Returns the total amount of the rewards of the current user, converted in Bitcoin.
+     * @return the BTC reward of the current user
+     * @throws IOException if some IO error occurs
+     * @throws NoLoggedUserException if no user is currently logged
+     * @throws MalformedJSONException if the server sent a malformed response
+     * @throws ExchangeRateException if the server could not compute the exchange rate
+     * @throws UnexpectedServerResponseException if server sent an unexpected response
+     */
     public double getWalletInBitcoin() 
             throws IOException, NoLoggedUserException, MalformedJSONException, 
                 ExchangeRateException, UnexpectedServerResponseException {
@@ -660,7 +888,7 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
 
         JsonObject request = new JsonObject();
         RequestCode.WALLET_BTC.addRequestToJson(request);
-        request.addProperty("username", loggedUser);
+        request.addProperty("username", loggedUser.get());
         
         send(request.toString());
 
@@ -678,9 +906,15 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
     }
 
     /* *************** Send/receive data *************** */
-    private void send(String msg) throws NullPointerException, IOException {
-        if(msg == null) throw new NullPointerException("attempting to send an empty message");
+    /**
+     * Sends a message through the TCP socket.
+     * @param msg the given message
+     * @throws IOException if some IO error occurs
+     */
+    private void send(String msg) throws IOException {
+        Objects.requireNonNull(msg, "attempting to send an empty message");
 
+        // not wrapped in a try-with-resources otherwise the socket is automatically closed!
         DataOutputStream out = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream()));
 
         byte[] tmp = msg.getBytes(StandardCharsets.UTF_8);
@@ -689,7 +923,13 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         out.flush();
     }
 
+    /**
+     * Receives a message from the TCP socket.
+     * @return the received message
+     * @throws IOException if some IO error occurs
+     */
     private String receive() throws IOException {
+        // not wrapped in a try-with-resources otherwise the socket is automatically closed!
         DataInputStream in = new DataInputStream(new BufferedInputStream(socket.getInputStream()));
 
         int len = in.readInt();
@@ -701,38 +941,69 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         return new String(buf, StandardCharsets.UTF_8);
     }  
 
-    // ------------ Utility functions ------------ //
-
-    public boolean isLogged(){ return loggedUser != null; }
-
-    public Optional<String> getLoggedUser() { return Optional.ofNullable(loggedUser); }
-
+    /**
+     * Reads a message from the TCP socket and parses it as a JsonObject.
+     * @return the parsed JSON object
+     * @throws IOException if some IO error occurs
+     * @throws MalformedJSONException if the server sent a malformed JSON
+     */
     private JsonObject getJsonResponse() throws IOException, MalformedJSONException {
         try { return JsonParser.parseString(receive()).getAsJsonObject(); }
         catch (JsonParseException | IllegalStateException ex){ throw new MalformedJSONException("received malformed JSON"); }
     }
 
-    private Map<String, List<String>> getUsersAndTags(JsonObject request, String fieldName) throws MalformedJSONException {
-        JsonArray usersJson;
-        Map<String, List<String>> users = new HashMap<>();
+    // ------------ Utility functions ------------ //
+
+    /**
+     * Checks whether a user is currently logged.
+     * @return true if and only if a user is currently logged
+     */
+    public boolean isLogged(){ return loggedUser.isPresent(); }
+
+    /**
+     * Returns the currently logged user.
+     * @return the currently logged user
+     */
+    public Optional<String> getLoggedUser() { return loggedUser; }
+
+    /**
+     * Parses a specific field of a JSON object as a map String -> List<String>. 
+     * @param json the JSON object
+     * @param fieldName the JSON object field
+     * @return the parsed map
+     * @throws MalformedJSONException if the given JSON object could not be parsed as a map
+     */
+    private Map<String, List<String>> getUsersAndTags(JsonObject json, String fieldName) throws MalformedJSONException {
+        Objects.requireNonNull(json, "the given json object must not be null");
+        Objects.requireNonNull(fieldName, "the given field name must not be null");
+
         try { 
-            usersJson = request.get(fieldName).getAsJsonArray();
+            Map<String, List<String>> users = new HashMap<>();
+            JsonArray usersJson = json.get(fieldName).getAsJsonArray();
 
             addUsersAndTags(usersJson, users);
+            return users;
         } catch (NullPointerException | IllegalStateException ex) {
             throw new MalformedJSONException("json response does not contain the requested information");
         }
-
-        return users;
     }
 
+    /**
+     * Parses a JSON Array as a map String -> List<String>.
+     * @param array the given JSON array
+     * @param users the map to fill
+     * @throws MalformedJSONException if the given array could not be parsed as a map
+     */
     private void addUsersAndTags(JsonArray array, Map<String, List<String>> users) throws MalformedJSONException {
-        if(users == null) throw new NullPointerException();
+        Objects.requireNonNull(array, "the given json array must not be null");
+        Objects.requireNonNull(users, "the given field name must not be null");
 
         try { 
             Iterator<JsonElement> iter = array.iterator();
+
             while(iter.hasNext()){
                 JsonObject user = iter.next().getAsJsonObject();
+
                 String username = user.get("username").getAsString();
                 List<String> tags = new ArrayList<>();
 
@@ -747,9 +1018,15 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         }
     }
 
+    /**
+     * Parses the information regarding a post from a JSON object.
+     * @param json the given JSON object
+     * @param includeInfo whether or not to read additional info, such as contents, number of upvotes/downvotes and comments
+     * @return the parsed post
+     * @throws MalformedJSONException if the given JSON object could not be parsed as a Post
+     */
     private PostInfo getPostFromJson(JsonObject json, boolean includeInfo) throws MalformedJSONException {
-        if(json == null) throw new NullPointerException("null json");
-        PostInfo post;
+        Objects.requireNonNull(json, "the given json object must not be null");
 
         try {
             int id = json.get("id").getAsInt();
@@ -790,8 +1067,14 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         }
     }
 
+    /**
+     * Parses the information regarding a user's Wallet from a JSON object.
+     * @param json the given JSON object
+     * @return the parsed wallet
+     * @throws MalformedJSONException if the given JSON object could not be parsed as a Wallet
+     */
     private Wallet getWalletFromJson(JsonObject json) throws MalformedJSONException {
-        if(json == null) throw new NullPointerException("null object");
+        Objects.requireNonNull(json, "the given json object must not be null");
 
         try {
             Double total = json.get("total").getAsDouble();

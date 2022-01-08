@@ -21,9 +21,10 @@ import java.rmi.registry.*;
 import java.rmi.server.RemoteObject;
 import java.rmi.server.UnicastRemoteObject;
 
-import winsome.api.*;
 import winsome.api.codes.*;
 import winsome.api.exceptions.*;
+import winsome.api.remote.RemoteClient;
+import winsome.api.remote.RemoteServer;
 import winsome.server.datastructs.*;
 import winsome.server.exceptions.*;
 import winsome.utils.configs.exceptions.InvalidConfigFileException;

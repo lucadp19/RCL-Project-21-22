@@ -1,5 +1,7 @@
 package winsome.api.codes;
 
+import java.util.Objects;
+
 import com.google.gson.JsonObject;
 
 import winsome.api.exceptions.MalformedJSONException;
@@ -48,10 +50,10 @@ public enum RequestCode {
      * Adds a request code to a Json object.
      * @param json the given json
      * @param code the request code
-     * @throws NullPointerException if either json or code are null
      */
     public static void addRequestToJson(JsonObject json, RequestCode code){
-        if(json == null || code == null) throw new NullPointerException();
+        Objects.requireNonNull(json, "the given json object must not be null");
+        Objects.requireNonNull(code, "the request code to add must not be null");
 
         json.addProperty(requestFieldName, code.toString());
     }
@@ -59,9 +61,10 @@ public enum RequestCode {
     /**
      * Adds this request code to a Json object.
      * @param json the given json
-     * @throws NullPointerException if either json or code are null
      */
     public void addRequestToJson(JsonObject json){
+        Objects.requireNonNull(json, "the given json object must not be null");
+
         RequestCode.addRequestToJson(json, this);
     }
 
@@ -72,7 +75,7 @@ public enum RequestCode {
      * @throws MalformedJSONException if the given Json does not contain a valid request code 
      */
     public static RequestCode getRequestFromJson(JsonObject json) throws MalformedJSONException {
-        if(json == null) throw new NullPointerException();
+        Objects.requireNonNull(json, "the given json object must not be null");
 
         try { return RequestCode.valueOf(json.get(requestFieldName).getAsString()); }
         catch(ClassCastException | IllegalStateException | NullPointerException | IllegalArgumentException ex){ 

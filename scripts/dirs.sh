@@ -5,7 +5,7 @@ RESET='\033[0m'
 
 if [ ! -d bin ] || [ ! -d out ] || [ ! -d logs ]
 then
-    echo -e "${BLUE}-> ${RESET}Creating ./bin, ./obj and ./logs directories..."
+    echo -e "${BLUE}-> ${RESET}Creating ./bin, ./out and ./logs directories..."
     mkdir -p bin/ out/ logs/
     echo -e "${BLUE}==> Directories created!${RESET}\n"
 fi

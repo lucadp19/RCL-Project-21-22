@@ -12,11 +12,9 @@ import java.util.Map.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import winsome.api.PostInfo;
-import winsome.api.PostInfo.Comment;
-import winsome.api.TransactionInfo;
-import winsome.api.Wallet;
 import winsome.api.WinsomeAPI;
+import winsome.api.userstructs.*;
+import winsome.api.userstructs.PostInfo.Comment;
 import winsome.api.exceptions.*;
 
 import winsome.client.exceptions.UnknownCommandException;
@@ -151,9 +149,14 @@ public class WinsomeClientMain {
                 }
 
                 // getting server "Updated rewards!" message if present
-                Optional<String> serverMsg = api.getServerMsg();
-                if(serverMsg.isPresent())
-                    System.out.println(ConsoleColors.yellow("\n==> SERVER MESSAGE: ") + serverMsg.get());
+                Optional<Collection<String>> serverMsg = api.getServerMsg();
+                
+                if(serverMsg.isPresent() && serverMsg.get().size() > 0) {
+                    System.out.println(ConsoleColors.yellow("\n==> SERVER MESSAGES: "));
+
+                    for(String msg : serverMsg.get())
+                        System.out.println(ConsoleColors.yellow("  - ") + msg);
+                }
                 
                 System.out.print(ConsoleColors.green("\n-> "));
 
