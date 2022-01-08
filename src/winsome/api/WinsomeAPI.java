@@ -51,6 +51,8 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
     private final String registryAddr;
     /** The port of the Registry */
     private final int registryPort;
+    /** The socket timeout */
+    private final int sockTimeout;
 
     /** The socket used to communicate with the server */
     private Socket socket = null;
@@ -75,12 +77,14 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
      * @param serverPort the server port
      * @param registryAddr the registry nome
      * @param registryPort the registry port
+     * @param sockTimeout the socket timeout
      */
     public WinsomeAPI(
         String serverAddr, 
         int serverPort,
         String registryAddr,
-        int registryPort
+        int registryPort,
+        int sockTimeout
     ){
         super();
 
@@ -88,6 +92,7 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         this.serverPort = serverPort;
         this.registryAddr = registryAddr;
         this.registryPort = registryPort;
+        this.sockTimeout = sockTimeout;
     }
 
     /* *************** Connection methods *************** */
@@ -108,6 +113,8 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         if(socket != null) throw new IllegalStateException("already connected to server");
 
         socket = new Socket(serverAddr, serverPort);
+        socket.setSoTimeout(sockTimeout);
+
         getMulticastSocket();
     }
 

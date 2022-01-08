@@ -55,7 +55,8 @@ public class WinsomeClientMain {
             config.serverAddr,
             config.portTCP,
             config.regHost,
-            config.regPort
+            config.regPort,
+            config.sockTimeout
         );
 
         try {

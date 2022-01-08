@@ -49,10 +49,10 @@ public class ClientConfig extends AbstractConfig {
     public final int portTCP;
     public final String regHost;
     public final int regPort;
-    public final long sockTimeout;
+    public final int sockTimeout;
     
     private ClientConfig(
-        String serverAddr, int portTCP, String regHost, int regPort, long sockTimeout
+        String serverAddr, int portTCP, String regHost, int regPort, int sockTimeout
     ) {
         this.serverAddr = Objects.requireNonNull(serverAddr, "server address field is null");
         this.portTCP = portTCP;
@@ -77,7 +77,7 @@ public class ClientConfig extends AbstractConfig {
         String serverAddr = null;
         Integer portTCP = null;
         String regHost = null; Integer regPort = null;
-        Long sockTimeout = null;
+        Integer sockTimeout = null;
         
         try (
             BufferedReader configIn = new BufferedReader(new FileReader(configFile));
@@ -112,7 +112,7 @@ public class ClientConfig extends AbstractConfig {
                     }
                     case SOCK_TIMEOUT -> {
                         if(sockTimeout != null) throw new DuplicateKeyException(key.key);
-                        try { sockTimeout = Long.parseLong(entry.value); }
+                        try { sockTimeout = Integer.parseInt(entry.value); }
                         catch(NumberFormatException ex){ throw new EntryValueFormatException("argument of \"" + key.key + "\" must be an integer"); }
                     }
                 }
