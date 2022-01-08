@@ -24,8 +24,8 @@
     fontsize=\normalsize
 }
 \newmintinline[injava]{java}{}
-\newmintinline[make]{text}{}
-\newmintinline[shell]{text}{}
+\newmintinline[mono]{text}{}
+\newmintinline[shell]{shell-session}{}
 
 \author{Luca De Paulis}
 \title{Relazione sul Progetto di Reti di Calcolatori e Laboratorio \\
@@ -38,29 +38,107 @@
 Il progetto di Reti di Calcolatori e Laboratorio dell'Anno Accademico 2021/2022
 consiste nella realizzazione di un Social Network chiamato \sstrong{Winsome}.
 Il Social Network è basato su un'architettura di tipo \emph{client-server}:
-le due parti comunicano attraverso la rete grazie ad un'\emph{API}, che permette
+le due parti comunicano attraverso la rete grazie ad un'API, che permette
 al client di interfacciarsi con l'applicativo del server.
 
-Il progetto è stato realizzato in Java, versione 17.
+Il progetto è stato realizzato in Java, versione 17 ed è stato testato in ambiente
+Linux.
 
 \section{Compilazione ed esecuzione}
 Il progetto è interamente compilabile ed eseguibile attraverso l'uso dei comandi
-\shell{javac} e \shell{java}; tuttavia, per semplificare il processo, è stato
-incluso un \shell{Makefile} contenente alcune semplici regole.
+\mono{javac} e \mono{java}; tuttavia, per semplificare il processo, è stato
+incluso un \mono{Makefile} contenente alcune semplici regole.
 \begin{description}
-    \item[\make{make}] La regola di default compila il progetto: in particolare 
+    \item[\shell{$ make}] La regola di default compila il progetto: in particolare 
         crea le directory necessarie al corretto funzionamento degli applicativi,
-        compila il codice sorgente e ne crea due file \shell{.jar}, che vengono
-        salvati nella directory \shell{bin/}.
-    \item[\make{make run-default-server}] Questa regola, se lanciata dopo la
+        compila il codice sorgente e ne crea due file \mono{.jar}, che vengono
+        salvati nella directory \mono{bin/}.
+    \item[\shell{$ make run-default-server}] Questa regola, se lanciata dopo la
         compilazione, esegue il server usando come parametri (ovvero come 
         \emph{path} del file di configurazione e della directory di logging, 
         cf. \Cref{sec:server}) i valori di default.
-    \item[\make{make run-default-client}] Analogamente, esegue il client usando
+    \item[\shell{$ make run-default-client}] Analogamente, esegue il client usando
         i parametri di default (in questo caso solamente il \emph{path} del
         file di configurazione, cf. \Cref{sec:client}).  
-    \item[\make{make clean}] Rimuove i file \shell{.class}, i file \shell{.jar}
-        e i file di log del server contenuti nella directory \shell{logs/}. 
+    \item[\shell{$ make clean}] Rimuove i file \mono{.class}, i file \mono{.jar}
+        e i file di log del server contenuti nella directory \mono{logs/}. 
 \end{description}
+
+Per eseguire il client o il server passando dei parametri a riga di comando si
+possono usare gli script Bash \mono{run-server.sh} e \mono{run-client.sh},
+entrambi contenuti nella directory \mono{scripts/}. Per far ciò è necessario
+innanzitutto renderli eseguibili, tramite ad esempio 
+\shell{$ chmod a+x scripts/run-server.sh scripts/run-client.sh}, e poi eseguirli
+normalmente come \shell{$ ./run-server.sh [...]}.
+
+L'unica dipendenza del progetto è la libreria GSON (\mono{gson-2.8.6.jar}),
+che si trova nella directory \mono{lib/}.
+
+\section{Architettura generale del progetto} \label{sec:arch}
+Il progetto è diviso in tre moduli principali: \begin{itemize}
+    \item il \sstrong{server}, implementato nel package \injava{winsome.server}
+        e avente come \emph{entry point} la classe 
+        \injava{winsome.server.WinsomeServerMain}: esso viene raccolto
+        nel file \mono{bin/winsome-server.jar};
+    \item il \sstrong{client}, implementato nel package \injava{winsome.client}
+        e avente come \emph{entry point} la classe
+        \injava{winsome.client.WinsomeClientMain}: viene compresso nel
+        file \mono{bin/winsome-client.jar}
+    \item le \sstrong{API}, implementate nel package \injava{winsome.api}:
+        insieme alle funzionalità di \emph{utility} del package 
+        \injava{winsome.utils} le API vengono compresse nel file
+        \mono{lib/winsome-api.jar}.
+\end{itemize}
+
+La scelta di separare le API dall'applicativo client ha lo scopo di separare il
+più possibile i vari moduli: così facendo si lascia aperta la possibilità
+di creare un client diverso che riusi le API fornite per interfacciarsi con
+il server.
+Inoltre sia il client che il server dipendono dalla libreria delle API per 
+realizzare alcune funzionalità (ad esempio il parsing dei file di configurazione).
+
+\section{Il package \injava{winsome.utils}}
+I tre moduli descritti nella \Cref{sec:arch} dipendono da alcune funzionalità
+messe a disposizione dal package di utilities:
+\begin{itemize}
+    \item il file \injava{winsome.utils.ConsoleColors} contiene i codici ASCII
+        per usare i colori nei terminali: viene usato soprattutto dal client
+        nella propria Command Line Interface;
+    \item il package \injava{winsome.utils.cryptography} contiene la classe
+        \injava{Hash}, che permette l'hashing di stringhe (utile per
+        inviare e memorizzare le password), e l'eccezione 
+        \injava{FailedHashException} per indicare il fallimento di un tentativo
+        di hashing;
+    \item il package \injava{winsome.utils.configs} contiene le classi
+        \injava{AbstractConfig} e \injava{ConfigEntry}: esse consentono di parsare
+        file nel formato descritto nella \Cref{sec:config}.
+\end{itemize}
+
+\section{I file di configurazione} \label{sec:config}
+Sia il client che il server necessitano di un file di configurazione per 
+inizializzare i vari parametri. La sintassi dei due file è la stessa, e corrisponde
+alla sintassi base del linguaggio di markup YAML:
+\begin{minted}{yaml}
+    # comments and empty lines are allowed
+    key: value # comments after values are allowed
+\end{minted}
+Due esempi di file di configurazione sono presenti nella directory \mono{configs/}
+e di default, a meno di non specificare altrimenti negli argomenti a riga di
+comando del client/server, tali file sono usati come file di configurazione.  
+
+I campi dei file di configurazione devono essere tutti presenti una e una sola 
+volta: in caso contrario il sistema segnala l'errore.
+
+\subsection{File di configurazione del server}
+Il file di configurazione del server ha i seguenti campi:
+\begin{description}
+    \item[tcp-port] Un intero non negativo che rappresenta la porta usata dal socket TCP. 
+    \item[udp-port] Un intero non negativo che rappresenta la porta usata dal socket UDP.
+    \item[multicast-addr] L'indirizzo di multicast sul quale i client ricevono
+        le notifiche del calcolo delle ricompense.
+    \item[multicast-port] La porta sulla quale i client ricevono le notifiche
+        in multicast (è un intero non negativo). 
+\end{description}
+
 
 \end{document}
