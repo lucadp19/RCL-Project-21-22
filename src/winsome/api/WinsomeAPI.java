@@ -37,7 +37,7 @@ import winsome.utils.cryptography.Hash;
 /** The API interface to communicate with the Winsome Social Network Server. */
 public class WinsomeAPI extends RemoteObject implements RemoteClient {
     /** Reads and registers the server updates on the Multicast Socket */
-    private  class WalletUpdatesWorker implements Callable<Void> {
+    private class WalletUpdatesWorker implements Callable<Void> {
         /** The multicast socket */
         private MulticastSocket mcastSocket;
         /** The multicast address */
@@ -50,26 +50,17 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
          * @param addr the multicast address
          * @param sock the multicast socket
          */
-        public WalletUpdatesWorker(InetAddress addr, MulticastSocket sock) {
+        public WalletUpdatesWorker(InetAddress addr, MulticastSocket sock) throws IOException {
             mcastAddress = addr;
             mcastSocket = sock;
+            mcastSocket.joinGroup(mcastAddress);
             messages = new LinkedBlockingQueue<>();
         }
 
         /**
-         * Starts this worker by joining the multicast group.
-         * @throws IOException if some IO error occurs
+         * Empties the message queue.
          */
-        public void start() throws IOException {
-            mcastSocket.joinGroup(mcastAddress);
-        }
-
-        /**
-         * Stops this worker by leaving the multicast group and emptying the message queue.
-         * @throws IOException if some IO error occurs
-         */
-        public void stop() throws IOException {
-            mcastSocket.leaveGroup(mcastAddress);
+        public void clear() throws IOException {
             messages.clear();
         }
 
@@ -81,9 +72,10 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
                 DatagramPacket packet = new DatagramPacket(buf, buf.length);
                 mcastSocket.receive(packet);
                 // adds the message to the queue
-                messages.offer(
-                    new String(packet.getData(), StandardCharsets.UTF_8)
-                );
+                if(isLogged())
+                    messages.offer(
+                        new String(packet.getData(), StandardCharsets.UTF_8)
+                    );
             }
         }
 
@@ -223,6 +215,7 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         mcastAddress = InetAddress.getByName(addr);
         mcastSocket = new MulticastSocket(port);
         worker = new WalletUpdatesWorker(mcastAddress, mcastSocket);
+        mcastFuture = thread.submit(worker);
     }
 
     /**
@@ -346,9 +339,6 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
                 try {
                     addUsersAndTags(response.get("followers").getAsJsonArray(), followers);
                 } catch (NullPointerException | IllegalStateException ex) { } // leave everything empty
-
-                worker.start();
-                mcastFuture = thread.submit(worker);
             }
             case USER_NOT_REGISTERED -> throw new NoSuchUserException("\"" + user + "\" does not exist");
             case WRONG_PASSW -> throw new WrongPasswordException("password does not match");
@@ -380,11 +370,9 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
         switch (responseCode) {
             case SUCCESS -> {
                 remoteServer.unregisterForUpdates(loggedUser.get());
-                loggedUser = null;
+                loggedUser = Optional.empty();
 
-                mcastFuture.cancel(true);
-                mcastFuture = null;
-                worker.stop();
+                worker.clear();
             }
             default -> throw new UnexpectedServerResponseException(responseCode.getMessage());
         }
