@@ -94,10 +94,10 @@ clean: title
 
 # -------------- RUN -------------- #
 
-.PHONY: run-server run-client
+.PHONY: run-default-server run-default-client
 
-run-server:
+run-default-server:
 	@java -cp $(SERVER_CP) $(SERVER_MAIN)
 
-run-client:
+run-default-client:
 	@java -cp $(CLIENT_CP) $(CLIENT_MAIN)

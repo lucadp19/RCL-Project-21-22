@@ -36,13 +36,16 @@
 
 \section{Introduzione e informazioni generali}
 Il progetto di Reti di Calcolatori e Laboratorio dell'Anno Accademico 2021/2022
-consiste nella realizzazione di un Social Network chiamato \sstrong{Winsome}.
+consiste nella realizzazione di un Social Network chiamato \sstrong{Winsome},
+la cui particolarità consiste nell'elargire una criptovaluta, chiamata 
+\sstrong{Wincoin}, agli utenti in base alla popolarità dei loro post.
+
 Il Social Network è basato su un'architettura di tipo \emph{client-server}:
 le due parti comunicano attraverso la rete grazie ad un'API, che permette
 al client di interfacciarsi con l'applicativo del server.
 
-Il progetto è stato realizzato in Java, versione 17 ed è stato testato in ambiente
-Linux.
+Il progetto è stato realizzato in Java, versione 17 ed è stato sviluppato e 
+testato in ambiente Linux.
 
 \section{Compilazione ed esecuzione}
 Il progetto è interamente compilabile ed eseguibile attraverso l'uso dei comandi
@@ -90,12 +93,14 @@ Il progetto è diviso in tre moduli principali: \begin{itemize}
         \mono{lib/winsome-api.jar}.
 \end{itemize}
 
-La scelta di separare le API dall'applicativo client ha lo scopo di separare il
+La scelta di isolare le API dall'applicativo client ha lo scopo di separare il
 più possibile i vari moduli: così facendo si lascia aperta la possibilità
 di creare un client diverso che riusi le API fornite per interfacciarsi con
 il server.
-Inoltre sia il client che il server dipendono dalla libreria delle API per 
-realizzare alcune funzionalità (ad esempio il parsing dei file di configurazione).
+
+Inoltre, dato che le API sono compilate in una libreria in formato \mono{.jar},
+possono essere diffuse e utilizzate in modo indipendente dal resto del codice
+del client e del server. 
 
 \section{Il package \injava{winsome.utils}}
 I tre moduli descritti nella \Cref{sec:arch} dipendono da alcune funzionalità
@@ -130,15 +135,231 @@ I campi dei file di configurazione devono essere tutti presenti una e una sola
 volta: in caso contrario il sistema segnala l'errore.
 
 \subsection{File di configurazione del server}
-Il file di configurazione del server ha i seguenti campi:
+Il file di configurazione del server deve avere i seguenti campi:
 \begin{description}
-    \item[tcp-port] Un intero non negativo che rappresenta la porta usata dal socket TCP. 
-    \item[udp-port] Un intero non negativo che rappresenta la porta usata dal socket UDP.
-    \item[multicast-addr] L'indirizzo di multicast sul quale i client ricevono
+    \item[\mono{tcp-port}] Un intero non negativo che rappresenta la porta usata dal socket TCP. 
+    \item[\mono{udp-port}] Un intero non negativo che rappresenta la porta usata dal socket UDP.
+    \item[\mono{multicast-addr}] L'indirizzo di multicast sul quale i client ricevono
         le notifiche del calcolo delle ricompense.
-    \item[multicast-port] La porta sulla quale i client ricevono le notifiche
-        in multicast (è un intero non negativo). 
+    \item[\mono{multicast-port}] La porta sulla quale i client ricevono le notifiche
+        in multicast (è un intero non negativo).
+    \item[\mono{registry-host}] Indirizzo dell'host su cui si trova il registry.
+    \item[\mono{registry-port}] Porta del registry RMI.
+    \item[\mono{reward-interval}] L'intervallo di tempo in secondi tra due esecuzioni
+        dell'algoritmo di calcolo delle ricompense.
+    \item[\mono{reward-percentage}] La percentuale (come numero \emph{floating point}
+        compreso tra $0$ e $100$) di ricompensa che va all'autore del post.
+    \item[\mono{persistence-dir}] La directory che contiene lo stato corrente del server.
+        Tale directory può essere vuota all'avvio del server, ma deve esistere.
+    \item[\mono{persistence-interval}] L'intervallo di tempo in secondi tra due
+        esecuzioni dell'algoritmo di persistenza dei dati.
+    \item[\mono{keep-alive}] Il tempo in secondi per cui i \emph{worker thread} del
+        thread pool possono rimanere attivi senza essere impegnati in alcun task.
+    \item[\mono{min-threads}] Il minimo numero di \emph{worker thread} sempre attivi.
+    \item[\mono{max-thread}] Il massimo numero di \emph{worker thread} attivi contemporaneamente.
+    \item[\mono{pool-timeout}] Il tempo di timeout (in millisecondi) prima di chiudere
+        forzatamente il \emph{thread pool} alla chiusura del server.         
 \end{description}
+
+\subsection{File di configurazione del client}
+Il file di configurazione del client deve avere i seguenti campi:
+\begin{description}
+    \item[\mono{server-addr}] L'indirizzo su cui si trova il server.
+    \item[\mono{tcp-port}] Un intero non negativo che rappresenta la porta del server.
+    \item[\mono{registry-host}] L'indirizzo dell'host su cui si trova il registry.
+    \item[\mono{registry-port}] La porta del registry RMI.
+    \item[\mono{socket-timeout}] Il tempo di timeout (in millisecondi) per il socket
+        di comunicazione con il server.      
+\end{description}
+
+\section{Il package \injava{winsome.client}} \label{sec:client}
+Il package \injava{winsome.client} contiene la Command Line Interface sfruttata
+da un utente del Social Network per interagire con gli altri utenti. 
+In particolare questo package contiene le seguenti classi:
+\begin{itemize}
+    \item la classe \injava{ClientConfig} eredita dalla classe astratta 
+        \injava{winsome.utils.configs.AbstractConfig} e permette di effettuare
+        il parsing del file di configurazione del client, descritto sopra;
+    \item la \injava{enum} \injava{Command}, insieme all'eccezione 
+        \injava{exceptions.UnknownCommandException}, si occupa di descrivere i
+        comandi della CLI; implementa inoltre alcuni metodi di utility che
+        permettono di ottenere il comando a partire dalla stringa digitata dal
+        client e di ottenere degli help messages per ogni comando;
+    \item la classe \injava{WinsomeClientMain} è l'\emph{entry point} del client:
+        si occupa di leggere il file di configurazione, istanziare le API per
+        collegarsi al server e infine interpretare i comandi scritti dall'utente
+        per fare richieste alle API e restituirne i risultati.
+\end{itemize}
+
+Di default il file di configurazione letto si trova in 
+\mono{./configs/client-config.yaml}. Nel caso si volesse usare un altro percorso
+lo si può specificare al client come opzione a linea di comando. 
+In particolare la sintassi per eseguire il client è la seguente: 
+
+\begin{minted}{shell-session}
+    $ ./scripts/run-client.sh [--help] [--config=<CONFIG_PATH>]
+\end{minted}
+
+dove \mono{<CONFIG_PATH>} è il path del file di configurazione. 
+
+\subsection{La Command Line Interface del client}
+Per interagire con il Social Network l'utente inserisce in modo interattivo
+dei comandi nel prompt fornito dall'applicativo client. I possibili comandi sono
+i seguenti:
+\begin{description}
+    \item[\mono{help [<command>]}] Stampa il messaggio di aiuto: se viene indicato
+        un particolare comando stampa il messaggio di aiuto di quel comando,
+        altrimenti stampa il messaggio di aiuto generale.
+    \item[\mono{quit}] Chiude il client.
+    \item[\mono{register <username> <password> <tags>}] Permette la registrazione
+        dell'utente di nome \mono{<username>}, con password \mono{<password>} e
+        con tag di interesse \mono{<tags>}. Non vi sono restrizioni sul nome, se
+        non che deve essere unico; la password non deve essere vuota; i tag
+        sono in numero compreso tra $1$ e $5$, devono contenere solo lettere
+        minuscole e devono essere separati da uno spazio. Inoltre, non si possono
+        registrare nuovi utenti se si è già loggati in qualche profilo: bisogna
+        prima eseguire un'operazione di logout.
+    \item[\mono{login <username> <password>}] Permette il login in un utente
+        precedentemente registrato: può dare errore se l'utente non esiste,
+        la password è sbagliata oppure il client è già loggato.
+    \item[\mono{logout}] Permette il logout: come i successivi comandi, può fallire
+        se nessun utente è loggato.
+    \item[\mono{list users}] Permette ad un utente loggato di vedere gli altri
+        utenti del Social Network con cui condivide degli interessi (rappresentati
+        dai tag).
+    \item[\mono{list followers}] Mostra ad un utente loggato la lista dei suoi 
+        \emph{followers}, ovvero degli utenti che lo seguono.
+    \item[\mono{list following}] Mostra ad un utente loggato la lista degli utenti
+        seguiti.
+    \item[\mono{follow <username>}] Permette all'utente loggato di seguire l'utente
+        che ha come nome \mono{<username>}: tale operazione va a buon fine se e
+        solo se l'utente loggato e \mono{<username>} hanno tag in comune. In tal
+        caso, da quel momento in poi l'utente loggato può vedere i post di
+        \mono{<username>} nel suo \emph{feed} e può interagire con essi (ad esempio
+        votandoli, effettuando un \emph{rewin} oppure aggiungendo un commento).
+    \item[\mono{unfollow <username>}] Consente all'utente corrente di smettere
+        di seguire un utente.
+    \item[\mono{blog [<username>]}] Permette all'utente loggato di vedere i post
+        pubblicati da un utente del Social Network: in particolare se nessun nome
+        viene indicato l'utente vede i suoi post. In ogni caso, un utente può
+        vedere solo i post pubblicati da utenti con cui ha interessi in comune,
+        in modo da decidere se eventualmente seguirlo.
+    \item[\mono{post <title> <contents>}] Consente la creazione di un nuovo post.
+        In particolare il titolo non può superare i $50$ caratteri, mentre il contenuto
+        non può superare i $500$ caratteri; inoltre se sono presenti spazi il titolo
+        e/o il contenuto del post vanno racchiusi tra virgolette.
+        Alla fine dell'operazione il server restituisce l'identificativo del 
+        post appena creato.
+    \item[\mono{show feed}] Mostra i post nel \emph{feed} dell'utente corrente,
+        ovvero mostra tutti i post pubblicati dagli utenti seguiti dal client.
+    \item[\mono{show post <idPost>}] Mostra il post con identificativo \mono{<idPost>}:
+        in particolare mostra anche il contenuto del post, il numero di 
+        upvote/downvote e i commenti.  
+        L'operazione si conclude con successo solo se l'utente loggato ha interessi
+        in comune con il creatore del post (che sia l'autore originale o il 
+        \emph{rewinner}).
+    \item[\mono{delete <idPost>}] Se l'utente è il creatore del post, lo cancella,
+        altrimenti restituisce un errore. In particolare se il post è un \emph{rewin}
+        cancella solo il post, mentre se il post è un post originale cancella 
+        tutti i \emph{rewin} del post.
+    \item[\mono{rewin <idPost>}] Sponsorizza il post con identificativo 
+        \mono{<idPost>}, ovvero lo rende visibile a tutti gli utenti con interessi
+        in comune all'utente corrente, e quindi anche a coloro che non possono
+        interagire con l'autore originale. Tale operazione termina con successo
+        solo se l'utente corrente segue il creatore del post identificato da
+        \mono{<idPost>}.
+    \item[\mono{rate <idPost> <vote>}] Aggiunge un like oppure un dislike al post
+        con identificativo \mono{<idPost>}, a patto che l'utente corrente segua
+        il creatore del post. Il campo \mono{<vote>} può essere $+1$ oppure $-1$
+        per indicare rispettivamente un like e un dislike; se viene indicato un
+        altro valore il server restituisce un errore. 
+    \item[\mono{comment <idPost> <contents>}] Aggiunge un commento al post
+        \mono{<idPost>}, a patto che l'utente corrente segua il creatore del post.
+        Se il commento contiene spazi va racchiuso tra virgolette.
+    \item[\mono{wallet}] Restituisce la storia delle transazioni relative 
+        all'utente corrente, insieme al totale in Wincoins.
+    \item[\mono{wallet btc}] Restituisce il valore totale accumulato dall'utente
+        convertito in BTC. Questa operazione può fallire se il servizio che
+        fornisce il tasso di cambio Wincoins-BTC non è disponibile.   
+\end{description}
+
+\section{Il package \injava{winsome.api}}
+Il package delle API implementa uno dei due endpoint della comunicazione 
+client-server e pertanto contiene molti dei metodi e delle classi usate
+nella comunicazione. \begin{itemize}
+    \item Il subpackage \injava{winsome.api.codes} contiene due classi, chiamate
+        \injava{RequestCode} e \injava{ResponseCode}, che indicano le possibili
+        richieste che il client può inviare e le possibili risposte del server
+        (inclusi gli errori). Dato che i messaggi inviati sono in forma di oggetti
+        JSON (tramite la classe \injava{JsonObject} fornita da GSON), le due classi
+        forniscono anche dei metodi per aggiungere un campo "codice" ad un JSON
+        e per ottere il codice salvato.
+    \item Il subpackage \injava{winsome.api.remote} contiene le interfacce
+        \injava{RemoteClient} e \injava{RemoteServer} che consentono l'uso
+        delle tecniche di \emph{Remote Method Invocation} da parte delle API
+        e del Server.
+    \item Il subpackage \injava{winsome.api.exceptions} contiene molte eccezioni,
+        usate sia nel codice del server, sia per comunicare al client la risposta
+        del server.
+    \item Il subpackage \injava{winsome.api.userstruct} contiene alcune strutture
+        dati immutabili usate per racchiudere i dati inviati dal server, come
+        i post (incapsulati nella classe \injava{PostInfo}) e il portafoglio di
+        un utente (descritto dalla classe \injava{Wallet}).
+\end{itemize}
+
+La classe \injava{WinsomeAPI} fornisce la logica delle API. Per utilizzarla bisogna
+\begin{enumerate}
+    \item istanziare un oggetto \injava{WinsomeAPI}, fornendo i parametri necessari;
+    \item invocare il metodo \injava{connect()}, che si occupa di 
+    \begin{enumerate}
+        \item stabilire la connessione TCP con il server,
+        \item immediatamente chiedere al server le coordinate per unirsi al gruppo 
+        di multicast su cui si ricevono gli update delle ricompense,
+        \item ottenere dal Registry l'istanza remota del server e creare la propria
+        istanza remota.
+    \end{enumerate}
+\end{enumerate}
+
+A questo punto i metodi delle API possono essere invocati dal client per
+eseguire le varie operazioni concesse. Le API fanno alcuni \emph{sanity check}
+sugli argomenti prima di inviare la richiesta al server, e in caso vi sia un
+errore evidente viene immediatamente sollevata un'eccezione.
+
+Per comunicare con il server vengono usati i metodi del package 
+\injava{java.io}. Il protocollo esatto di comunicazione è descritto nel file
+\mono{docs/protocol.md} e consiste nell'invio di \injava{JsonObject} (adeguantamente
+convertiti in bytes) che contengono il codice della richiesta/risposta e eventuali
+argomenti.
+
+Contemporaneamente, per ricevere i messaggi di update delle ricompense, le API
+mandano in esecuzione un thread pool contenente un singolo thread che esegue 
+un'istanza della classe \injava{WalletUpdatesWorker}: il metodo \injava{call()}
+(ereditato dall'interfaccia \injava{Callable}) di questa classe consiste
+nell'attendere i messaggi del server in un ciclo infinito, e, nel caso un client
+sia loggato, inserirli in una \injava{BlockingQueue}.
+
+Quando il client ne fa richiesta, il metodo \injava{getServerMsg()} delle
+API sposta l'intero contenuto della \injava{BlockingQueue} in una lista e la
+restituisce al client, che potrà controllare tutti i messaggi inviati dal server
+dall'ultima richiesta.
+
+\section{Il package \injava{winsome.server}} \label{sec:server}
+L'ultimo package implementa l'intera logica del server. Il suo \emph{entry point}
+è la classe \injava{WinsomeServerMain}, che si occupa di
+\begin{enumerate}
+    \item leggere e fare il parsing degli eventuali argomenti a riga di comando, 
+        che sono descritti successivamente;
+    \item inizializzare il logger, utilizzando come directory di destinazione per
+        i file di log la directory \mono{logs/} se nessuna scelta specifica è 
+        stata indicata tra gli argomenti a riga di comando;
+    \item istanziare un oggetto \injava{WinsomeServer};
+    \item inizializzare i dati del server e i vari socket tramite i metodi
+        \injava{init()} e \injava{start()};
+    \item far partire il server su un thread dedicato, mentre il thread principale
+        rimane in attesa di un input da parte dell'utente per terminare il server.
+\end{enumerate}
+
+
 
 
 \end{document}
