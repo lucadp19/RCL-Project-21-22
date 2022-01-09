@@ -1,12 +1,20 @@
 package winsome.server;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
 import java.util.Objects;
 import java.util.Optional;
 
 import winsome.utils.configs.AbstractConfig;
 import winsome.utils.configs.ConfigEntry;
-import winsome.utils.configs.exceptions.*;
+import winsome.utils.configs.exceptions.DuplicateKeyException;
+import winsome.utils.configs.exceptions.EntryValueFormatException;
+import winsome.utils.configs.exceptions.InvalidConfigFileException;
+import winsome.utils.configs.exceptions.KeyNotSetException;
+import winsome.utils.configs.exceptions.UnknownKeyException;
 
 public class ServerConfig extends AbstractConfig {
     /** A Field in the Server Config */
@@ -20,7 +28,7 @@ public class ServerConfig extends AbstractConfig {
         /** Multicast port on which clients will receive notifications */
         MCAST_PORT      ("multicast-port"),
         /** Host of the registry */
-        REG_HOST        ("registry-host"),
+        REG_NAME        ("registry-name"),
         /** Port of the registry */
         REG_PORT        ("registry-port"),
         /** Waiting time (in seconds) between two iterations of the Rewards Algorithm */
@@ -56,7 +64,7 @@ public class ServerConfig extends AbstractConfig {
                 case "udp-port" ->          PORT_UDP;
                 case "multicast-addr" ->    MCAST_ADDR;
                 case "multicast-port" ->    MCAST_PORT;
-                case "registry-host" ->     REG_HOST;
+                case "registry-name" ->     REG_NAME;
                 case "registry-port" ->     REG_PORT;
                 case "reward-interval" ->   REWARD_INT;
                 case "reward-percentage" -> REWARD_PERC;
@@ -80,7 +88,7 @@ public class ServerConfig extends AbstractConfig {
     /** Multicast port on which clients will receive notifications */
     public final int multicastPort;
     /** Host of the registry */
-    public final String regHost;
+    public final String regName;
     /** Port of the registry */
     public final int regPort;
 
@@ -105,7 +113,7 @@ public class ServerConfig extends AbstractConfig {
 
     private ServerConfig(
         int portTCP, int portUDP, String multicastAddr,
-        int multicastPort, String regHost, int regPort,
+        int multicastPort, String regName, int regPort,
         long rewardInterval, RewardsPercentage percentage,
         String persistenceDir, long persistenceInterval,
         long keepAlive, int minThreads, int maxThreads, long poolTimeout
@@ -114,7 +122,7 @@ public class ServerConfig extends AbstractConfig {
         this.portUDP = portUDP;
         this.multicastAddr = Objects.requireNonNull(multicastAddr, "multicast address field is null");
         this.multicastPort = multicastPort;
-        this.regHost = Objects.requireNonNull(regHost, "registry host field is null");
+        this.regName = Objects.requireNonNull(regName, "registry name field is null");
         this.regPort = regPort;
         this.rewardInterval = rewardInterval;
         this.percentage = Objects.requireNonNull(percentage, "percentage field is null");
@@ -140,7 +148,7 @@ public class ServerConfig extends AbstractConfig {
         // initializing everything at null
         Integer portTCP = null; Integer portUDP = null; 
         String multicastAddr = null; Integer multicastPort = null; 
-        String regHost = null; Integer regPort = null;
+        String regName = null; Integer regPort = null;
         Long rewardInterval = null; 
         RewardsPercentage percentage = null;
         String persistenceDir = null; Long persistenceInterval = null;
@@ -179,9 +187,9 @@ public class ServerConfig extends AbstractConfig {
                         try { multicastPort = Integer.parseInt(entry.value); }
                         catch(NumberFormatException ex){ throw new EntryValueFormatException("argument of \"" + key.key + "\" must be an integer"); }
                     }
-                    case REG_HOST -> {
-                        if(regHost != null) throw new DuplicateKeyException(key.key);
-                        regHost = entry.value;
+                    case REG_NAME -> {
+                        if(regName != null) throw new DuplicateKeyException(key.key);
+                        regName = entry.value;
                     }
                     case REG_PORT -> {
                         if(regPort != null) throw new DuplicateKeyException(key.key);
@@ -237,7 +245,7 @@ public class ServerConfig extends AbstractConfig {
         // if the method throws, some key has not been set
         try { return new ServerConfig(
                     portTCP, portUDP, multicastAddr, multicastPort, 
-                    regHost, regPort, rewardInterval, percentage, 
+                    regName, regPort, rewardInterval, percentage, 
                     persistenceDir, persistenceInterval, keepAlive,
                     minThreads, maxThreads, poolTimeout);
         } catch (NullPointerException ex){ throw new KeyNotSetException(); }

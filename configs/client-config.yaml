@@ -6,8 +6,8 @@ server-addr: localhost
 # Server TCP port
 tcp-port: 6666
 
-# Registry host
-registry-host: localhost
+# Registry name
+registry-name: winsome-server
 
 # RMI Registry port
 registry-port: 7777

@@ -102,8 +102,8 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
     private final String serverAddr;
     /** The port of the Winsome Server */
     private final int serverPort; 
-    /** The address (name) of the Registry containing the Remote Server */
-    private final String registryAddr;
+    /** The name of the Registry containing the Remote Server */
+    private final String registryName;
     /** The port of the Registry */
     private final int registryPort;
     /** The socket timeout */
@@ -135,14 +135,14 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
      * Creates a new instance of a Winsome API.
      * @param serverAddr the server address
      * @param serverPort the server port
-     * @param registryAddr the registry nome
+     * @param registryName the registry name
      * @param registryPort the registry port
      * @param sockTimeout the socket timeout
      */
     public WinsomeAPI(
         String serverAddr, 
         int serverPort,
-        String registryAddr,
+        String registryName,
         int registryPort,
         int sockTimeout
     ){
@@ -150,7 +150,7 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
 
         this.serverAddr = serverAddr;
         this.serverPort = serverPort;
-        this.registryAddr = registryAddr;
+        this.registryName = registryName;
         this.registryPort = registryPort;
         this.sockTimeout = sockTimeout;
     }
@@ -186,9 +186,8 @@ public class WinsomeAPI extends RemoteObject implements RemoteClient {
     private void connectRegistry() throws RemoteException, NotBoundException {
         if(remoteServer != null) throw new IllegalStateException("already connected to server");
 
-        Registry reg = LocateRegistry.getRegistry(registryPort);
-        Remote remoteObj = reg.lookup(registryAddr);
-        remoteServer = (RemoteServer) remoteObj;
+        Registry reg = LocateRegistry.getRegistry(serverAddr, registryPort);
+        remoteServer = (RemoteServer) reg.lookup(registryName);
 
         UnicastRemoteObject.exportObject(this, 0);
     }

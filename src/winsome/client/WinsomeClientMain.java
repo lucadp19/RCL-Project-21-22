@@ -97,7 +97,7 @@ public class WinsomeClientMain {
         WinsomeAPI api = new WinsomeAPI(
             config.serverAddr,
             config.portTCP,
-            config.regHost,
+            config.regName,
             config.regPort,
             config.sockTimeout
         );

@@ -16,8 +16,8 @@ public class ClientConfig extends AbstractConfig {
         SERVER_ADDR     ("server-addr"),
         /** Port of the TCP socket */
         PORT_TCP        ("tcp-port"),
-        /** Host of the registry */
-        REG_HOST        ("registry-host"),
+        /** Name of the registry */
+        REG_NAME        ("registry-name"),
         /** Port of the registry */
         REG_PORT        ("registry-port"),
         /** Timeout of the socket */
@@ -37,7 +37,7 @@ public class ClientConfig extends AbstractConfig {
             return switch (key) {
                 case "server-addr" ->    SERVER_ADDR;
                 case "tcp-port" ->       PORT_TCP;
-                case "registry-host" ->  REG_HOST;
+                case "registry-name" ->  REG_NAME;
                 case "registry-port" ->  REG_PORT;
                 case "socket-timeout" -> SOCK_TIMEOUT;
                 default -> throw new UnknownKeyException(key);
@@ -47,16 +47,16 @@ public class ClientConfig extends AbstractConfig {
 
     public final String serverAddr;
     public final int portTCP;
-    public final String regHost;
+    public final String regName;
     public final int regPort;
     public final int sockTimeout;
     
     private ClientConfig(
-        String serverAddr, int portTCP, String regHost, int regPort, int sockTimeout
+        String serverAddr, int portTCP, String regName, int regPort, int sockTimeout
     ) {
         this.serverAddr = Objects.requireNonNull(serverAddr, "server address field is null");
         this.portTCP = portTCP;
-        this.regHost = Objects.requireNonNull(regHost, "registry host field is null");
+        this.regName = Objects.requireNonNull(regName, "registry name field is null");
         this.regPort = regPort;
         this.sockTimeout = sockTimeout;
     }
@@ -76,7 +76,7 @@ public class ClientConfig extends AbstractConfig {
         // initializing everything at null
         String serverAddr = null;
         Integer portTCP = null;
-        String regHost = null; Integer regPort = null;
+        String regName = null; Integer regPort = null;
         Integer sockTimeout = null;
         
         try (
@@ -101,9 +101,9 @@ public class ClientConfig extends AbstractConfig {
                         try { portTCP = Integer.parseInt(entry.value); }
                         catch(NumberFormatException ex){ throw new EntryValueFormatException("argument of \"" + key.key + "\" must be an integer"); }
                     }
-                    case REG_HOST -> {
-                        if(regHost != null) throw new DuplicateKeyException(key.key);
-                        regHost = entry.value;
+                    case REG_NAME -> {
+                        if(regName != null) throw new DuplicateKeyException(key.key);
+                        regName = entry.value;
                     }
                     case REG_PORT -> {
                         if(regPort != null) throw new DuplicateKeyException(key.key);
@@ -120,7 +120,7 @@ public class ClientConfig extends AbstractConfig {
         } catch (IOException ex) { throw new IOException("IO error while reading config file", ex); }
 
         // if the method throws, some key has not been set
-        try { return new ClientConfig( serverAddr, portTCP, regHost, regPort, sockTimeout); } 
+        try { return new ClientConfig( serverAddr, portTCP, regName, regPort, sockTimeout); } 
         catch (NullPointerException ex){ throw new KeyNotSetException(); }
     }
 }

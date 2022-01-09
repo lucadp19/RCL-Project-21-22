@@ -13,7 +13,7 @@ multicast-addr: 239.255.32.32
 multicast-port: 44444
 
 # Registry host
-registry-host: localhost
+registry-name: winsome-server
 
 # RMI Registry port
 registry-port: 7777
