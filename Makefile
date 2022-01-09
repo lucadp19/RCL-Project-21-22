@@ -24,7 +24,7 @@ CLIENT_MAIN_SRC = $(SRC_DIR)/winsome/client/WinsomeClientMain.java
 
 # Default target
 .DEFAULT_GOAL := default
-default: title dirs compile server client
+default: title dirs compile api server client
 
 # Creates the necessary directories using the script
 .PHONY: dirs
@@ -46,34 +46,42 @@ compile:
 	@javac -d $(OUT_DIR) -cp $(SRC_CP) $(CLIENT_MAIN_SRC)
 	@echo -e "$(BLUE)==> Project compiled!$(RESET)\n"
 
+# API JAR creation
+
+API_JAR=$(LIB_DIR)/winsome-api.jar
+
+.PHONY: api
+api:
+	@echo -e "$(BLUE)-> $(RESET)Creating API .jar file..."
+	@jar -cvf $(API_JAR) \
+		-C $(OUT_DIR) winsome/api \
+		-C $(OUT_DIR) winsome/utils > /dev/null
+	@echo -e "$(BLUE)==> API .jar created!$(RESET)\n"
+	
 # Server JAR creation
 
 SERVER_MAIN=winsome.server.WinsomeServerMain
 SERVER_JAR=$(BIN_DIR)/winsome-server.jar
-SERVER_CP=$(SERVER_JAR):$(GSON_LIB):.
+SERVER_CP=$(SERVER_JAR):$(API_JAR):$(GSON_LIB):.
 
 .PHONY: server
 server:
 	@echo -e "$(BLUE)-> $(RESET)Creating Server .jar file..."
 	@jar -cevf $(SERVER_MAIN) $(SERVER_JAR) \
-		-C $(OUT_DIR) winsome/server \
-		-C $(OUT_DIR) winsome/api \
-		-C $(OUT_DIR) winsome/utils > /dev/null
+		-C $(OUT_DIR) winsome/server > /dev/null
 	@echo -e "$(BLUE)==> Server .jar created!$(RESET)\n"
 
 # Client JAR creation
 
 CLIENT_MAIN=winsome.client.WinsomeClientMain
 CLIENT_JAR=$(BIN_DIR)/winsome-client.jar
-CLIENT_CP=$(CLIENT_JAR):$(GSON_LIB):.
+CLIENT_CP=$(CLIENT_JAR):$(API_JAR):$(GSON_LIB):.
 
 .PHONY: client
 client:
 	@echo -e "$(BLUE)-> $(RESET)Creating Client .jar file..."
 	@jar -cevf $(CLIENT_MAIN) $(CLIENT_JAR) \
-		-C $(OUT_DIR) winsome/client \
-		-C $(OUT_DIR) winsome/api \
-		-C $(OUT_DIR) winsome/utils > /dev/null
+		-C $(OUT_DIR) winsome/client > /dev/null
 	@echo -e "$(BLUE)==> Client .jar created!$(RESET)"
 
 # -------------- CLEAN -------------- #
@@ -81,7 +89,7 @@ client:
 .PHONY: clean
 clean: title
 	@echo -e "$(BLUE)-> $(RESET)Cleaning object files and executables..."
-	@rm -rf $(OUT_DIR)/* $(BIN_DIR)/*
+	@rm -rf $(OUT_DIR)/* $(BIN_DIR)/* $(API_JAR)
 	@echo -e "$(BLUE)==> Done!$(RESET)"
 
 # -------------- RUN -------------- #
