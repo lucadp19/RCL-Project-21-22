@@ -61,7 +61,7 @@ public class PostInfo {
         Objects.requireNonNull(comments, "list of comments must not be null");
         for(Comment comment : comments)
             Objects.requireNonNull(comment, "each comment under a post must not be null");
-        this.comments = new ArrayList<>();
+        this.comments = new ArrayList<>(comments);
     }
 
     /**

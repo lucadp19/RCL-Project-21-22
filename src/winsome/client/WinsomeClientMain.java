@@ -3,10 +3,11 @@ package winsome.client;
 import java.io.*;
 
 import java.rmi.NotBoundException;
-
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-
+import java.time.format.DateTimeFormatter;
+import java.time.format.FormatStyle;
 import java.util.*;
 import java.util.Map.*;
 import java.util.regex.Matcher;
@@ -819,10 +820,22 @@ public class WinsomeClientMain {
         for(TransactionInfo transaction : wallet.getTransactions()){
             System.out.printf(ConsoleColors.yellow("    - Amount: ") + "%.4f", transaction.amount);
             System.out.println(
-                ConsoleColors.yellow("      Timestamp: ") + 
-                ZonedDateTime.ofInstant(transaction.timestamp, ZoneId.systemDefault())
+                ConsoleColors.yellow("      Timestamp: ") + format(transaction.timestamp)
             );
         }
+    }
+
+    /**
+     * Formats a timestamp into a human readable form.
+     * @param timestamp the given timestamp
+     * @return the formatted timestamp
+     */
+    private static String format(Instant timestamp){
+        DateTimeFormatter formatter = DateTimeFormatter
+            .ofPattern("yyyy-MM-dd HH:mm:ss")
+            .withZone(ZoneId.systemDefault());
+        
+        return formatter.format(timestamp);
     }
 
     /**
