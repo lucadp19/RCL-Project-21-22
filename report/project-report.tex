@@ -11,6 +11,9 @@
 
 \renewcommand{\thesection}{\arabic{section}}
 
+\setulmarginsandblock{1in}{1.5in}{*}
+\checkandfixthelayout
+
 \definecolor{bg}{rgb}{0.97,0.97,0.97}
 
 \setminted{
@@ -42,9 +45,9 @@ la cui particolarità consiste nell'elargire una criptovaluta, chiamata
 
 Il Social Network è basato su un'architettura di tipo \emph{client-server}:
 le due parti comunicano attraverso la rete grazie ad un'API, che permette
-al client di interfacciarsi con l'applicativo del server.
+al client di interfacciarsi con il server.
 
-Il progetto è stato realizzato in Java, versione 17 ed è stato sviluppato e 
+Il progetto è stato realizzato in Java (versione $17$) ed è stato sviluppato e 
 testato in ambiente Linux.
 
 \section{Compilazione ed esecuzione}
@@ -54,15 +57,14 @@ incluso un \mono{Makefile} contenente alcune semplici regole.
 \begin{description}
     \item[\shell{$ make}] La regola di default compila il progetto: in particolare 
         crea le directory necessarie al corretto funzionamento degli applicativi,
-        compila il codice sorgente e ne crea due file \mono{.jar}, che vengono
-        salvati nella directory \mono{bin/}.
+        compila il codice sorgente e li comprime in file \mono{.jar}.
     \item[\shell{$ make run-default-server}] Questa regola, se lanciata dopo la
         compilazione, esegue il server usando come parametri (ovvero come 
-        \emph{path} del file di configurazione e della directory di logging, 
-        cf. \Cref{sec:server}) i valori di default.
+        path del file di configurazione e della directory di logging)
+        i valori di default.
     \item[\shell{$ make run-default-client}] Analogamente, esegue il client usando
-        i parametri di default (in questo caso solamente il \emph{path} del
-        file di configurazione, cf. \Cref{sec:client}).  
+        i parametri di default (in questo caso solamente il path del
+        file di configurazione).  
     \item[\shell{$ make clean}] Rimuove i file \mono{.class}, i file \mono{.jar}
         e i file di log del server contenuti nella directory \mono{logs/}. 
 \end{description}
@@ -71,8 +73,27 @@ Per eseguire il client o il server passando dei parametri a riga di comando si
 possono usare gli script Bash \mono{run-server.sh} e \mono{run-client.sh},
 entrambi contenuti nella directory \mono{scripts/}. Per far ciò è necessario
 innanzitutto renderli eseguibili, tramite ad esempio 
-\shell{$ chmod a+x scripts/run-server.sh scripts/run-client.sh}, e poi eseguirli
-normalmente come \shell{$ ./run-server.sh [...]}.
+\shell{\$ chmod a+x scripts/run-server.sh scripts/run-client.sh}.
+
+A questo punto il server può essere invocato con le seguenti opzioni:
+
+\begin{minted}{shell-session}
+    $ ./scripts/run-server.sh [--help] [--config=<CONFIG_PATH>] [--logs=<LOGS_PATH>]
+\end{minted}
+
+dove \mono{<CONFIG_PATH>} è il path verso il file di configurazione
+(che di default si trova in \mono{configs/server-config.yaml}), mentre
+\mono{<LOGS_PATH>} è il path della directory in cui verrà memorizzato il file di
+log (default: \mono{logs/}). 
+
+La sintassi per eseguire il client è la seguente: 
+
+\begin{minted}{shell-session}
+    $ ./scripts/run-client.sh [--help] [--config=<CONFIG_PATH>]
+\end{minted}
+
+dove \mono{<CONFIG_PATH>} è il path del file di configurazione (di default
+si usa il file \mono{configs/client-config.yaml}).
 
 L'unica dipendenza del progetto è la libreria GSON (\mono{gson-2.8.6.jar}),
 che si trova nella directory \mono{lib/}.
@@ -143,7 +164,7 @@ Il file di configurazione del server deve avere i seguenti campi:
         le notifiche del calcolo delle ricompense.
     \item[\mono{multicast-port}] La porta sulla quale i client ricevono le notifiche
         in multicast (è un intero non negativo).
-    \item[\mono{registry-host}] Indirizzo dell'host su cui si trova il registry.
+    \item[\mono{registry-name}] Nome del registry RMI creato dal server.
     \item[\mono{registry-port}] Porta del registry RMI.
     \item[\mono{reward-interval}] L'intervallo di tempo in secondi tra due esecuzioni
         dell'algoritmo di calcolo delle ricompense.
@@ -166,7 +187,7 @@ Il file di configurazione del client deve avere i seguenti campi:
 \begin{description}
     \item[\mono{server-addr}] L'indirizzo su cui si trova il server.
     \item[\mono{tcp-port}] Un intero non negativo che rappresenta la porta del server.
-    \item[\mono{registry-host}] L'indirizzo dell'host su cui si trova il registry.
+    \item[\mono{registry-name}] Il nome del registry RMI del server.
     \item[\mono{registry-port}] La porta del registry RMI.
     \item[\mono{socket-timeout}] Il tempo di timeout (in millisecondi) per il socket
         di comunicazione con il server.      
@@ -190,17 +211,6 @@ In particolare questo package contiene le seguenti classi:
         collegarsi al server e infine interpretare i comandi scritti dall'utente
         per fare richieste alle API e restituirne i risultati.
 \end{itemize}
-
-Di default il file di configurazione letto si trova in 
-\mono{./configs/client-config.yaml}. Nel caso si volesse usare un altro percorso
-lo si può specificare al client come opzione a linea di comando. 
-In particolare la sintassi per eseguire il client è la seguente: 
-
-\begin{minted}{shell-session}
-    $ ./scripts/run-client.sh [--help] [--config=<CONFIG_PATH>]
-\end{minted}
-
-dove \mono{<CONFIG_PATH>} è il path del file di configurazione. 
 
 \subsection{La Command Line Interface del client}
 Per interagire con il Social Network l'utente inserisce in modo interattivo
@@ -243,7 +253,7 @@ i seguenti:
         pubblicati da un utente del Social Network: in particolare se nessun nome
         viene indicato l'utente vede i suoi post. In ogni caso, un utente può
         vedere solo i post pubblicati da utenti con cui ha interessi in comune,
-        in modo da decidere se eventualmente seguirlo.
+        in modo da decidere se eventualmente seguirli.
     \item[\mono{post <title> <contents>}] Consente la creazione di un nuovo post.
         In particolare il titolo non può superare i $50$ caratteri, mentre il contenuto
         non può superare i $500$ caratteri; inoltre se sono presenti spazi il titolo
@@ -308,10 +318,10 @@ nella comunicazione. \begin{itemize}
 \end{itemize}
 
 La classe \injava{WinsomeAPI} fornisce la logica delle API. Per utilizzarla bisogna
-\begin{enumerate}
+\begin{enumerate}[(1)]
     \item istanziare un oggetto \injava{WinsomeAPI}, fornendo i parametri necessari;
     \item invocare il metodo \injava{connect()}, che si occupa di 
-    \begin{enumerate}
+    \begin{enumerate}[(a)]
         \item stabilire la connessione TCP con il server,
         \item immediatamente chiedere al server le coordinate per unirsi al gruppo 
         di multicast su cui si ricevono gli update delle ricompense,
@@ -346,7 +356,7 @@ dall'ultima richiesta.
 \section{Il package \injava{winsome.server}} \label{sec:server}
 L'ultimo package implementa l'intera logica del server. Il suo \emph{entry point}
 è la classe \injava{WinsomeServerMain}, che si occupa di
-\begin{enumerate}
+\begin{enumerate}[(1)]
     \item leggere e fare il parsing degli eventuali argomenti a riga di comando, 
         che sono descritti successivamente;
     \item inizializzare il logger, utilizzando come directory di destinazione per
@@ -359,7 +369,105 @@ L'ultimo package implementa l'intera logica del server. Il suo \emph{entry point
         rimane in attesa di un input da parte dell'utente per terminare il server.
 \end{enumerate}
 
+\subsection{Architettura del server}
+Il server deve eseguire contemporaneamente $4$ tipi di operazioni: 
+\begin{enumerate}[(1)]
+    \item accettare nuovi client oppure nuove richieste dai client già accettati,
+    \item soddisfare tali richieste e inviare i risultati,
+    \item persistere periodicamente i dati,
+    \item calcolare periodicamente le ricompense dei post.
+\end{enumerate}
 
+Per far ciò la classe \injava{WinsomeServer} contiene al suo interno altre $3$
+classi: \begin{itemize}
+    \item la classe \injava{Worker}, che si occupa di eseguire le richieste; 
+    \item la classe \injava{ServerPersistence}, che si occupa di salvare lo stato
+        corrente sul disco;
+    \item la classe \injava{RewardsAlgorithm}, che calcola periodicamente le
+        ricompense per i post.
+\end{itemize}
+Queste tre classi implementano le interfacce \injava{Runnable} oppure
+\injava{Callable<Void>} e vengono pertanto eseguite in parallelo al thread
+principale, che si occupa solamente di smistare le richieste. 
+In particolare viene eseguito una sola istanza di \injava{ServerPersistence} e di
+\injava{RewardsAlgorithm}, mentre i \injava{Worker} sono gestiti da un thread pool
+di dimensione variabile. 
 
+Nell'implementazione data è contemporaneamente attivo un ultimo thread, che è
+il thread della classe \injava{WinsomeServerMain}, che però è in attesa dell'input
+dell'utente per terminare il server.
+
+\subsection{Gestione della concorrenza}
+Per gestire l'accesso concorrente alle strutture dati interne del server si
+sfruttano le classi e i metodi forniti dalla libreria \injava{java.util.concurrent},
+ed in particolare le classi \injava{ConcurrentHashMap} e \injava{ConcurrentLinkedQueue}.
+
+Dato che la maggior parte delle operazioni compiute dal server consiste nel 
+modificare un unico punto di un'unica struttura, oppure di iterare una sola
+struttura, le proprietà delle classi appena menzionate garantiscono una corretta
+sincronizzazione tra i thread.
+Nel caso in cui fosse necessario modificare più strutture contemporaneamente
+(come ad esempio nella registrazione di un nuovo utente, oppure nel rewin di un
+post) si sfruttano i monitor.
+
+\subsection{I/O del server}
+Per comunicare con i vari client connessi viene usato il package \injava{java.nio}:
+il server ottiene le richieste dei vari client tramite un \injava{Selector} e,
+se non è una semplice richiesta di connessione, la invia ad un \injava{Worker}
+per eseguirla.
+
+Per evitare di creare un nuovo \injava{ByteBuffer} ad ogni scrittura/lettura,
+ogni \injava{SelectionKey} ha associato un oggetto di tipo \injava{KeyAttachment},
+che contiene un \injava{ByteBuffer} usato solamente nella comunicazione con il
+dato client e il nome dell'utente che ha eseguito il login su tale client:
+in questo modo si possono evitare semplici attacchi al sistema.
+
+\subsection{Strutture dati e persistenza}
+Il subpackage \injava{winsome.server.datastructs} contiene le principali strutture
+usate dal server per memorizzare lo stato del Social Network. In particolare per
+modellare i post sono state create due diverse strutture dati: \begin{itemize}
+    \item gli \injava{OriginalPost}, che corrispondono ad un post del 
+        Social Network che non sia un rewin di un post precedente;
+    \item i \injava{Rewin}, che invece contengono al loro interno un riferimento
+        al post originale.
+\end{itemize} In questo modo tutti i tipi di post hanno un loro identificativo,
+ma eseguire un'operazione su un post originale oppure su un suo qualsiasi rewin
+porta allo stesso risultato; inoltre fare il rewin di un rewin è equivalente a 
+fare il rewin del post originale.
+
+Per memorizzare tali dati sul filesystem vengono usate le funzionalità della libreria
+GSON. Tuttavia, invece di sfruttare la serializzazione automatica, le strutture
+dati del server vengono serializzate e deserializzate manualmente usando i metodi 
+offerti dalle classi \injava{JsonReader} e \injava{JsonWriter}. 
+Ciò consente di persistere solamente le informazioni necessarie, senza la
+ridondanza usata per ragioni di efficienza: ad esempio non viene memorizzato 
+l'intero contenuto del post su cui si basa un rewin, ma solamente il suo identificativo.
+
+Infine, per non bloccare il server completamente durante la persistenza, la classe
+\injava{ServerPersistence} sfrutta gli iteratori \emph{weakly-consistent} forniti
+dalle collezioni concorrenti: questo significa che i dati salvati mentre il server
+è attivo sono potenzialmente non aggiornati.
+Questo problema viene risolto alla chiusura del server, eseguendo un'ultima volta
+l'algoritmo dopo aver chiuso tutte le connessioni.
+
+\subsection{Chiusura del server}
+Per chiudere il server si usa un approccio \emph{poison-pill}: appena il thread
+main legge un carattere inviato dall'amministratore del server viene chiamato
+il metodo \injava{close()}, che sveglia il thread bloccato sulla \injava{select()}
+e inizia la fase di chiusura.
+
+In tale fase viene bloccato e terminato il thread pool, chiuse le connessioni TCP
+e UDP, eliminato l'oggetto remoto usato per la registrazione, e infine viene
+eseguito un'ultima volta l'algoritmo di persistenza dati, in modo da salvare
+su disco tutte le ultime modifiche.
+
+\section{Provare il progetto}
+Per testare il funzionamento del progetto senza dover partire da zero viene
+fornita la directory \injava{.persisted-data-test}, contenente lo stato del
+server dopo la registrazione di alcuni utenti e dopo alcune interazioni.
+
+Gli username degli utenti registrati si trovano nel file 
+\injava{.persisted-data-test/users.json} e ogni utente ha come password 
+\mono{pass}.
 
 \end{document}

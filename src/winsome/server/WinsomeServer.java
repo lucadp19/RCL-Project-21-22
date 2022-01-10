@@ -1858,9 +1858,10 @@ public class WinsomeServer extends RemoteObject implements RemoteServer {
                 while(persistenceWorker.isRunning())
                     persistenceWorker.wait();
                 
+                persistenceThread.shutdownNow();
+                
                 logger.info("Running Persistence Algorithm to save all data.");
                 persistenceWorker.persistData(); 
-                persistenceThread.shutdownNow();
             }
         } catch (InterruptedException ex){ persistenceThread.shutdownNow(); }
 
