@@ -1,0 +1,24 @@
+[
+    {
+        "clark": [
+            "john",
+            "thomas"
+        ]
+    },
+    {
+        "john": [
+            "marley"
+        ]
+    },
+    {
+        "thomas": [
+            "clark"
+        ]
+    },
+    {
+        "marley": [
+            "john",
+            "thomas"
+        ]
+    }
+]

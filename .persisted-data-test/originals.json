@@ -1,0 +1,139 @@
+[
+    {
+        "id": 0,
+        "author": "john",
+        "title": "My favorite albums",
+        "contents": "My favorite albums are hard rock albums",
+        "votes": [
+            {
+                "voter": "clark",
+                "vote": {
+                    "vote": "DOWN",
+                    "visited": true
+                }
+            },
+            {
+                "voter": "marley",
+                "vote": {
+                    "vote": "UP",
+                    "visited": true
+                }
+            }
+        ],
+        "comments": [
+            {
+                "author": "marley",
+                "contents": "Hard rock is the best",
+                "visited": true
+            },
+            {
+                "author": "clark",
+                "contents": "I only like boring pop",
+                "visited": true
+            },
+            {
+                "author": "thomas",
+                "contents": "I agree that hard rock is the best",
+                "visited": true
+            },
+            {
+                "author": "clark",
+                "contents": "Your taste is questionable",
+                "visited": true
+            },
+            {
+                "author": "thomas",
+                "contents": "Why are we still commenting under this post?",
+                "visited": true
+            },
+            {
+                "author": "marley",
+                "contents": "Because we want to make John rich",
+                "visited": true
+            }
+        ],
+        "iterations": 19
+    },
+    {
+        "id": 3,
+        "author": "thomas",
+        "title": "The rewards system makes no sense",
+        "contents": "If somebody disagrees with me, they can't even write it in a comment unless they want to give me money",
+        "votes": [
+            {
+                "voter": "clark",
+                "vote": {
+                    "vote": "UP",
+                    "visited": true
+                }
+            },
+            {
+                "voter": "marley",
+                "vote": {
+                    "vote": "UP",
+                    "visited": true
+                }
+            }
+        ],
+        "comments": [
+            {
+                "author": "marley",
+                "contents": "Yeah why would they even want to pay me for saying random things?!",
+                "visited": true
+            },
+            {
+                "author": "clark",
+                "contents": "I did not understand this so I am going to upvote it",
+                "visited": true
+            }
+        ],
+        "iterations": 11
+    },
+    {
+        "id": 4,
+        "author": "marley",
+        "title": "Books",
+        "contents": "I really like books!",
+        "votes": [
+            {
+                "voter": "clark",
+                "vote": {
+                    "vote": "UP",
+                    "visited": true
+                }
+            },
+            {
+                "voter": "john",
+                "vote": {
+                    "vote": "UP",
+                    "visited": true
+                }
+            },
+            {
+                "voter": "thomas",
+                "vote": {
+                    "vote": "UP",
+                    "visited": true
+                }
+            }
+        ],
+        "comments": [
+            {
+                "author": "john",
+                "contents": "I'm not really a book reader but I'd like to start",
+                "visited": true
+            },
+            {
+                "author": "clark",
+                "contents": "I'd like too!",
+                "visited": true
+            },
+            {
+                "author": "thomas",
+                "contents": "I need to show you some good books",
+                "visited": true
+            }
+        ],
+        "iterations": 6
+    }
+]

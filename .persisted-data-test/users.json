@@ -1,0 +1,36 @@
+[
+    {
+        "username": "clark",
+        "password": "1d714f1f01ee18d1a31b918016b1181c81771db1f219b1bd1e510b15b1d81e41da1d71a31a712510010f1eb1821e81f1",
+        "tags": [
+            "politics",
+            "tv"
+        ]
+    },
+    {
+        "username": "john",
+        "password": "1d714f1f01ee18d1a31b918016b1181c81771db1f219b1bd1e510b15b1d81e41da1d71a31a712510010f1eb1821e81f1",
+        "tags": [
+            "tv",
+            "music",
+            "fashion"
+        ]
+    },
+    {
+        "username": "thomas",
+        "password": "1d714f1f01ee18d1a31b918016b1181c81771db1f219b1bd1e510b15b1d81e41da1d71a31a712510010f1eb1821e81f1",
+        "tags": [
+            "politics",
+            "books"
+        ]
+    },
+    {
+        "username": "marley",
+        "password": "1d714f1f01ee18d1a31b918016b1181c81771db1f219b1bd1e510b15b1d81e41da1d71a31a712510010f1eb1821e81f1",
+        "tags": [
+            "music",
+            "books",
+            "fashion"
+        ]
+    }
+]
